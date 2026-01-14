@@ -2036,6 +2036,11 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     const [commsView, setCommsView] = useState("channels");
     const [channelSearch, setChannelSearch] = useState("");
     const [callsignSearch, setCallsignSearch] = useState("");
+    // Radio call sign settings
+    const [radioCallSigns, setRadioCallSigns] = useState({
+      aircraft: '',      // e.g., "CAP 594"
+      missionBase: ''    // e.g., "Blue Mesa 92"
+    });
     const [crosshairPath1, setCrosshairPath1] = useState([]);
     const [crosshairPath2, setCrosshairPath2] = useState([]);
     const [crosshairResult, setCrosshairResult] = useState(null);
@@ -5029,14 +5034,18 @@ React.createElement(
 
     // Radio Calls Quick Reference Tab
     const renderRadioTab = () => {
+      // Default call signs for examples
+      const acSign = radioCallSigns.aircraft || 'CAP 2127';
+      const baseSign = radioCallSigns.missionBase || 'RED CAP BASE';
+      
       const radioCalls = [
         {
           id: 'engineStart',
           title: '🔑 Engine Start',
           situation: 'Reporting engine start time to Mission Base',
-          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], ENGINE START TIME [TIME] ZULU, OVER.',
-          example: 'RED CAP BASE, THIS IS CAP 2127, ENGINE START TIME 1435 ZULU, OVER.',
-          response: 'Expected: "[YOUR CALL SIGN], [MISSION BASE], ROGER, OUT." or acknowledgment with instructions.',
+          template: '[MISSION BASE], THIS IS [AIRCRAFT], ENGINE START TIME [TIME] ZULU, OVER.',
+          example: `${baseSign}, THIS IS ${acSign}, ENGINE START TIME ____ ZULU, OVER.`,
+          response: `Expected: "${acSign}, ${baseSign}, ROGER, OUT." or acknowledgment with instructions.`,
           tips: [
             'Use 4-digit Zulu time (24-hour format)',
             'Wait for acknowledgment before proceeding',
@@ -5047,8 +5056,8 @@ React.createElement(
           id: 'wheelsUp',
           title: '🛫 Wheels Up / Airborne',
           situation: 'Reporting takeoff and departure',
-          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], WHEELS UP [TIME] ZULU, DEPARTING [LOCATION], PROCEEDING TO [DESTINATION/GRID], OVER.',
-          example: 'RED CAP BASE, THIS IS CAP 2127, WHEELS UP 1452 ZULU, DEPARTING CENTENNIAL, PROCEEDING TO SEARCH GRID ALPHA, OVER.',
+          template: '[MISSION BASE], THIS IS [AIRCRAFT], WHEELS UP [TIME] ZULU, DEPARTING [LOCATION], PROCEEDING TO [DESTINATION/GRID], OVER.',
+          example: `${baseSign}, THIS IS ${acSign}, WHEELS UP ____ ZULU, DEPARTING [AIRPORT], PROCEEDING TO SEARCH GRID [GRID], OVER.`,
           response: 'Expected: Acknowledgment with any updated instructions or weather.',
           tips: [
             'Report immediately after reaching safe altitude',
@@ -5060,8 +5069,8 @@ React.createElement(
           id: 'inGrid',
           title: '📍 In Grid / On Station',
           situation: 'Reporting arrival at search area',
-          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], IN GRID [GRID DESIGNATOR] AT [TIME] ZULU, ALTITUDE [ALT] FEET, COMMENCING SEARCH, OVER.',
-          example: 'RED CAP BASE, THIS IS CAP 2127, IN GRID DENVER-142B AT 1520 ZULU, ALTITUDE 8500 FEET, COMMENCING SEARCH, OVER.',
+          template: '[MISSION BASE], THIS IS [AIRCRAFT], IN GRID [GRID DESIGNATOR] AT [TIME] ZULU, ALTITUDE [ALT] FEET, COMMENCING SEARCH, OVER.',
+          example: `${baseSign}, THIS IS ${acSign}, IN GRID [GRID] AT ____ ZULU, ALTITUDE ____ FEET, COMMENCING SEARCH, OVER.`,
           response: 'Expected: Acknowledgment, confirm search pattern, OPS NORMAL schedule.',
           tips: [
             'Report grid designator clearly',
@@ -5073,8 +5082,8 @@ React.createElement(
           id: 'opsNormal',
           title: '✓ OPS Normal',
           situation: 'Periodic status report (typically every 15-30 min)',
-          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], OPS NORMAL, [POSITION/GRID], OVER.',
-          example: 'RED CAP BASE, THIS IS CAP 2127, OPS NORMAL, GRID DENVER-142B, OVER.',
+          template: '[MISSION BASE], THIS IS [AIRCRAFT], OPS NORMAL, [POSITION/GRID], OVER.',
+          example: `${baseSign}, THIS IS ${acSign}, OPS NORMAL, GRID [GRID], OVER.`,
           response: 'Expected: "ROGER" or updated instructions.',
           tips: [
             'Report at scheduled intervals',
@@ -5087,8 +5096,8 @@ React.createElement(
           id: 'targetFound',
           title: '🎯 Target Acquired',
           situation: 'Reporting sighting or target location',
-          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], TARGET ACQUIRED, PREPARE TO COPY COORDINATES, OVER.',
-          example: 'RED CAP BASE, THIS IS CAP 2127, TARGET ACQUIRED, PREPARE TO COPY COORDINATES, OVER.',
+          template: '[MISSION BASE], THIS IS [AIRCRAFT], TARGET ACQUIRED, PREPARE TO COPY COORDINATES, OVER.',
+          example: `${baseSign}, THIS IS ${acSign}, TARGET ACQUIRED, PREPARE TO COPY COORDINATES, OVER.`,
           response: 'Expected: "READY TO COPY" - Wait for this acknowledgment before transmitting coordinates.',
           tips: [
             'Always say PREPARE TO COPY before detailed info',
@@ -5103,7 +5112,7 @@ React.createElement(
           title: '📋 Passing Coordinates',
           situation: 'Transmitting coordinates AFTER base confirms "READY TO COPY"',
           template: 'COORDINATES FOLLOW: NORTH [DEG] DEGREES [MIN] MINUTES, WEST [DEG] DEGREES [MIN] MINUTES, CAP GRID [GRID], OVER.',
-          example: 'COORDINATES FOLLOW: NORTH 39 DEGREES 45 POINT 123 MINUTES, WEST 104 DEGREES 52 POINT 456 MINUTES, CAP GRID DENVER-142B, OVER.',
+          example: 'COORDINATES FOLLOW: NORTH __ DEGREES __ POINT ___ MINUTES, WEST ___ DEGREES __ POINT ___ MINUTES, CAP GRID [GRID], OVER.',
           response: 'Expected: Base will READ BACK coordinates for confirmation. Respond "CORRECT" or provide corrections.',
           tips: [
             'Only transmit AFTER receiving "READY TO COPY"',
@@ -5118,8 +5127,8 @@ React.createElement(
           id: 'rtb',
           title: '↩ RTB (Return to Base)',
           situation: 'Departing search area, returning to base',
-          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], RTB, DEPARTING [GRID/POSITION] AT [TIME] ZULU, ESTIMATE [DESTINATION] AT [ETA] ZULU, OVER.',
-          example: 'RED CAP BASE, THIS IS CAP 2127, RTB, DEPARTING GRID DENVER-142B AT 1715 ZULU, ESTIMATE CENTENNIAL AT 1745 ZULU, OVER.',
+          template: '[MISSION BASE], THIS IS [AIRCRAFT], RTB, DEPARTING [GRID/POSITION] AT [TIME] ZULU, ESTIMATE [DESTINATION] AT [ETA] ZULU, OVER.',
+          example: `${baseSign}, THIS IS ${acSign}, RTB, DEPARTING GRID [GRID] AT ____ ZULU, ESTIMATE [AIRPORT] AT ____ ZULU, OVER.`,
           response: 'Expected: Acknowledgment with any final instructions.',
           tips: [
             'Report before leaving search area',
@@ -5131,8 +5140,8 @@ React.createElement(
           id: 'wheelsDown',
           title: '🛬 Wheels Down / Landed',
           situation: 'Reporting landing',
-          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], WHEELS DOWN [LOCATION] AT [TIME] ZULU, OVER.',
-          example: 'RED CAP BASE, THIS IS CAP 2127, WHEELS DOWN CENTENNIAL AT 1742 ZULU, OVER.',
+          template: '[MISSION BASE], THIS IS [AIRCRAFT], WHEELS DOWN [LOCATION] AT [TIME] ZULU, OVER.',
+          example: `${baseSign}, THIS IS ${acSign}, WHEELS DOWN [AIRPORT] AT ____ ZULU, OVER.`,
           response: 'Expected: Acknowledgment, possibly debrief instructions.',
           tips: [
             'Report as soon as safely possible after landing',
@@ -5144,8 +5153,8 @@ React.createElement(
           id: 'engineStop',
           title: '🔴 Engine Stop',
           situation: 'Reporting end of flight',
-          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], ENGINE STOP [TIME] ZULU, [TACH/HOBBS IF REQUESTED], OVER.',
-          example: 'RED CAP BASE, THIS IS CAP 2127, ENGINE STOP 1748 ZULU, TACH 2.3, OVER.',
+          template: '[MISSION BASE], THIS IS [AIRCRAFT], ENGINE STOP [TIME] ZULU, [TACH/HOBBS IF REQUESTED], OVER.',
+          example: `${baseSign}, THIS IS ${acSign}, ENGINE STOP ____ ZULU, TACH _.___, OVER.`,
           response: 'Expected: Acknowledgment, debrief instructions.',
           tips: [
             'Have Tach and Hobbs times ready if required',
@@ -5171,6 +5180,58 @@ React.createElement(
       ];
 
       return React.createElement("div", null,
+        // Call Sign Configuration Section
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, "📻 Your Call Signs"),
+          React.createElement("div", { style: styles.sectionBody },
+            React.createElement("div", { style: { 
+              background: "rgba(99,179,237,0.1)", 
+              padding: "12px", 
+              borderRadius: "8px",
+              marginBottom: "12px",
+              border: "1px solid rgba(99,179,237,0.2)"
+            }},
+              React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "8px" }},
+                "Enter your call signs below to customize all examples"
+              ),
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }},
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#63b3ed", fontWeight: "600" }}, "AIRCRAFT CALL SIGN"),
+                  React.createElement("input", {
+                    style: { ...styles.input, marginTop: "4px", fontSize: "14px", fontWeight: "600" },
+                    value: radioCallSigns.aircraft,
+                    onChange: (e) => setRadioCallSigns({ ...radioCallSigns, aircraft: e.target.value.toUpperCase() }),
+                    placeholder: "e.g., CAP 594"
+                  })
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#63b3ed", fontWeight: "600" }}, "MISSION BASE"),
+                  React.createElement("input", {
+                    style: { ...styles.input, marginTop: "4px", fontSize: "14px", fontWeight: "600" },
+                    value: radioCallSigns.missionBase,
+                    onChange: (e) => setRadioCallSigns({ ...radioCallSigns, missionBase: e.target.value.toUpperCase() }),
+                    placeholder: "e.g., BLUE MESA 92"
+                  })
+                )
+              )
+            ),
+            // Show current call signs if set
+            (radioCallSigns.aircraft || radioCallSigns.missionBase) && React.createElement("div", { style: {
+              background: "rgba(56,161,105,0.15)",
+              padding: "10px 12px",
+              borderRadius: "6px",
+              border: "1px solid rgba(104,211,145,0.3)",
+              fontSize: "11px"
+            }},
+              React.createElement("span", { style: { color: "#68d391", fontWeight: "600" }}, "✓ Examples below will use: "),
+              React.createElement("span", { style: { color: "#fff" }}, 
+                radioCallSigns.missionBase || "[MISSION BASE]", 
+                ", THIS IS ", 
+                radioCallSigns.aircraft || "[AIRCRAFT]"
+              )
+            )
+          )
+        ),
         // Quick Calls Section
         React.createElement("div", { style: styles.section },
           React.createElement("div", { style: styles.sectionHeader }, "📻 Radio Call Templates"),
