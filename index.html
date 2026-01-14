@@ -3011,15 +3011,18 @@ ${events.map((e) => `
         lines.push("ELT OBSERVATIONS");
         lines.push(sepLight);
         eltObservations.forEach((obs, idx) => {
-          lines.push(`[${obs.obsNum}] ${obs.timeZ || "____"}Z - Source: ${obs.source}`);
-          lines.push(`    Position: N ${obs.latDeg}° ${obs.latMin}' W ${obs.lonDeg}° ${obs.lonMin}'`);
+          if (!obs) return;
+          lines.push(`[${obs.obsNum || idx + 1}] ${obs.timeZ || "____"}Z - Source: ${obs.source || "unknown"}`);
+          if (obs.latDeg && obs.latMin) {
+            lines.push(`    Position: N ${obs.latDeg}° ${obs.latMin}' W ${obs.lonDeg || "___"}° ${obs.lonMin || "___"}'`);
+          }
           if (obs.directRange) {
             lines.push(`    Range: ${obs.directRange} NM ${obs.rangeAccuracy ? '±' + obs.rangeAccuracy : ''}`);
-          } else {
+          } else if (obs.strength) {
             lines.push(`    Signal Strength: ${obs.strength}/10`);
           }
           if (obs.dfBearing) {
-            lines.push(`    DF Bearing: ${obs.dfBearing}° ${obs.bearingRef} ±${obs.bearingAccuracy}°`);
+            lines.push(`    DF Bearing: ${obs.dfBearing}° ${obs.bearingRef || ""} ±${obs.bearingAccuracy || "20"}°`);
           }
           if (obs.notes) {
             lines.push(`    Notes: ${obs.notes}`);
@@ -3034,25 +3037,29 @@ ${events.map((e) => `
         lines.push("ELT COMPUTED SOLUTIONS");
         lines.push(sepLight);
         eltSolutions.forEach((sol, idx) => {
-          lines.push(`Solution #${sol.solutionNum} @ ${sol.timestamp}Z`);
-          lines.push(`    Centroid: N ${sol.centroid.latDeg}° ${sol.centroid.latMin}' W ${sol.centroid.lonDeg}° ${sol.centroid.lonMin}'`);
-          lines.push(`    CAP Grid: ${sol.capGrid}`);
-          lines.push(`    50% Area: ${sol.area50SizeNm2} NM² | 90% Area: ${sol.area90SizeNm2} NM²`);
-          lines.push(`    Quality: ${sol.qualityScore}/100 - ${sol.qualityLabel}`);
-          lines.push(`    Observations: ${sol.obsCount}${sol.dfCount > 0 ? ' (' + sol.dfCount + ' DF)' : ''}`);
+          if (!sol || !sol.centroid) return;
+          lines.push(`Solution #${sol.solutionNum || idx + 1} @ ${sol.timestamp || "____"}Z`);
+          lines.push(`    Centroid: N ${sol.centroid.latDeg || "___"}° ${sol.centroid.latMin || "___"}' W ${sol.centroid.lonDeg || "___"}° ${sol.centroid.lonMin || "___"}'`);
+          lines.push(`    CAP Grid: ${sol.capGrid || "(unknown)"}`);
+          lines.push(`    50% Area: ${sol.area50SizeNm2 || "?"} NM² | 90% Area: ${sol.area90SizeNm2 || "?"} NM²`);
+          lines.push(`    Quality: ${sol.qualityScore || "?"}/100 - ${sol.qualityLabel || ""}`);
+          lines.push(`    Observations: ${sol.obsCount || "?"}${sol.dfCount > 0 ? ' (' + sol.dfCount + ' DF)' : ''}`);
           lines.push("");
         });
       }
       
       // Target Locations (if any)
       if (targetLocations && targetLocations.length > 0) {
-        lines.push("");
-        lines.push("TARGET LOCATIONS");
-        lines.push(sepLight);
-        targetLocations.forEach((t, idx) => {
-          lines.push(`Target #${idx + 1}: N ${t.lat.toFixed(5)}° W ${Math.abs(t.lon).toFixed(5)}°`);
-        });
-        lines.push("");
+        const validTargets = targetLocations.filter(t => t && t.lat !== undefined && t.lon !== undefined);
+        if (validTargets.length > 0) {
+          lines.push("");
+          lines.push("TARGET LOCATIONS");
+          lines.push(sepLight);
+          validTargets.forEach((t, idx) => {
+            lines.push(`Target #${idx + 1}: N ${t.lat.toFixed(5)}° W ${Math.abs(t.lon).toFixed(5)}°`);
+          });
+          lines.push("");
+        }
       }
       
       lines.push(sep);
@@ -3063,22 +3070,49 @@ ${events.map((e) => `
     };
     
     // Copy log to clipboard
-    const copyLogToClipboard = async () => {
-      const text = generateTextLog();
+    const copyLogToClipboard = () => {
       try {
-        await navigator.clipboard.writeText(text);
-        alert('Log copied to clipboard! You can now paste it into Notes or any text app.');
+        const text = generateTextLog();
+        
+        // Try modern clipboard API first
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            alert('Log copied to clipboard! You can now paste it into Notes or any text app.');
+          }).catch((err) => {
+            console.error('Clipboard API failed:', err);
+            fallbackCopy(text);
+          });
+        } else {
+          fallbackCopy(text);
+        }
       } catch (err) {
-        // Fallback for older browsers
+        console.error('Copy log error:', err);
+        alert('Error copying log: ' + err.message);
+      }
+    };
+    
+    // Fallback copy method for older browsers or when clipboard API fails
+    const fallbackCopy = (text) => {
+      try {
         const textarea = document.createElement('textarea');
         textarea.value = text;
         textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '0';
+        textarea.setAttribute('readonly', '');
         document.body.appendChild(textarea);
         textarea.select();
-        document.execCommand('copy');
+        textarea.setSelectionRange(0, text.length);
+        const success = document.execCommand('copy');
         document.body.removeChild(textarea);
-        alert('Log copied to clipboard! You can now paste it into Notes or any text app.');
+        if (success) {
+          alert('Log copied to clipboard! You can now paste it into Notes or any text app.');
+        } else {
+          alert('Copy failed. Please try selecting text manually.');
+        }
+      } catch (err) {
+        console.error('Fallback copy failed:', err);
+        alert('Copy failed: ' + err.message);
       }
     };
 
