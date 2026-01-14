@@ -3803,11 +3803,18 @@ React.createElement(
           agl: parseFloat(o.altAGL) || 1500
         }));
 
-        // Determine bounds
+        // Calculate expected ranges for dynamic bounds
+        const expectedRanges = obsData.map(o => 
+          eltSettings.r10 * Math.pow(2, (10 - o.strength) / eltSettings.k)
+        );
+        const maxR0 = Math.max(...expectedRanges);
+
+        // Determine bounds - dynamic margin based on max expected range
         const lats = obsData.map(o => o.lat);
         const lons = obsData.map(o => o.lon);
         const meanLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-        const margin = 5 / 60; // 5 NM in degrees
+        const marginNm = Math.max(5, maxR0 + 2); // At least 5 NM, or max range + 2 NM buffer
+        const margin = marginNm / 60; // Convert to degrees
         const lonMargin = margin / Math.cos(meanLat * Math.PI / 180);
         
         const bounds = {
@@ -3820,6 +3827,25 @@ React.createElement(
         // Grid resolution
         const step = eltSettings.resolution / 60; // NM to degrees
         const lonStep = step / Math.cos(meanLat * Math.PI / 180);
+
+        // ELT horizon lookup table (based on CAP reference, interpolated)
+        // AGL ft -> approximate signal range NM
+        const getEltHorizon = (aglFt) => {
+          // CAP reference: 1000ft~18nm, 3000ft~30nm, 5000ft~40nm, 8000ft~65nm, 10000ft~80nm
+          const table = [
+            [500, 12], [1000, 18], [2000, 25], [3000, 30], [4000, 35],
+            [5000, 40], [6000, 50], [7000, 58], [8000, 65], [10000, 80], [15000, 100]
+          ];
+          if (aglFt <= table[0][0]) return table[0][1];
+          if (aglFt >= table[table.length-1][0]) return table[table.length-1][1];
+          for (let i = 0; i < table.length - 1; i++) {
+            if (aglFt >= table[i][0] && aglFt < table[i+1][0]) {
+              const t = (aglFt - table[i][0]) / (table[i+1][0] - table[i][0]);
+              return table[i][1] + t * (table[i+1][1] - table[i][1]);
+            }
+          }
+          return 30; // fallback
+        };
 
         // Build probability grid
         const grid = [];
@@ -3851,8 +3877,8 @@ React.createElement(
                 lBearing = -0.5 * Math.pow(dTheta / obs.bearingAcc, 2);
               }
               
-              // Radio horizon soft cap
-              const horizonNm = 1.23 * Math.sqrt(obs.agl) / 1.15078;
+              // Radio horizon soft cap (using CAP reference table)
+              const horizonNm = getEltHorizon(obs.agl);
               let lHorizon = 0;
               if (distNm > horizonNm) {
                 lHorizon = -0.5 * Math.pow((distNm - horizonNm) / 2, 2);
