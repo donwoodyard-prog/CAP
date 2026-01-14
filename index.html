@@ -2022,7 +2022,8 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
       { passes: ["", "", "", ""], estimate: "" }
     ]);
     const [activeTab, setActiveTab] = useState("mission");
-    const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
+    const [commsUnlocked, setCommsUnlocked] = useState(false);
+const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedAircraft, setSelectedAircraft] = useState("C182T");
     const [selectedEmergencyCategory, setSelectedEmergencyCategory] = useState("engine");
@@ -2036,6 +2037,7 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
     const [crosshairPath2, setCrosshairPath2] = useState([]);
     const [crosshairResult, setCrosshairResult] = useState(null);
     const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
+    const [intersectionConstraint, setIntersectionConstraint] = useState("lines"); // "lines" or "segments"
     function createEmptyEvent() {
       return {
         id: Date.now() + Math.random(),
@@ -3174,38 +3176,81 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
           alert("Need at least 2 points on each path");
           return;
         }
+
+        // Use the first and last points of each path as the legs to intersect
         const p1Start = crosshairPath1[0];
         const p1End = crosshairPath1[crosshairPath1.length - 1];
         const p2Start = crosshairPath2[0];
         const p2End = crosshairPath2[crosshairPath2.length - 1];
+
+        // Convert DDM to signed decimal degrees (West is negative)
         const lat1a = gpsUtils.ddmToDd(p1Start.latDeg, p1Start.latMin);
         const lon1a = -gpsUtils.ddmToDd(p1Start.lonDeg, p1Start.lonMin);
         const lat1b = gpsUtils.ddmToDd(p1End.latDeg, p1End.latMin);
         const lon1b = -gpsUtils.ddmToDd(p1End.lonDeg, p1End.lonMin);
+
         const lat2a = gpsUtils.ddmToDd(p2Start.latDeg, p2Start.latMin);
         const lon2a = -gpsUtils.ddmToDd(p2Start.lonDeg, p2Start.lonMin);
         const lat2b = gpsUtils.ddmToDd(p2End.latDeg, p2End.latMin);
         const lon2b = -gpsUtils.ddmToDd(p2End.lonDeg, p2End.lonMin);
-        const denom = (lat1a - lat1b) * (lon2a - lon2b) - (lon1a - lon1b) * (lat2a - lat2b);
-        if (Math.abs(denom) < 1e-7) {
-          alert("Lines are parallel - no intersection");
+
+        // Option 2: local tangent-plane projection (equirectangular) to reduce longitude distortion
+        const lat0 = (lat1a + lat1b + lat2a + lat2b) / 4;
+        const lat0Rad = lat0 * Math.PI / 180;
+        const cosLat0 = Math.cos(lat0Rad) || 1;
+
+        const project = (lat, lon) => ({
+          x: lon * cosLat0,
+          y: lat
+        });
+        const unproject = (x, y) => ({
+          lat: y,
+          lon: x / cosLat0
+        });
+
+        const a1 = project(lat1a, lon1a);
+        const a2 = project(lat1b, lon1b);
+        const b1 = project(lat2a, lon2a);
+        const b2 = project(lat2b, lon2b);
+
+        // Line/segment intersection in 2D
+        const x1 = a1.x, y1 = a1.y, x2 = a2.x, y2 = a2.y;
+        const x3 = b1.x, y3 = b1.y, x4 = b2.x, y4 = b2.y;
+
+        const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+        if (Math.abs(denom) < 1e-12) {
+          alert("Lines are parallel (or nearly parallel) – no reliable intersection");
           return;
         }
-        const t = ((lat1a - lat2a) * (lon2a - lon2b) - (lon1a - lon2a) * (lat2a - lat2b)) / denom;
-        const intersectLat = lat1a + t * (lat1b - lat1a);
-        const intersectLon = lon1a + t * (lon1b - lon1a);
-        const latDdm = gpsUtils.ddToDdm(Math.abs(intersectLat));
-        const lonDdm = gpsUtils.ddToDdm(Math.abs(intersectLon));
-        const grid = gpsUtils.calculateCapGrid(intersectLat, intersectLon);
+
+        const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+        const u = ((x1 - x3) * (y1 - y2) - (y1 - y3) * (x1 - x2)) / denom;
+
+        // Option 3: require the intersection to fall within BOTH drawn legs (segment intersection)
+        if (intersectionConstraint === "segments") {
+          const eps = 1e-9;
+          const inSeg1 = t > -eps && t < 1 + eps;
+          const inSeg2 = u > -eps && u < 1 + eps;
+          if (!inSeg1 || !inSeg2) {
+            alert("No segment intersection: the two drawn legs do not cross within their endpoints. Switch to 'Lines' mode or extend your legs and try again.");
+            return;
+          }
+        }
+
+        const ix = x1 + t * (x2 - x1);
+        const iy = y1 + t * (y2 - y1);
+        const unp = unproject(ix, iy);
+
+        const latDdm = gpsUtils.ddToDdm(unp.lat);
+        const lonDdm = gpsUtils.ddToDdm(Math.abs(unp.lon));
+
         setCrosshairResult({
           latDeg: latDdm.deg,
           latMin: latDdm.min.toFixed(3),
           lonDeg: lonDdm.deg,
           lonMin: lonDdm.min.toFixed(3),
-          latDD: intersectLat.toFixed(6),
-          lonDD: intersectLon.toFixed(6),
-          capGrid: grid?.full || "N/A",
-          timestamp: getZuluTimeOnly()
+          timestamp: getZuluTimeOnly(),
+          method: intersectionConstraint === "segments" ? "Segment intersection (tangent-plane)" : "Line intersection (tangent-plane)"
         });
       };
       const addCurrentPosition = () => {
@@ -3351,7 +3396,19 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
           }
         },
         "CLEAR"
-      )), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "10px", maxHeight: "120px", overflowY: "auto" } }, crosshairPath2.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: "#718096", fontSize: "12px", textAlign: "center", padding: "10px" } }, "No points marked") : crosshairPath2.map((pt, i) => /* @__PURE__ */ React.createElement("div", { key: pt.id, style: { fontSize: "12px", color: "#e2e8f0", padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" } }, /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391", fontWeight: "600" } }, "#", i + 1), " ", pt.time, "Z \u2014 N ", pt.latDeg, "\xB0 ", pt.latMin, "' W ", pt.lonDeg, "\xB0 ", pt.lonMin, "'")))), /* @__PURE__ */ React.createElement(
+      )), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "10px", maxHeight: "120px", overflowY: "auto" } }, crosshairPath2.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: "#718096", fontSize: "12px", textAlign: "center", padding: "10px" } }, "No points marked") : crosshairPath2.map((pt, i) => /* @__PURE__ */ React.createElement("div", { key: pt.id, style: { fontSize: "12px", color: "#e2e8f0", padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" } }, /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391", fontWeight: "600" } }, "#", i + 1), " ", pt.time, "Z \u2014 N ", pt.latDeg, "\xB0 ", pt.latMin, "' W ", pt.lonDeg, "\xB0 ", pt.lonMin, "'")))), /* @__PURE__ */ React.createElement("div", { style: {
+        background: "rgba(0,0,0,0.25)",
+        borderRadius: "12px",
+        padding: "12px",
+        marginBottom: "12px",
+        border: "1px solid rgba(255,255,255,0.08)"
+      } }, React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "8px", fontWeight: "700", letterSpacing: "0.6px" } }, "INTERSECTION OPTIONS"), React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", color: "#e2e8f0", cursor: "pointer", userSelect: "none" } }, React.createElement("input", {
+        type: "checkbox",
+        checked: intersectionConstraint === "segments",
+        onChange: (e) => setIntersectionConstraint(e.target.checked ? "segments" : "lines"),
+        style: { width: "18px", height: "18px" }
+      }), "Segments only (must intersect within the drawn legs)"), React.createElement("div", { style: { marginTop: "8px", fontSize: "11px", color: "#718096", lineHeight: "1.4" } }, "Intersection math uses a local tangent-plane projection for better accuracy over distance.")),
+React.createElement(
         "button",
         {
           onClick: calculateIntersection,
@@ -3856,7 +3913,18 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
             boxShadow: "0 4px 12px rgba(214,158,46,0.5)"
           } : {}
         },
-        onClick: () => setActiveTab(tab.id)
+        onClick: () => {
+          if (tab.isComms && !commsUnlocked) {
+            const code = prompt("Enter passcode to view Communications");
+            if (code === null) return;
+            if (String(code).trim() !== "1942") {
+              alert("Incorrect passcode.");
+              return;
+            }
+            setCommsUnlocked(true);
+          }
+          setActiveTab(tab.id);
+        }
       },
       tab.icon,
       " ",
