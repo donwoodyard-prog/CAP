@@ -2029,6 +2029,7 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     const [selectedAircraft, setSelectedAircraft] = useState("C182T");
     const [selectedEmergencyCategory, setSelectedEmergencyCategory] = useState("engine");
     const [expandedProcedure, setExpandedProcedure] = useState(null);
+    const [expandedRadioCall, setExpandedRadioCall] = useState(null);
     const [selectedState, setSelectedState] = useState("CO");
     const [selectedCommsCategory, setSelectedCommsCategory] = useState("channels");
     const [commsView, setCommsView] = useState("channels");
@@ -2729,6 +2730,18 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     };
     const removeEvent = (id) => events.length > 1 && setEvents(events.filter((e) => e.id !== id));
     const updateEvent = (id, field, value) => setEvents(events.map((e) => e.id === id ? { ...e, [field]: value } : e));
+    const selectEventType = (id, eventType) => {
+      setEvents(events.map((e) => {
+        if (e.id === id) {
+          const updates = { eventType };
+          if (!e.timeZ) {
+            updates.timeZ = getZuluTimeOnly();
+          }
+          return { ...e, ...updates };
+        }
+        return e;
+      }));
+    };
     const updateCheckIn = (index, field, value) => {
       const newCheckIns = [...checkIns];
       newCheckIns[index] = { ...newCheckIns[index], [field]: value };
@@ -2964,7 +2977,7 @@ ${events.map((e) => `
             touchAction: "manipulation",
             boxShadow: event.eventType === type.value ? `0 4px 12px ${type.color}44` : "none"
           },
-          onClick: () => updateEvent(event.id, "eventType", type.value)
+          onClick: () => selectEventType(event.id, type.value)
         },
         type.label
       )), /* @__PURE__ */ React.createElement(
@@ -3013,7 +3026,7 @@ ${events.map((e) => `
             touchAction: "manipulation",
             boxShadow: event.eventType === type.value ? `0 4px 12px ${type.color}44` : "none"
           },
-          onClick: () => updateEvent(event.id, "eventType", type.value)
+          onClick: () => selectEventType(event.id, type.value)
         },
         type.label
       ))), event.eventType && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "8px", padding: "10px 12px", background: "rgba(104,211,145,0.1)", borderRadius: "8px", border: "1px solid rgba(104,211,145,0.3)", textAlign: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391", fontWeight: "700", fontSize: "14px" } }, "\u2713 ", event.eventType))), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Time (Z)"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "time", value: event.timeZ, onChange: (e) => updateEvent(event.id, "timeZ", e.target.value) }), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => updateEvent(event.id, "timeZ", getZuluTimeOnly()) }, "NOW"))), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(99,179,237,0.1)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(99,179,237,0.2)", marginTop: "8px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" } }, /* @__PURE__ */ React.createElement("label", { style: { ...styles.label, margin: 0, color: "#63b3ed", fontWeight: "600" } }, "\u{1F6F0}\uFE0F Position (DDM Format)"), /* @__PURE__ */ React.createElement(
@@ -3484,13 +3497,21 @@ alert(
         setEvents([newEvent, ...events]);
         setActiveTab("events");
       };
-      const PathButton = ({ pathNum, active, pointCount }) => /* @__PURE__ */ React.createElement(
+      const PathButton = ({ pathNum, active, pointCount }) => {
+        const getStatusColor = (count) => {
+          if (count === 0) return { bg: '#e53e3e', border: '#fc8181', text: 'NO POINTS' };
+          if (count === 1) return { bg: '#e53e3e', border: '#fc8181', text: '1 point - NEED MORE' };
+          if (count === 2) return { bg: '#d69e2e', border: '#f6e05e', text: '2 points - READY' };
+          return { bg: '#38a169', border: '#68d391', text: count + ' points - READY' };
+        };
+        const status = getStatusColor(pointCount);
+        return React.createElement(
         "button",
         {
           onClick: () => setActiveCrosshairPath(pathNum),
           style: {
             flex: 1,
-            minHeight: "70px",
+            minHeight: "80px",
             padding: "14px",
             fontSize: "14px",
             fontWeight: "700",
@@ -3503,11 +3524,21 @@ alert(
             touchAction: "manipulation"
           }
         },
-        /* @__PURE__ */ React.createElement("div", { style: { fontSize: "20px", marginBottom: "4px" } }, pathNum === 1 ? "\u2195\uFE0F" : "\u2194\uFE0F"),
+        React.createElement("div", { style: { fontSize: "20px", marginBottom: "4px" } }, pathNum === 1 ? "\u2195\uFE0F" : "\u2194\uFE0F"),
         "PATH ",
         pathNum,
-        /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", opacity: 0.8, marginTop: "4px" } }, pointCount, " points")
+        React.createElement("div", { style: { 
+          fontSize: "10px", 
+          marginTop: "6px",
+          padding: "4px 8px",
+          borderRadius: "4px",
+          background: status.bg,
+          border: "1px solid " + status.border,
+          color: "#fff",
+          fontWeight: "600"
+        } }, status.text)
       );
+      };
       return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F3AF} Crosshair Target Locator"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: {
         background: "rgba(99,179,237,0.1)",
         padding: "14px",
@@ -3654,6 +3685,281 @@ React.createElement(
         "\u{1F5FA}\uFE0F VIEW MAP"
       ))))));
     };
+
+    // Radio Calls Quick Reference Tab
+    const renderRadioTab = () => {
+      const radioCalls = [
+        {
+          id: 'engineStart',
+          title: '🔑 Engine Start',
+          situation: 'Reporting engine start time to Mission Base',
+          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], ENGINE START TIME [TIME] ZULU, OVER.',
+          example: 'RED CAP BASE, THIS IS CAP 2127, ENGINE START TIME 1435 ZULU, OVER.',
+          response: 'Expected: "[YOUR CALL SIGN], [MISSION BASE], ROGER, OUT." or acknowledgment with instructions.',
+          tips: [
+            'Use 4-digit Zulu time (24-hour format)',
+            'Wait for acknowledgment before proceeding',
+            'Log the time in your mission log'
+          ]
+        },
+        {
+          id: 'wheelsUp',
+          title: '🛫 Wheels Up / Airborne',
+          situation: 'Reporting takeoff and departure',
+          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], WHEELS UP [TIME] ZULU, DEPARTING [LOCATION], PROCEEDING TO [DESTINATION/GRID], OVER.',
+          example: 'RED CAP BASE, THIS IS CAP 2127, WHEELS UP 1452 ZULU, DEPARTING CENTENNIAL, PROCEEDING TO SEARCH GRID ALPHA, OVER.',
+          response: 'Expected: Acknowledgment with any updated instructions or weather.',
+          tips: [
+            'Report immediately after reaching safe altitude',
+            'Include departure point and destination',
+            'Note assigned altitude if relevant'
+          ]
+        },
+        {
+          id: 'inGrid',
+          title: '📍 In Grid / On Station',
+          situation: 'Reporting arrival at search area',
+          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], IN GRID [GRID DESIGNATOR] AT [TIME] ZULU, ALTITUDE [ALT] FEET, COMMENCING SEARCH, OVER.',
+          example: 'RED CAP BASE, THIS IS CAP 2127, IN GRID DENVER-142B AT 1520 ZULU, ALTITUDE 8500 FEET, COMMENCING SEARCH, OVER.',
+          response: 'Expected: Acknowledgment, confirm search pattern, OPS NORMAL schedule.',
+          tips: [
+            'Report grid designator clearly',
+            'Include your search altitude',
+            'Confirm OPS NORMAL reporting interval'
+          ]
+        },
+        {
+          id: 'opsNormal',
+          title: '✓ OPS Normal',
+          situation: 'Periodic status report (typically every 15-30 min)',
+          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], OPS NORMAL, [POSITION/GRID], OVER.',
+          example: 'RED CAP BASE, THIS IS CAP 2127, OPS NORMAL, GRID DENVER-142B, OVER.',
+          response: 'Expected: "ROGER" or updated instructions.',
+          tips: [
+            'Report at scheduled intervals',
+            'Include current position/grid',
+            'Report any weather changes',
+            'Missing OPS NORMAL triggers alert procedures'
+          ]
+        },
+        {
+          id: 'targetFound',
+          title: '🎯 Target Acquired',
+          situation: 'Reporting sighting or target location',
+          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], TARGET ACQUIRED, PREPARE TO COPY COORDINATES, OVER.',
+          example: 'RED CAP BASE, THIS IS CAP 2127, TARGET ACQUIRED, PREPARE TO COPY COORDINATES, OVER.',
+          response: 'Expected: "READY TO COPY" - Wait for this acknowledgment before transmitting coordinates.',
+          tips: [
+            'Always say PREPARE TO COPY before detailed info',
+            'WAIT for "READY TO COPY" acknowledgment',
+            'Do NOT send coordinates until base confirms ready',
+            'This ensures they have pen and paper ready',
+            'Be prepared to orbit and guide ground teams'
+          ]
+        },
+        {
+          id: 'coordinates',
+          title: '📋 Passing Coordinates',
+          situation: 'Transmitting coordinates AFTER base confirms "READY TO COPY"',
+          template: 'COORDINATES FOLLOW: NORTH [DEG] DEGREES [MIN] MINUTES, WEST [DEG] DEGREES [MIN] MINUTES, CAP GRID [GRID], OVER.',
+          example: 'COORDINATES FOLLOW: NORTH 39 DEGREES 45 POINT 123 MINUTES, WEST 104 DEGREES 52 POINT 456 MINUTES, CAP GRID DENVER-142B, OVER.',
+          response: 'Expected: Base will READ BACK coordinates for confirmation. Respond "CORRECT" or provide corrections.',
+          tips: [
+            'Only transmit AFTER receiving "READY TO COPY"',
+            'Speak slowly and clearly',
+            'Use "POINT" for decimal (not "decimal")',
+            'Use DDM format: Degrees and decimal minutes',
+            'Expect READ BACK - confirm with "CORRECT"',
+            'If incorrect, say "NEGATIVE, I SAY AGAIN..." and repeat'
+          ]
+        },
+        {
+          id: 'rtb',
+          title: '↩ RTB (Return to Base)',
+          situation: 'Departing search area, returning to base',
+          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], RTB, DEPARTING [GRID/POSITION] AT [TIME] ZULU, ESTIMATE [DESTINATION] AT [ETA] ZULU, OVER.',
+          example: 'RED CAP BASE, THIS IS CAP 2127, RTB, DEPARTING GRID DENVER-142B AT 1715 ZULU, ESTIMATE CENTENNIAL AT 1745 ZULU, OVER.',
+          response: 'Expected: Acknowledgment with any final instructions.',
+          tips: [
+            'Report before leaving search area',
+            'Include estimated arrival time',
+            'Note reason if ending early (fuel, weather, etc.)'
+          ]
+        },
+        {
+          id: 'wheelsDown',
+          title: '🛬 Wheels Down / Landed',
+          situation: 'Reporting landing',
+          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], WHEELS DOWN [LOCATION] AT [TIME] ZULU, OVER.',
+          example: 'RED CAP BASE, THIS IS CAP 2127, WHEELS DOWN CENTENNIAL AT 1742 ZULU, OVER.',
+          response: 'Expected: Acknowledgment, possibly debrief instructions.',
+          tips: [
+            'Report as soon as safely possible after landing',
+            'Include landing location',
+            'Prepare for engine stop report'
+          ]
+        },
+        {
+          id: 'engineStop',
+          title: '🔴 Engine Stop',
+          situation: 'Reporting end of flight',
+          template: '[MISSION BASE CALL SIGN], THIS IS [YOUR CALL SIGN], ENGINE STOP [TIME] ZULU, [TACH/HOBBS IF REQUESTED], OVER.',
+          example: 'RED CAP BASE, THIS IS CAP 2127, ENGINE STOP 1748 ZULU, TACH 2.3, OVER.',
+          response: 'Expected: Acknowledgment, debrief instructions.',
+          tips: [
+            'Have Tach and Hobbs times ready if required',
+            'Note total flight time',
+            'Await debrief instructions'
+          ]
+        }
+      ];
+
+      const prowords = [
+        { word: 'OVER', meaning: 'End of my transmission, response expected' },
+        { word: 'OUT', meaning: 'End of transmission, no response expected' },
+        { word: 'ROGER', meaning: 'Message received and understood' },
+        { word: 'WILCO', meaning: 'Will comply (includes ROGER)' },
+        { word: 'SAY AGAIN', meaning: 'Repeat your last transmission' },
+        { word: 'I SAY AGAIN', meaning: 'I am repeating my transmission' },
+        { word: 'CORRECTION', meaning: 'Error made, correct version follows' },
+        { word: 'WAIT', meaning: 'Pause for a few seconds' },
+        { word: 'WAIT OUT', meaning: 'Pause for longer, I will call back' },
+        { word: 'BREAK', meaning: 'Separates header from message text' },
+        { word: 'NOTHING HEARD', meaning: 'No reply received from called station' },
+        { word: 'RADIO CHECK', meaning: 'Request signal strength/readability report' }
+      ];
+
+      return React.createElement("div", null,
+        // Quick Calls Section
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, "📻 Radio Call Templates"),
+          React.createElement("div", { style: styles.sectionBody },
+            React.createElement("div", { style: {
+              background: "rgba(99,179,237,0.1)",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+              border: "1px solid rgba(99,179,237,0.2)"
+            }},
+              React.createElement("p", { style: { margin: 0, fontSize: "12px", color: "#a0aec0", lineHeight: "1.5" }},
+                React.createElement("strong", { style: { color: "#63b3ed" }}, "Format: "),
+                "[CALLED STATION] THIS IS [YOUR CALL SIGN] [MESSAGE] OVER"
+              )
+            ),
+            // Radio call cards
+            radioCalls.map(call => {
+              const isExpanded = expandedRadioCall === call.id;
+              return React.createElement("div", { 
+                key: call.id,
+                style: {
+                  background: isExpanded ? "rgba(49,130,206,0.15)" : "rgba(0,0,0,0.2)",
+                  borderRadius: "10px",
+                  marginBottom: "10px",
+                  border: isExpanded ? "2px solid #3182ce" : "1px solid rgba(255,255,255,0.1)",
+                  overflow: "hidden"
+                }
+              },
+                // Header
+                React.createElement("div", {
+                  style: {
+                    padding: "14px 16px",
+                    cursor: "pointer",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    background: isExpanded ? "rgba(49,130,206,0.2)" : "transparent"
+                  },
+                  onClick: () => setExpandedRadioCall(isExpanded ? null : call.id)
+                },
+                  React.createElement("span", { style: { fontSize: "15px", fontWeight: "700", color: isExpanded ? "#63b3ed" : "#e2e8f0" }}, call.title),
+                  React.createElement("span", { style: { color: "#a0aec0", fontSize: "18px" }}, isExpanded ? "▼" : "▶")
+                ),
+                // Expanded content
+                isExpanded && React.createElement("div", { style: { padding: "0 16px 16px 16px" }},
+                  // Situation
+                  React.createElement("div", { style: { marginBottom: "12px" }},
+                    React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", textTransform: "uppercase", marginBottom: "4px" }}, "Situation"),
+                    React.createElement("div", { style: { fontSize: "13px", color: "#e2e8f0" }}, call.situation)
+                  ),
+                  // Template
+                  React.createElement("div", { style: { 
+                    background: "rgba(0,0,0,0.3)", 
+                    padding: "12px", 
+                    borderRadius: "8px", 
+                    marginBottom: "12px",
+                    border: "1px solid rgba(99,179,237,0.3)"
+                  }},
+                    React.createElement("div", { style: { fontSize: "10px", color: "#63b3ed", textTransform: "uppercase", marginBottom: "6px" }}, "📝 Template"),
+                    React.createElement("div", { style: { fontSize: "13px", color: "#f6e05e", fontFamily: "monospace", lineHeight: "1.5" }}, call.template)
+                  ),
+                  // Example
+                  React.createElement("div", { style: { 
+                    background: "rgba(56,161,105,0.1)", 
+                    padding: "12px", 
+                    borderRadius: "8px", 
+                    marginBottom: "12px",
+                    border: "1px solid rgba(104,211,145,0.3)"
+                  }},
+                    React.createElement("div", { style: { fontSize: "10px", color: "#68d391", textTransform: "uppercase", marginBottom: "6px" }}, "💬 Example"),
+                    React.createElement("div", { style: { fontSize: "12px", color: "#68d391", fontStyle: "italic", lineHeight: "1.5" }}, call.example)
+                  ),
+                  // Expected Response
+                  React.createElement("div", { style: { marginBottom: "12px" }},
+                    React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", textTransform: "uppercase", marginBottom: "4px" }}, "Expected Response"),
+                    React.createElement("div", { style: { fontSize: "12px", color: "#e2e8f0" }}, call.response)
+                  ),
+                  // Tips
+                  React.createElement("div", { style: { 
+                    background: "rgba(214,158,46,0.1)", 
+                    padding: "12px", 
+                    borderRadius: "8px",
+                    border: "1px solid rgba(246,224,94,0.2)"
+                  }},
+                    React.createElement("div", { style: { fontSize: "10px", color: "#f6e05e", textTransform: "uppercase", marginBottom: "8px" }}, "💡 Tips"),
+                    call.tips.map((tip, i) => 
+                      React.createElement("div", { key: i, style: { fontSize: "11px", color: "#e2e8f0", marginBottom: "4px", paddingLeft: "12px", position: "relative" }},
+                        React.createElement("span", { style: { position: "absolute", left: 0, color: "#f6e05e" }}, "•"),
+                        tip
+                      )
+                    )
+                  )
+                )
+              );
+            })
+          )
+        ),
+        // Prowords Section
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, "📖 Common Prowords"),
+          React.createElement("div", { style: styles.sectionBody },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" }},
+              prowords.map(pw => 
+                React.createElement("div", { 
+                  key: pw.word, 
+                  style: { 
+                    background: "rgba(0,0,0,0.2)", 
+                    padding: "10px 12px", 
+                    borderRadius: "8px",
+                    border: "1px solid rgba(255,255,255,0.05)"
+                  }
+                },
+                  React.createElement("div", { style: { fontSize: "12px", fontWeight: "700", color: "#63b3ed", marginBottom: "2px" }}, pw.word),
+                  React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", lineHeight: "1.3" }}, pw.meaning)
+                )
+              )
+            )
+          )
+        ),
+        // Reference note
+        React.createElement("div", { style: { 
+          textAlign: "center", 
+          padding: "16px", 
+          fontSize: "10px", 
+          color: "#718096" 
+        }}, "Reference: CAPR 100-3 Radiotelephone Operations")
+      );
+    };
+
     const renderReferenceTab = () => {
       const refSections = [
         { id: "radioFrequencies", label: "Frequencies" },
@@ -4047,6 +4353,7 @@ React.createElement(
       { id: "checkins", label: "Check-ins", icon: "\u{1F4FB}" },
       { id: "events", label: "Events", icon: "\u{1F4CD}" },
       { id: "crosshair", label: "Target", icon: "\u{1F3AF}", isTarget: true },
+      { id: "radio", label: "Radio", icon: "\u{1F4E2}", isRadio: true },
       { id: "coComms", label: "CO Comms", icon: "\u{1F4E1}", isComms: true },
       { id: "emergency", label: "Emergency", icon: "\u{1F6A8}", isEmergency: true },
       { id: "reference", label: "Reference", icon: "\u{1F4DA}" }
@@ -4066,6 +4373,15 @@ React.createElement(
           ...tab.isTarget && activeTab === tab.id ? {
             background: "linear-gradient(135deg, #38a169, #2f855a)",
             boxShadow: "0 4px 12px rgba(56,161,105,0.5)"
+          } : {},
+          ...tab.isRadio && activeTab !== tab.id ? {
+            background: "linear-gradient(135deg, rgba(99,179,237,0.3), rgba(49,130,206,0.2))",
+            border: "1px solid rgba(99,179,237,0.5)",
+            color: "#63b3ed"
+          } : {},
+          ...tab.isRadio && activeTab === tab.id ? {
+            background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
+            boxShadow: "0 4px 12px rgba(49,130,206,0.5)"
           } : {},
           ...tab.isEmergency && activeTab !== tab.id ? {
             background: "linear-gradient(135deg, rgba(197,48,48,0.4), rgba(155,44,44,0.3))",
@@ -4102,7 +4418,7 @@ React.createElement(
       tab.icon,
       " ",
       tab.label
-    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "checkins" && renderCheckInsTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} Export PDF")));
+    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "checkins" && renderCheckInsTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} Export PDF")));
   };
   ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(CAPObserverLog, null));
 })();
