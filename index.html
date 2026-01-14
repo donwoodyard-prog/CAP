@@ -29,9 +29,16 @@
     @keyframes pulse-warning { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .timer-warning { animation: pulse-warning 1s infinite; }
   </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    .search-planner-map { height: 350px; border-radius: 8px; margin: 10px 0; border: 2px solid rgba(56,161,105,0.3); }
+    .sp-grid-info { background: rgba(49,130,206,0.15); border: 1px solid rgba(49,130,206,0.4); border-radius: 8px; padding: 12px; margin: 10px 0; }
+    .sp-coverage { background: rgba(56,161,105,0.15); border: 1px solid rgba(56,161,105,0.4); border-radius: 8px; padding: 12px; margin: 10px 0; }
+  </style>
 </head>
 <body>
   <div id="root"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
 // === REACT 18 PRODUCTION ===
 /**
@@ -342,7 +349,161 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 // === CAP OBSERVER LOG APP ===
 var App = (() => {
   // app.jsx
-  var { useState, useEffect } = React;
+  
+// =====================================================================
+// SEARCH PATTERN PLANNER - CORE FUNCTIONS
+// =====================================================================
+const EARTH_RADIUS_NM = 3440.065;
+const DEG_TO_RAD = Math.PI / 180;
+const RAD_TO_DEG = 180 / Math.PI;
+const GRID_PREFIXES = { 'DEN': { latMin: 37, latMax: 41, lonMin: -109, lonMax: -102 }, 'PHX': { latMin: 31, latMax: 37, lonMin: -115, lonMax: -109 }, 'DAL': { latMin: 30, latMax: 37, lonMin: -104, lonMax: -94 }, 'ATL': { latMin: 30, latMax: 36, lonMin: -88, lonMax: -80 } };
+
+function spDestPoint(latDeg, lonDeg, bearingDeg, distNm) {
+  const lat1 = latDeg * DEG_TO_RAD, lon1 = lonDeg * DEG_TO_RAD, bearing = bearingDeg * DEG_TO_RAD, delta = distNm / EARTH_RADIUS_NM;
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(delta) + Math.cos(lat1) * Math.sin(delta) * Math.cos(bearing));
+  let lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(delta) * Math.cos(lat1), Math.cos(delta) - Math.sin(lat1) * Math.sin(lat2));
+  let lonNorm = lon2 * RAD_TO_DEG;
+  while (lonNorm > 180) lonNorm -= 360;
+  while (lonNorm < -180) lonNorm += 360;
+  return { latDeg: lat2 * RAD_TO_DEG, lonDeg: lonNorm };
+}
+
+function spNormalizeBearing(b) { b = b % 360; if (b < 0) b += 360; return b; }
+
+function spParseCoordinate(input) {
+  if (!input || typeof input !== 'string') return null;
+  input = input.trim();
+  let m = input.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+  if (m) return { latDD: parseFloat(m[1]), lonDD: parseFloat(m[2]) };
+  m = input.match(/(\d+)\s+(\d+\.?\d*)\s*([NS])\s+(\d+)\s+(\d+\.?\d*)\s*([EW])/i);
+  if (m) { let lat = parseInt(m[1]) + parseFloat(m[2]) / 60, lon = parseInt(m[4]) + parseFloat(m[5]) / 60; if (m[3].toUpperCase() === 'S') lat = -lat; if (m[6].toUpperCase() === 'W') lon = -lon; return { latDD: lat, lonDD: lon }; }
+  m = input.match(/(\d+)[°\s]+(\d+)['′\s]+(\d+\.?\d*)["″\s]*([NS])\s+(\d+)[°\s]+(\d+)['′\s]+(\d+\.?\d*)["″\s]*([EW])/i);
+  if (m) { let lat = parseInt(m[1]) + parseInt(m[2])/60 + parseFloat(m[3])/3600, lon = parseInt(m[5]) + parseInt(m[6])/60 + parseFloat(m[7])/3600; if (m[4].toUpperCase() === 'S') lat = -lat; if (m[8].toUpperCase() === 'W') lon = -lon; return { latDD: lat, lonDD: lon }; }
+  return null;
+}
+
+function spFormatDDM(dd, isLon) { const abs = Math.abs(dd), deg = Math.floor(abs), min = (abs - deg) * 60; return deg + "°" + min.toFixed(3) + "'" + (isLon ? (dd >= 0 ? 'E' : 'W') : (dd >= 0 ? 'N' : 'S')); }
+function spFormatCoordDDM(lat, lon) { return spFormatDDM(lat, false) + " " + spFormatDDM(lon, true); }
+
+function spFormatForeFlight(lat, lon) {
+  const latAbs = Math.abs(lat), latD = Math.floor(latAbs), latM = (latAbs - latD) * 60;
+  const lonAbs = Math.abs(lon), lonD = Math.floor(lonAbs), lonM = (lonAbs - lonD) * 60;
+  return String(latD).padStart(2,'0') + latM.toFixed(2).padStart(5,'0') + (lat>=0?'N':'S') + '/' + String(lonD).padStart(3,'0') + lonM.toFixed(2).padStart(5,'0') + (lon>=0?'E':'W');
+}
+
+function spDetectCapGrid(lat, lon) {
+  const latDeg = Math.floor(lat), lonDeg = Math.floor(lon);
+  const latMin = (lat - latDeg) * 60, lonMin = (Math.abs(lon) - Math.abs(lonDeg)) * 60;
+  const latBlock = Math.floor(latMin / 15), lonBlock = Math.floor(lonMin / 15);
+  const gridNum = (3 - latBlock) * 4 + lonBlock + 1 + ((Math.abs(lonDeg) % 10) * 16);
+  const latQ = (latMin % 15) >= 7.5 ? 'N' : 'S', lonQ = (lonMin % 15) >= 7.5 ? 'E' : 'W';
+  let quarter = (latQ === 'N' && lonQ === 'E') ? 'A' : (latQ === 'N' && lonQ === 'W') ? 'B' : (latQ === 'S' && lonQ === 'W') ? 'C' : 'D';
+  const qs = 7.5 / 60;
+  const cellSLat = latDeg + (latBlock * 15 / 60), cellNLat = cellSLat + (15 / 60);
+  const cellWLon = lonDeg - ((lonBlock + 1) * 15 / 60), cellELon = cellWLon + (15 / 60);
+  let nwLat, nwLon, seLat, seLon;
+  if (quarter === 'A') { nwLat = cellNLat; seLat = cellNLat - qs; nwLon = cellELon - qs; seLon = cellELon; }
+  else if (quarter === 'B') { nwLat = cellNLat; seLat = cellNLat - qs; nwLon = cellWLon; seLon = cellWLon + qs; }
+  else if (quarter === 'C') { nwLat = cellSLat + qs; seLat = cellSLat; nwLon = cellWLon; seLon = cellWLon + qs; }
+  else { nwLat = cellSLat + qs; seLat = cellSLat; nwLon = cellELon - qs; seLon = cellELon; }
+  let prefix = 'GRD';
+  for (const [pfx, b] of Object.entries(GRID_PREFIXES)) { if (lat >= b.latMin && lat <= b.latMax && lon >= b.lonMin && lon <= b.lonMax) { prefix = pfx; break; } }
+  return { gridId: prefix + ' ' + gridNum + quarter, cellId: Math.abs(latDeg) + String(Math.abs(lonDeg)).slice(-2) + quarter, quarterGrid: quarter, magVariation: Math.round((-0.15 * lon - 5) * 10) / 10, corners: { nw: { lat: nwLat, lon: nwLon }, ne: { lat: nwLat, lon: seLon }, sw: { lat: seLat, lon: nwLon }, se: { lat: seLat, lon: seLon } } };
+}
+
+function spCalcGridDims(c) { const cLat = (c.nw.lat + c.sw.lat) / 2, cLon = (c.nw.lon + c.ne.lon) / 2; return { centerLat: cLat, centerLon: cLon, widthNM: Math.abs(c.ne.lon - c.nw.lon) * 60 * Math.cos(cLat * DEG_TO_RAD), heightNM: Math.abs(c.nw.lat - c.sw.lat) * 60 }; }
+function spCalcOffset(w, s) { const n = Math.floor(w / s) + 1, cs = (n - 1) * s, eo = (w - cs) / 2; return { numTracks: n, edgeOffset: eo, efficiency: (cs / w) * 100 }; }
+
+function spGenGridParallel(params) {
+  const { poi, gridInfo, spacing, entryCorner = 'NW', groundspeed = 120 } = params;
+  if (!poi || !gridInfo || spacing <= 0) return { error: 'Invalid parameters' };
+  const dims = spCalcGridDims(gridInfo.corners), off = spCalcOffset(dims.widthNM, spacing);
+  const wps = []; let wpNum = 0, totalDist = 0;
+  const revOrder = entryCorner.includes('S'), startE = entryCorner.includes('E');
+  for (let i = 0; i < off.numTracks; i++) {
+    const ti = revOrder ? (off.numTracks - 1 - i) : i;
+    const ofw = off.edgeOffset + ti * spacing;
+    const tLon = gridInfo.corners.nw.lon + (ofw / 60) / Math.cos(dims.centerLat * DEG_TO_RAD);
+    const rev = (i % 2 === 1) !== startE;
+    const sLat = rev ? gridInfo.corners.sw.lat : gridInfo.corners.nw.lat;
+    const eLat = rev ? gridInfo.corners.nw.lat : gridInfo.corners.sw.lat;
+    const hdg = rev ? 0 : 180;
+    wps.push({ number: wpNum++, lat: sLat, lon: tLon, heading: hdg, legLength: dims.heightNM, ddm: spFormatCoordDDM(sLat, tLon), foreflight: spFormatForeFlight(sLat, tLon), note: 'Track ' + (i+1) + ' start' });
+    wps.push({ number: wpNum++, lat: eLat, lon: tLon, heading: i < off.numTracks - 1 ? 90 : null, legLength: i < off.numTracks - 1 ? spacing : 0, ddm: spFormatCoordDDM(eLat, tLon), foreflight: spFormatForeFlight(eLat, tLon), note: 'Track ' + (i+1) + ' end' });
+    totalDist += dims.heightNM;
+    if (i < off.numTracks - 1) totalDist += spacing;
+  }
+  return { patternType: 'CAP Grid Parallel Track', poi, gridInfo: { gridId: gridInfo.gridId, cellId: gridInfo.cellId, quarterGrid: gridInfo.quarterGrid, magVariation: gridInfo.magVariation, corners: gridInfo.corners }, dimensions: { actualWidth: dims.widthNM, actualHeight: dims.heightNM, centerLat: dims.centerLat, centerLon: dims.centerLon }, coverage: { numTracks: off.numTracks, spacing, edgeOffset: off.edgeOffset, efficiency: off.efficiency }, waypoints: wps, summary: { spacing, numTracks: off.numTracks, totalDistance: totalDist, timeMinutes: (totalDist / groundspeed) * 60, entryCorner, gridAligned: true } };
+}
+
+function spGenExpandingSquare(params) {
+  const { poi, spacing, initialHeading = 0, turnDirection = 'Right', numLegs = 8, groundspeed = 120 } = params;
+  if (!poi || spacing <= 0 || numLegs < 2) return { error: 'Invalid parameters' };
+  const wps = [], ts = turnDirection === 'Right' ? 1 : -1;
+  let cLat = poi.latDD, cLon = poi.lonDD, totalDist = 0;
+  wps.push({ number: 0, lat: cLat, lon: cLon, heading: null, legLength: 0, ddm: spFormatCoordDDM(cLat, cLon), foreflight: spFormatForeFlight(cLat, cLon), note: 'POI/Start' });
+  for (let i = 0; i < numLegs; i++) {
+    const ll = Math.ceil((i + 1) / 2) * spacing;
+    const hdg = spNormalizeBearing(initialHeading + (i * 90 * ts));
+    const d = spDestPoint(cLat, cLon, hdg, ll);
+    wps.push({ number: i + 1, lat: d.latDeg, lon: d.lonDeg, heading: hdg, legLength: ll, ddm: spFormatCoordDDM(d.latDeg, d.lonDeg), foreflight: spFormatForeFlight(d.latDeg, d.lonDeg), note: 'Leg ' + (i+1) });
+    cLat = d.latDeg; cLon = d.lonDeg; totalDist += ll;
+  }
+  return { patternType: 'Expanding Square', poi, waypoints: wps, summary: { spacing, initialHeading, turnDirection, numLegs, totalDistance: totalDist, timeMinutes: (totalDist / groundspeed) * 60, gridAligned: false } };
+}
+
+function spGenCreepingLine(params) {
+  const { poi, gridInfo, spacing, direction = 0, startSide = 'Left', groundspeed = 120 } = params;
+  if (!poi || !gridInfo || spacing <= 0) return { error: 'Invalid parameters' };
+  const dims = spCalcGridDims(gridInfo.corners);
+  let corridorLength, corridorWidth;
+  if (direction === 0 || direction === 180) { corridorLength = dims.heightNM; corridorWidth = dims.widthNM; }
+  else { corridorLength = dims.widthNM; corridorWidth = dims.heightNM; }
+  const off = spCalcOffset(corridorWidth, spacing);
+  const wps = [];
+  let wpNum = 0, totalDist = 0;
+  const uBearing = direction;
+  const vBearing = spNormalizeBearing(direction + 90);
+  const halfLen = corridorLength / 2;
+  const startOff = startSide === 'Left' ? (-corridorWidth/2 + off.edgeOffset) : (corridorWidth/2 - off.edgeOffset);
+  const offStep = startSide === 'Left' ? spacing : -spacing;
+  for (let i = 0; i < off.numTracks; i++) {
+    const vOff = startOff + (i * offStep);
+    const trkCtr = spDestPoint(dims.centerLat, dims.centerLon, vBearing, vOff);
+    const rev = (i % 2 === 1);
+    const uStart = rev ? halfLen : -halfLen;
+    const uEnd = rev ? -halfLen : halfLen;
+    const trkBrg = rev ? spNormalizeBearing(uBearing + 180) : uBearing;
+    const spt = spDestPoint(trkCtr.latDeg, trkCtr.lonDeg, uBearing, uStart);
+    wps.push({ number: wpNum++, lat: spt.latDeg, lon: spt.lonDeg, heading: trkBrg, legLength: corridorLength, ddm: spFormatCoordDDM(spt.latDeg, spt.lonDeg), foreflight: spFormatForeFlight(spt.latDeg, spt.lonDeg), note: 'Track ' + (i+1) + ' start' });
+    const ept = spDestPoint(trkCtr.latDeg, trkCtr.lonDeg, uBearing, uEnd);
+    wps.push({ number: wpNum++, lat: ept.latDeg, lon: ept.lonDeg, heading: null, legLength: 0, ddm: spFormatCoordDDM(ept.latDeg, ept.lonDeg), foreflight: spFormatForeFlight(ept.latDeg, ept.lonDeg), note: 'Track ' + (i+1) + ' end' });
+    totalDist += corridorLength;
+  }
+  return { patternType: 'Creeping Line', poi, gridInfo: { gridId: gridInfo.gridId, cellId: gridInfo.cellId, quarterGrid: gridInfo.quarterGrid, magVariation: gridInfo.magVariation, corners: gridInfo.corners }, dimensions: { corridorLength, corridorWidth, centerLat: dims.centerLat, centerLon: dims.centerLon }, coverage: { numTracks: off.numTracks, spacing, edgeOffset: off.edgeOffset, efficiency: off.efficiency }, waypoints: wps, summary: { spacing, direction, numTracks: off.numTracks, totalDistance: totalDist, timeMinutes: (totalDist / groundspeed) * 60, startSide, gridAligned: true } };
+}
+
+function spGenKML(plan) {
+  if (!plan) return '';
+  let kml = '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>CAP Search - ' + plan.patternType + '</name>';
+  kml += '<Style id="path"><LineStyle><color>ff00aa00</color><width>3</width></LineStyle></Style>';
+  kml += '<Style id="grid"><LineStyle><color>ffff7700</color><width>2</width></LineStyle><PolyStyle><color>22ff7700</color></PolyStyle></Style>';
+  kml += '<Placemark><name>POI</name><Point><coordinates>' + plan.poi.lonDD + ',' + plan.poi.latDD + ',0</coordinates></Point></Placemark>';
+  if (plan.gridInfo && plan.gridInfo.corners) {
+    const c = plan.gridInfo.corners;
+    kml += '<Placemark><name>Grid: ' + plan.gridInfo.gridId + '</name><styleUrl>#grid</styleUrl><Polygon><outerBoundaryIs><LinearRing><coordinates>' + c.nw.lon + ',' + c.nw.lat + ',0 ' + c.ne.lon + ',' + c.ne.lat + ',0 ' + c.se.lon + ',' + c.se.lat + ',0 ' + c.sw.lon + ',' + c.sw.lat + ',0 ' + c.nw.lon + ',' + c.nw.lat + ',0</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>';
+  }
+  const coords = plan.waypoints.map(w => w.lon + ',' + w.lat + ',0').join(' ');
+  kml += '<Placemark><name>Search Pattern</name><styleUrl>#path</styleUrl><LineString><tessellate>1</tessellate><coordinates>' + coords + '</coordinates></LineString></Placemark>';
+  plan.waypoints.forEach(w => { kml += '<Placemark><name>WP' + String(w.number).padStart(2,'0') + '</name><Point><coordinates>' + w.lon + ',' + w.lat + ',0</coordinates></Point></Placemark>'; });
+  kml += '</Document></kml>';
+  return kml;
+}
+
+var spMap = null;
+
+
+var { useState, useEffect } = React;
   var referenceData = {
     radioFrequencies: {
       title: "Radio Frequencies",
@@ -2044,6 +2205,8 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     const [selectedEmergencyCategory, setSelectedEmergencyCategory] = useState("engine");
     const [expandedProcedure, setExpandedProcedure] = useState(null);
     const [expandedRadioCall, setExpandedRadioCall] = useState(null);
+
+    const [spState, setSpState] = useState({ patternType: 'gridParallelTrack', poiInput: '', poi: null, detectedGrid: null, spacing: 1.0, groundspeed: 120, entryCorner: 'NW', initialHeading: 0, turnDirection: 'Right', numLegs: 8, clDirection: 0, clStartSide: 'Left', lastPlan: null, showMap: false });
     const [selectedState, setSelectedState] = useState("CO");
     const [selectedCommsCategory, setSelectedCommsCategory] = useState("channels");
     const [commsView, setCommsView] = useState("channels");
@@ -2604,6 +2767,261 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
       };
       return /* @__PURE__ */ React.createElement("div", { style: modalStyles.overlay, onClick: onClose }, /* @__PURE__ */ React.createElement("div", { style: modalStyles.modal, onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("div", { style: modalStyles.header }, /* @__PURE__ */ React.createElement("div", { style: modalStyles.title }, "\u{1F6F0}\uFE0F GPS Coordinate Tools"), /* @__PURE__ */ React.createElement("button", { style: modalStyles.closeBtn, onClick: onClose }, "\xD7")), /* @__PURE__ */ React.createElement("div", { style: modalStyles.body }, /* @__PURE__ */ React.createElement("div", { style: { ...modalStyles.row, marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("button", { style: { ...modalStyles.button, flex: 1 }, onClick: getCurrentLocation }, "\u{1F4CD} Get Current Location"), /* @__PURE__ */ React.createElement("button", { style: { ...modalStyles.button, ...modalStyles.buttonSecondary, flex: 1 }, onClick: openMapView, disabled: offlineMode }, "\u{1F5FA}\uFE0F View on Map")), gpsStatus && /* @__PURE__ */ React.createElement("div", { style: modalStyles.status }, gpsStatus), /* @__PURE__ */ React.createElement("div", { style: modalStyles.tabs }, /* @__PURE__ */ React.createElement("button", { style: { ...modalStyles.tab, ...format === "ddm" ? modalStyles.tabActive : {} }, onClick: () => setFormat("ddm") }, "DDM (G1000)"), /* @__PURE__ */ React.createElement("button", { style: { ...modalStyles.tab, ...format === "dd" ? modalStyles.tabActive : {} }, onClick: () => setFormat("dd") }, "DD"), /* @__PURE__ */ React.createElement("button", { style: { ...modalStyles.tab, ...format === "dms" ? modalStyles.tabActive : {} }, onClick: () => setFormat("dms") }, "DMS")), format === "ddm" && /* @__PURE__ */ React.createElement("div", { style: modalStyles.section }, /* @__PURE__ */ React.createElement("div", { style: modalStyles.sectionTitle }, "Degrees Decimal Minutes (DDM) - G1000 Format"), /* @__PURE__ */ React.createElement("div", { style: modalStyles.row }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: modalStyles.label }, "Latitude N"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: modalStyles.inputSmall, placeholder: "DD", value: ddmLatDeg, onChange: (e) => setDdmLatDeg(e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: modalStyles.unitLabel }, "\xB0"), /* @__PURE__ */ React.createElement("input", { style: { ...modalStyles.input, flex: 1 }, placeholder: "MM.MMM", value: ddmLatMin, onChange: (e) => setDdmLatMin(e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: modalStyles.unitLabel }, "'")))), /* @__PURE__ */ React.createElement("div", { style: modalStyles.row }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: modalStyles.label }, "Longitude W"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: modalStyles.inputSmall, placeholder: "DDD", value: ddmLonDeg, onChange: (e) => setDdmLonDeg(e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: modalStyles.unitLabel }, "\xB0"), /* @__PURE__ */ React.createElement("input", { style: { ...modalStyles.input, flex: 1 }, placeholder: "MM.MMM", value: ddmLonMin, onChange: (e) => setDdmLonMin(e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: modalStyles.unitLabel }, "'")))), /* @__PURE__ */ React.createElement("button", { style: { ...modalStyles.button, ...modalStyles.buttonSecondary, width: "100%", marginTop: "8px" }, onClick: syncFromDdm }, "Convert & Calculate Grid")), format === "dd" && /* @__PURE__ */ React.createElement("div", { style: modalStyles.section }, /* @__PURE__ */ React.createElement("div", { style: modalStyles.sectionTitle }, "Decimal Degrees (DD)"), /* @__PURE__ */ React.createElement("div", { style: modalStyles.row }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: modalStyles.label }, "Latitude (N positive)"), /* @__PURE__ */ React.createElement("input", { style: modalStyles.input, placeholder: "39.123456", value: ddLat, onChange: (e) => setDdLat(e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: modalStyles.label }, "Longitude (W as positive)"), /* @__PURE__ */ React.createElement("input", { style: modalStyles.input, placeholder: "104.123456", value: ddLon, onChange: (e) => setDdLon(e.target.value) }))), /* @__PURE__ */ React.createElement("button", { style: { ...modalStyles.button, ...modalStyles.buttonSecondary, width: "100%", marginTop: "8px" }, onClick: () => syncFromDd(ddLat, ddLon) }, "Convert & Calculate Grid")), format === "dms" && /* @__PURE__ */ React.createElement("div", { style: modalStyles.section }, /* @__PURE__ */ React.createElement("div", { style: modalStyles.sectionTitle }, "Degrees Minutes Seconds (DMS)"), /* @__PURE__ */ React.createElement("div", { style: modalStyles.row }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: modalStyles.label }, "Latitude N"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: modalStyles.inputSmall, placeholder: "DD", value: dmsLatDeg, onChange: (e) => setDmsLatDeg(e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: modalStyles.unitLabel }, "\xB0"), /* @__PURE__ */ React.createElement("input", { style: modalStyles.inputSmall, placeholder: "MM", value: dmsLatMin, onChange: (e) => setDmsLatMin(e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: modalStyles.unitLabel }, "'"), /* @__PURE__ */ React.createElement("input", { style: modalStyles.inputSmall, placeholder: "SS.SS", value: dmsLatSec, onChange: (e) => setDmsLatSec(e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: modalStyles.unitLabel }, '"')))), /* @__PURE__ */ React.createElement("div", { style: modalStyles.row }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: modalStyles.label }, "Longitude W"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: modalStyles.inputSmall, placeholder: "DDD", value: dmsLonDeg, onChange: (e) => setDmsLonDeg(e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: modalStyles.unitLabel }, "\xB0"), /* @__PURE__ */ React.createElement("input", { style: modalStyles.inputSmall, placeholder: "MM", value: dmsLonMin, onChange: (e) => setDmsLonMin(e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: modalStyles.unitLabel }, "'"), /* @__PURE__ */ React.createElement("input", { style: modalStyles.inputSmall, placeholder: "SS.SS", value: dmsLonSec, onChange: (e) => setDmsLonSec(e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: modalStyles.unitLabel }, '"')))), /* @__PURE__ */ React.createElement("button", { style: { ...modalStyles.button, ...modalStyles.buttonSecondary, width: "100%", marginTop: "8px" }, onClick: syncFromDms }, "Convert & Calculate Grid")), ddLat && ddLon && /* @__PURE__ */ React.createElement("div", { style: modalStyles.section }, /* @__PURE__ */ React.createElement("div", { style: modalStyles.sectionTitle }, "All Formats"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "12px", fontFamily: "monospace", lineHeight: "1.8" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "DD:"), " ", /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391" } }, ddLat, "\xB0 N, ", ddLon, "\xB0 W")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "DDM:"), " ", /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391" } }, ddmLatDeg, "\xB0 ", ddmLatMin, "' N, ", ddmLonDeg, "\xB0 ", ddmLonMin, "' W")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "DMS:"), " ", /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391" } }, dmsLatDeg, "\xB0 ", dmsLatMin, "' ", dmsLatSec, '" N, ', dmsLonDeg, "\xB0 ", dmsLonMin, "' ", dmsLonSec, '" W')))), capGrid && /* @__PURE__ */ React.createElement("div", { style: modalStyles.gridResult }, /* @__PURE__ */ React.createElement("div", { style: modalStyles.sectionTitle }, "CAP Grid"), capGrid.sectional ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: modalStyles.gridMain }, capGrid.full), /* @__PURE__ */ React.createElement("div", { style: modalStyles.gridSub }, capGrid.sectionalName, " Sectional \u2022 Grid ", capGrid.grid, " \u2022 Quadrant ", capGrid.quadrant)) : /* @__PURE__ */ React.createElement("div", { style: { color: "#fc8181" } }, capGrid.full)), /* @__PURE__ */ React.createElement("div", { style: { ...modalStyles.row, justifyContent: "center", marginTop: "16px" } }, /* @__PURE__ */ React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#a0aec0", cursor: "pointer" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: offlineMode, onChange: (e) => setOfflineMode(e.target.checked) }), "Offline Mode (disable map features)")), /* @__PURE__ */ React.createElement("button", { style: { ...modalStyles.button, ...modalStyles.buttonSuccess, width: "100%", marginTop: "16px" }, onClick: handleApply }, "\u2713 Apply Coordinates to Event"))));
     };
+    // Density Altitude Calculator Component (per CAP MO P-2011)
+    const DensityAltitudeCalculator = () => {
+      const [fieldElevation, setFieldElevation] = useState("");
+      const [altimeterSetting, setAltimeterSetting] = useState("29.92");
+      const [tempC, setTempC] = useState("");
+      const [tempF, setTempF] = useState("");
+      const [tempUnit, setTempUnit] = useState("F");
+      const [results, setResults] = useState(null);
+      
+      // Standard atmosphere constants
+      const STANDARD_PRESSURE = 29.92; // inches Hg
+      const STANDARD_TEMP_C = 15; // °C at sea level
+      const LAPSE_RATE_C = 2; // °C per 1000 ft
+      const PRESSURE_LAPSE = 1.0; // inch Hg per 1000 ft (approximate)
+      
+      const convertTemp = (value, fromUnit) => {
+        if (!value || isNaN(parseFloat(value))) return "";
+        const v = parseFloat(value);
+        if (fromUnit === "F") {
+          return ((v - 32) * 5 / 9).toFixed(1);
+        } else {
+          return (v * 9 / 5 + 32).toFixed(1);
+        }
+      };
+      
+      const handleTempChange = (value, unit) => {
+        if (unit === "F") {
+          setTempF(value);
+          setTempC(convertTemp(value, "F"));
+        } else {
+          setTempC(value);
+          setTempF(convertTemp(value, "C"));
+        }
+      };
+      
+      const calculateDensityAltitude = () => {
+        const elev = parseFloat(fieldElevation);
+        const altimeter = parseFloat(altimeterSetting);
+        const actualTempC = parseFloat(tempC);
+        
+        if (isNaN(elev) || isNaN(altimeter) || isNaN(actualTempC)) {
+          setResults({ error: "Please enter valid values for all fields" });
+          return;
+        }
+        
+        // Calculate pressure altitude
+        // PA = Field Elevation + ((29.92 - Altimeter Setting) × 1000)
+        const pressureAltitude = elev + ((STANDARD_PRESSURE - altimeter) * 1000);
+        
+        // Calculate standard temperature at this pressure altitude
+        // Standard temp decreases 2°C per 1000 ft from 15°C at sea level
+        const standardTempAtAlt = STANDARD_TEMP_C - (pressureAltitude / 1000 * LAPSE_RATE_C);
+        
+        // Temperature deviation from standard
+        const tempDeviation = actualTempC - standardTempAtAlt;
+        
+        // Density Altitude = Pressure Altitude + (120 × Temperature Deviation)
+        // The 120 factor is an approximation for the ISA deviation correction
+        const densityAltitude = pressureAltitude + (120 * tempDeviation);
+        
+        // Calculate freezing level (where temp = 0°C)
+        // From current temp, how many feet to reach 0°C at lapse rate
+        const freezingLevel = actualTempC > 0 
+          ? elev + (actualTempC / LAPSE_RATE_C * 1000)
+          : elev - (Math.abs(actualTempC) / LAPSE_RATE_C * 1000);
+        
+        // Performance impact assessment
+        let performanceImpact = "Normal";
+        let impactColor = "#68d391";
+        if (densityAltitude > elev + 3000) {
+          performanceImpact = "SEVERE - Significantly degraded performance";
+          impactColor = "#fc8181";
+        } else if (densityAltitude > elev + 2000) {
+          performanceImpact = "HIGH - Substantially reduced performance";
+          impactColor = "#f6ad55";
+        } else if (densityAltitude > elev + 1000) {
+          performanceImpact = "MODERATE - Noticeable performance reduction";
+          impactColor = "#f6e05e";
+        }
+        
+        setResults({
+          fieldElevation: elev,
+          pressureAltitude: Math.round(pressureAltitude),
+          standardTemp: standardTempAtAlt.toFixed(1),
+          tempDeviation: tempDeviation.toFixed(1),
+          densityAltitude: Math.round(densityAltitude),
+          freezingLevel: Math.round(freezingLevel),
+          performanceImpact,
+          impactColor,
+          daAboveField: Math.round(densityAltitude - elev)
+        });
+      };
+      
+      const ws = {
+        section: { marginBottom: "16px" },
+        sectionTitle: { fontSize: "12px", fontWeight: "600", color: "#f6e05e", marginBottom: "8px" },
+        row: { display: "flex", gap: "8px", marginBottom: "8px" },
+        label: { fontSize: "11px", color: "#a0aec0", marginBottom: "4px", display: "block" },
+        input: { width: "100%", padding: "8px 10px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "4px", color: "#e2e8f0", fontSize: "14px" },
+        inputSmall: { width: "70px", padding: "8px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "4px", color: "#e2e8f0", fontSize: "14px", textAlign: "center" },
+        button: { padding: "10px 16px", background: "linear-gradient(135deg, #3182ce, #2b6cb0)", border: "none", borderRadius: "6px", color: "white", fontSize: "13px", fontWeight: "600", cursor: "pointer" },
+        unitToggle: { display: "flex", gap: "4px" },
+        unitBtn: { padding: "6px 12px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "4px", color: "#a0aec0", fontSize: "12px", cursor: "pointer" },
+        unitBtnActive: { background: "rgba(99,179,237,0.3)", borderColor: "rgba(99,179,237,0.5)", color: "#63b3ed" },
+        resultCard: { padding: "12px", background: "rgba(0,0,0,0.2)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)", marginTop: "12px" },
+        resultRow: { display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" },
+        resultLabel: { fontSize: "12px", color: "#a0aec0" },
+        resultValue: { fontSize: "14px", fontWeight: "600", color: "#68d391", fontFamily: "monospace" },
+        bigResult: { textAlign: "center", padding: "16px", background: "linear-gradient(135deg, rgba(246,224,94,0.1), rgba(237,137,54,0.1))", borderRadius: "8px", border: "1px solid rgba(246,224,94,0.3)", marginBottom: "12px" },
+        bigValue: { fontSize: "32px", fontWeight: "700", fontFamily: "monospace" },
+        bigLabel: { fontSize: "11px", color: "#a0aec0", marginTop: "4px" },
+        infoCard: { padding: "10px", background: "rgba(99,179,237,0.1)", borderRadius: "6px", border: "1px solid rgba(99,179,237,0.3)", marginTop: "12px", fontSize: "11px", color: "#a0aec0" },
+        warningCard: { padding: "10px", background: "rgba(246,173,85,0.1)", borderRadius: "6px", border: "1px solid rgba(246,173,85,0.3)", marginTop: "8px", fontSize: "11px" }
+      };
+      
+      return React.createElement("div", null,
+        // Header
+        React.createElement("div", { style: { ...ws.section, background: "linear-gradient(135deg, rgba(237,137,54,0.15), rgba(246,224,94,0.15))", padding: "12px", borderRadius: "8px", border: "1px solid rgba(237,137,54,0.3)", marginBottom: "16px" } },
+          React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" } },
+            React.createElement("span", { style: { fontSize: "20px" } }, "🏔️"),
+            React.createElement("span", { style: { fontWeight: "700", color: "#ed8936", fontSize: "14px" } }, "Density Altitude Calculator")
+          ),
+          React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0" } }, "Per CAP MO P-2011 • Remember the 4 H's: Higher altitude, Heat, Humidity = reduced performance")
+        ),
+        
+        // Input Section
+        React.createElement("div", { style: ws.section },
+          React.createElement("div", { style: ws.sectionTitle }, "Airport/Field Conditions"),
+          
+          // Field Elevation
+          React.createElement("div", { style: ws.row },
+            React.createElement("div", { style: { flex: 1 } },
+              React.createElement("label", { style: ws.label }, "Field Elevation (ft MSL)"),
+              React.createElement("input", { 
+                style: ws.input, 
+                type: "number",
+                placeholder: "e.g., 5431", 
+                value: fieldElevation, 
+                onChange: (e) => setFieldElevation(e.target.value)
+              })
+            ),
+            React.createElement("div", { style: { flex: 1 } },
+              React.createElement("label", { style: ws.label }, "Altimeter Setting (\" Hg)"),
+              React.createElement("input", { 
+                style: ws.input, 
+                type: "number",
+                step: "0.01",
+                placeholder: "29.92", 
+                value: altimeterSetting, 
+                onChange: (e) => setAltimeterSetting(e.target.value)
+              })
+            )
+          ),
+          
+          // Temperature with unit toggle
+          React.createElement("div", { style: { marginBottom: "8px" } },
+            React.createElement("label", { style: ws.label }, "Outside Air Temperature (OAT)"),
+            React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } },
+              React.createElement("input", { 
+                style: { ...ws.input, flex: 1 }, 
+                type: "number",
+                placeholder: tempUnit === "F" ? "e.g., 95" : "e.g., 35", 
+                value: tempUnit === "F" ? tempF : tempC, 
+                onChange: (e) => handleTempChange(e.target.value, tempUnit)
+              }),
+              React.createElement("div", { style: ws.unitToggle },
+                React.createElement("button", { 
+                  style: { ...ws.unitBtn, ...(tempUnit === "F" ? ws.unitBtnActive : {}) },
+                  onClick: () => setTempUnit("F")
+                }, "°F"),
+                React.createElement("button", { 
+                  style: { ...ws.unitBtn, ...(tempUnit === "C" ? ws.unitBtnActive : {}) },
+                  onClick: () => setTempUnit("C")
+                }, "°C")
+              )
+            )
+          ),
+          
+          // Calculate Button
+          React.createElement("button", { 
+            style: { ...ws.button, width: "100%", marginTop: "8px" },
+            onClick: calculateDensityAltitude
+          }, "📊 CALCULATE DENSITY ALTITUDE")
+        ),
+        
+        // Results Section
+        results && !results.error && React.createElement("div", { style: ws.section },
+          // Big Density Altitude Display
+          React.createElement("div", { style: { ...ws.bigResult, borderColor: results.impactColor } },
+            React.createElement("div", { style: { ...ws.bigValue, color: results.impactColor } }, 
+              results.densityAltitude.toLocaleString(), " ft"
+            ),
+            React.createElement("div", { style: ws.bigLabel }, "DENSITY ALTITUDE"),
+            React.createElement("div", { style: { fontSize: "12px", color: results.impactColor, marginTop: "8px", fontWeight: "600" } },
+              results.daAboveField >= 0 ? "+" : "", results.daAboveField.toLocaleString(), " ft above field elevation"
+            )
+          ),
+          
+          // Performance Warning
+          React.createElement("div", { style: { ...ws.warningCard, borderColor: results.impactColor, background: `${results.impactColor}15` } },
+            React.createElement("div", { style: { fontWeight: "600", color: results.impactColor, marginBottom: "4px" } }, 
+              "⚠️ Performance Impact: ", results.performanceImpact
+            )
+          ),
+          
+          // Detailed Results
+          React.createElement("div", { style: ws.resultCard },
+            React.createElement("div", { style: ws.sectionTitle }, "Calculation Details"),
+            React.createElement("div", { style: ws.resultRow },
+              React.createElement("span", { style: ws.resultLabel }, "Field Elevation"),
+              React.createElement("span", { style: ws.resultValue }, results.fieldElevation.toLocaleString(), " ft MSL")
+            ),
+            React.createElement("div", { style: ws.resultRow },
+              React.createElement("span", { style: ws.resultLabel }, "Pressure Altitude"),
+              React.createElement("span", { style: ws.resultValue }, results.pressureAltitude.toLocaleString(), " ft")
+            ),
+            React.createElement("div", { style: ws.resultRow },
+              React.createElement("span", { style: ws.resultLabel }, "Standard Temp at PA"),
+              React.createElement("span", { style: ws.resultValue }, results.standardTemp, "°C")
+            ),
+            React.createElement("div", { style: ws.resultRow },
+              React.createElement("span", { style: ws.resultLabel }, "Temp Deviation (ISA)"),
+              React.createElement("span", { style: { ...ws.resultValue, color: parseFloat(results.tempDeviation) > 0 ? "#f6ad55" : "#68d391" } }, 
+                parseFloat(results.tempDeviation) > 0 ? "+" : "", results.tempDeviation, "°C"
+              )
+            ),
+            React.createElement("div", { style: { ...ws.resultRow, borderBottom: "none" } },
+              React.createElement("span", { style: ws.resultLabel }, "Freezing Level"),
+              React.createElement("span", { style: { ...ws.resultValue, color: "#63b3ed" } }, results.freezingLevel.toLocaleString(), " ft MSL")
+            )
+          )
+        ),
+        
+        // Error display
+        results && results.error && React.createElement("div", { style: { ...ws.warningCard, borderColor: "#fc8181" } },
+          React.createElement("span", { style: { color: "#fc8181" } }, "⚠️ ", results.error)
+        ),
+        
+        // Reference Info
+        React.createElement("div", { style: ws.infoCard },
+          React.createElement("div", { style: { fontWeight: "600", marginBottom: "6px", color: "#63b3ed" } }, "📋 The Four H's = Reduced Performance:"),
+          React.createElement("div", null, "• Higher altitude • Heat • Humidity • High DA = degraded performance"),
+          React.createElement("div", { style: { marginTop: "8px" } },
+            React.createElement("strong", null, "Effects:"), " Reduced engine power, reduced lift, longer takeoff/landing rolls, reduced climb rate"
+          ),
+          React.createElement("div", { style: { marginTop: "6px" } },
+            React.createElement("strong", null, "Mitigation:"), " Fly early AM/late PM, reduce weight, use longest runway, calculate actual performance"
+          ),
+          React.createElement("div", { style: { marginTop: "8px", fontStyle: "italic", color: "#718096" } },
+            "Formula: PA = Elev + ((29.92 - Altimeter) × 1000) • DA = PA + (120 × ISA deviation)"
+          )
+        )
+      );
+    };
+
     const GpsConverterWidget = () => {
       const [format, setFormat] = useState("ddm");
       const [ddLat, setDdLat] = useState("");
@@ -3086,7 +3504,13 @@ printWindow.document.write(`
             .checkbox { display: inline-block; width: 14px; height: 14px; border: 1px solid #333; margin-right: 4px; text-align: center; line-height: 12px; }
             .checkbox.checked::after { content: '\u2713'; }
             .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-          </style></head><body>
+          </style>  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    .search-planner-map { height: 350px; border-radius: 8px; margin: 10px 0; border: 2px solid rgba(56,161,105,0.3); }
+    .sp-grid-info { background: rgba(49,130,206,0.15); border: 1px solid rgba(49,130,206,0.4); border-radius: 8px; padding: 12px; margin: 10px 0; }
+    .sp-coverage { background: rgba(56,161,105,0.15); border: 1px solid rgba(56,161,105,0.4); border-radius: 8px; padding: 12px; margin: 10px 0; }
+  </style>
+</head><body>
             <div class="header"><div class="cap-logo">CAP</div><div><div class="title">MISSION Observer Log</div><div>Civil Air Patrol - U.S. Air Force Auxiliary</div></div></div>
             <div class="two-column"><div>
               <div class="section"><div class="section-title">Mission Information</div><div class="grid grid-2">
@@ -5666,9 +6090,10 @@ React.createElement(
             return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("table", { style: styles.refTable }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { style: styles.refTh }, "Item"), /* @__PURE__ */ React.createElement("th", { style: styles.refTh }, "Value"), /* @__PURE__ */ React.createElement("th", { style: styles.refTh }, "Note"))), /* @__PURE__ */ React.createElement("tbody", null, data.items.map((item, i) => /* @__PURE__ */ React.createElement("tr", { key: i }, /* @__PURE__ */ React.createElement("td", { style: styles.refTd }, item.label), /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, fontWeight: "600", color: "#68d391" } }, item.value), /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, fontSize: "11px", color: "#a0aec0" } }, item.note))))));
           case "callSigns":
           case "sterileCockpit":
-          case "densityAltitude":
           case "gridSystem":
             return /* @__PURE__ */ React.createElement("div", { style: styles.pre }, data.content);
+          case "densityAltitude":
+            return /* @__PURE__ */ React.createElement(DensityAltitudeCalculator, null);
           case "searchPatterns":
             return /* @__PURE__ */ React.createElement("div", null, data.patterns.map((pattern, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "700", color: "#f6e05e", marginBottom: "8px", fontSize: "14px" } }, pattern.name), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "8px" } }, /* @__PURE__ */ React.createElement("span", { style: styles.label }, "Use:"), " ", /* @__PURE__ */ React.createElement("span", { style: { color: "#e2e8f0" } }, pattern.use)), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "8px" } }, /* @__PURE__ */ React.createElement("span", { style: styles.label }, "Altitude:"), " ", /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391" } }, pattern.altitude)), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "8px" } }, /* @__PURE__ */ React.createElement("span", { style: styles.label }, "Method:"), " ", /* @__PURE__ */ React.createElement("span", { style: { color: "#e2e8f0" } }, pattern.method)), /* @__PURE__ */ React.createElement("pre", { style: { ...styles.pre, fontSize: "10px", color: "#68d391" } }, pattern.diagram))));
           case "trackSpacing":
@@ -6017,12 +6442,217 @@ React.createElement(
         color: "#a0aec0"
       } }, /* @__PURE__ */ React.createElement("strong", { style: { color: "#fc8181" } }, "\u26A0\uFE0F Reference Only"), " \u2014 Always refer to the official POH for your specific aircraft. This checklist is a guide only."));
     };
-    const tabs = [
+    
+    const renderSearchPlannerTab = () => {
+      const handlePoiChange = (v) => { const p = spParseCoordinate(v); setSpState(s => ({ ...s, poiInput: v, poi: p, detectedGrid: p ? spDetectCapGrid(p.latDD, p.lonDD) : null })); };
+      
+      const generate = () => {
+        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide } = spState;
+        if (!poi) { alert('Enter valid POI'); return; }
+        let plan;
+        if (spState.patternType === 'gridParallelTrack') {
+          if (!detectedGrid) { alert('Could not detect CAP grid for this location'); return; }
+          plan = spGenGridParallel({ poi, gridInfo: detectedGrid, spacing, entryCorner, groundspeed });
+        } else if (spState.patternType === 'creepingLine') {
+          if (!detectedGrid) { alert('Could not detect CAP grid for this location'); return; }
+          plan = spGenCreepingLine({ poi, gridInfo: detectedGrid, spacing, direction: clDirection, startSide: clStartSide, groundspeed });
+        } else {
+          plan = spGenExpandingSquare({ poi, spacing, initialHeading, turnDirection, numLegs, groundspeed });
+        }
+        if (plan && !plan.error) setSpState(s => ({ ...s, lastPlan: plan })); 
+        else alert('Error: ' + (plan && plan.error ? plan.error : 'Unknown'));
+      };
+      
+      const copyFF = () => { if (!spState.lastPlan) return; navigator.clipboard.writeText(spState.lastPlan.waypoints.map(w => w.foreflight).join(' ')); alert('ForeFlight route copied!'); };
+      const exportKML = () => { if (!spState.lastPlan) return; const b = new Blob([spGenKML(spState.lastPlan)], { type: 'application/vnd.google-earth.kml+xml' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'CAP_Search_' + (spState.lastPlan.gridInfo?.gridId?.replace(/\s+/g,'_') || 'Pattern') + '.kml'; a.click(); };
+      const openMap = () => { if (!spState.lastPlan) return; setSpState(s => ({ ...s, showMap: true })); setTimeout(() => { if (spMap) { spMap.remove(); spMap = null; } const el = document.getElementById('spMapDiv'); if (!el) return; const p = spState.lastPlan; const ctr = [p.dimensions?.centerLat || p.poi.latDD, p.dimensions?.centerLon || p.poi.lonDD]; spMap = L.map('spMapDiv').setView(ctr, 11); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(spMap); if (p.gridInfo?.corners) { const c = p.gridInfo.corners; L.polygon([[c.nw.lat, c.nw.lon], [c.ne.lat, c.ne.lon], [c.se.lat, c.se.lon], [c.sw.lat, c.sw.lon]], { color: '#3182ce', weight: 2, fillOpacity: 0.1, dashArray: '5,5' }).addTo(spMap); } const path = p.waypoints.map(w => [w.lat, w.lon]); L.polyline(path, { color: '#38a169', weight: 3 }).addTo(spMap); p.waypoints.forEach((w, i) => L.circleMarker([w.lat, w.lon], { radius: i === 0 ? 8 : 5, fillColor: i === 0 ? '#e53e3e' : '#38a169', color: '#fff', weight: 2, fillOpacity: 0.8 }).addTo(spMap).bindPopup('WP' + w.number + ': ' + w.ddm)); spMap.fitBounds(path, { padding: [30, 30] }); }, 100); };
+      
+      const setPattern = (p) => setSpState(s => ({ ...s, patternType: p }));
+      const setCorner = (c) => setSpState(s => ({ ...s, entryCorner: c }));
+      const setTurn = (t) => setSpState(s => ({ ...s, turnDirection: t }));
+      const setClDir = (d) => setSpState(s => ({ ...s, clDirection: d }));
+      const setClSide = (side) => setSpState(s => ({ ...s, clStartSide: side }));
+      
+      const { poi, detectedGrid, lastPlan, patternType, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, showMap: sm } = spState;
+      const dims = detectedGrid ? spCalcGridDims(detectedGrid.corners) : null;
+      
+      const patternBtnStyle = (active) => ({ 
+        padding: "12px 8px", 
+        border: active ? "2px solid #805ad5" : "1px solid rgba(255,255,255,0.2)", 
+        borderRadius: "8px", 
+        background: active ? "linear-gradient(135deg, #805ad5, #6b46c1)" : "rgba(0,0,0,0.3)",
+        color: active ? "#fff" : "#a0aec0",
+        cursor: "pointer",
+        fontSize: "0.85em",
+        fontWeight: active ? "bold" : "normal",
+        textAlign: "center",
+        transition: "all 0.2s"
+      });
+      
+      const optionBtnStyle = (active) => ({
+        padding: "10px 12px",
+        border: active ? "2px solid #38a169" : "1px solid rgba(255,255,255,0.2)",
+        borderRadius: "6px",
+        background: active ? "rgba(56,161,105,0.3)" : "rgba(0,0,0,0.2)",
+        color: active ? "#68d391" : "#a0aec0",
+        cursor: "pointer",
+        fontSize: "0.9em",
+        fontWeight: active ? "bold" : "normal",
+        flex: 1,
+        textAlign: "center"
+      });
+      
+      return React.createElement("div", { style: { padding: "10px" } },
+        React.createElement("h3", { style: { color: "#b794f4", marginBottom: "15px" } }, "🧭 Search Pattern Planner"),
+        
+        // POI Input
+        React.createElement("div", { style: styles.formGroup }, 
+          React.createElement("label", { style: styles.label }, "Point of Interest (POI)"), 
+          React.createElement("input", { type: "text", style: styles.input, placeholder: "39.873417, -104.936859", value: spState.poiInput, onChange: e => handlePoiChange(e.target.value) }), 
+          poi && React.createElement("div", { style: { color: "#68d391", fontSize: "0.85em", marginTop: "5px" } }, "✓ " + spFormatCoordDDM(poi.latDD, poi.lonDD))
+        ),
+        
+        // Grid Info
+        detectedGrid && React.createElement("div", { className: "sp-grid-info" }, 
+          React.createElement("div", { style: { fontWeight: "bold", color: "#63b3ed", marginBottom: "8px" } }, "📍 " + detectedGrid.gridId), 
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", fontSize: "0.85em" } }, 
+            React.createElement("div", null, "Quarter: ", React.createElement("strong", null, detectedGrid.quarterGrid)), 
+            React.createElement("div", null, "Mag Var: ", React.createElement("strong", null, detectedGrid.magVariation + "°" + (detectedGrid.magVariation >= 0 ? "E" : "W"))), 
+            dims && React.createElement("div", null, "Size: ", React.createElement("strong", null, dims.widthNM.toFixed(2) + " × " + dims.heightNM.toFixed(2) + " NM"))
+          )
+        ),
+        
+        // Pattern Type Buttons
+        React.createElement("div", { style: { marginBottom: "15px" } },
+          React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Search Pattern Type"),
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" } },
+            React.createElement("button", { style: patternBtnStyle(patternType === 'gridParallelTrack'), onClick: () => setPattern('gridParallelTrack') }, "⬛ Parallel Track", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Quarter Grid")),
+            React.createElement("button", { style: patternBtnStyle(patternType === 'creepingLine'), onClick: () => setPattern('creepingLine') }, "〰️ Creeping Line", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Route/Corridor")),
+            React.createElement("button", { style: patternBtnStyle(patternType === 'expandingSquare'), onClick: () => setPattern('expandingSquare') }, "🌀 Expanding Sq", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Point Source"))
+          )
+        ),
+        
+        // Common Parameters
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "15px" } }, 
+          React.createElement("div", { style: styles.formGroup }, 
+            React.createElement("label", { style: styles.label }, "Track Spacing (NM)"), 
+            React.createElement("input", { type: "number", style: styles.input, value: spacing, min: "0.1", step: "0.1", onChange: e => setSpState(s => ({ ...s, spacing: parseFloat(e.target.value) || 1 })) })
+          ), 
+          React.createElement("div", { style: styles.formGroup }, 
+            React.createElement("label", { style: styles.label }, "Groundspeed (kts)"), 
+            React.createElement("input", { type: "number", style: styles.input, value: groundspeed, min: "60", step: "5", onChange: e => setSpState(s => ({ ...s, groundspeed: parseInt(e.target.value) || 120 })) })
+          )
+        ),
+        
+        // Parallel Track Options
+        patternType === 'gridParallelTrack' && React.createElement("div", { style: { marginBottom: "15px" } },
+          React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Entry Corner"),
+          React.createElement("div", { style: { display: "flex", gap: "8px" } },
+            React.createElement("button", { style: optionBtnStyle(entryCorner === 'NW'), onClick: () => setCorner('NW') }, "↖ NW"),
+            React.createElement("button", { style: optionBtnStyle(entryCorner === 'NE'), onClick: () => setCorner('NE') }, "↗ NE"),
+            React.createElement("button", { style: optionBtnStyle(entryCorner === 'SW'), onClick: () => setCorner('SW') }, "↙ SW"),
+            React.createElement("button", { style: optionBtnStyle(entryCorner === 'SE'), onClick: () => setCorner('SE') }, "↘ SE")
+          )
+        ),
+        
+        // Creeping Line Options
+        patternType === 'creepingLine' && React.createElement("div", { style: { marginBottom: "15px" } },
+          React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Search Direction"),
+          React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "10px" } },
+            React.createElement("button", { style: optionBtnStyle(clDirection === 0), onClick: () => setClDir(0) }, "↕ N-S"),
+            React.createElement("button", { style: optionBtnStyle(clDirection === 90), onClick: () => setClDir(90) }, "↔ E-W")
+          ),
+          React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Start Side"),
+          React.createElement("div", { style: { display: "flex", gap: "8px" } },
+            React.createElement("button", { style: optionBtnStyle(clStartSide === 'Left'), onClick: () => setClSide('Left') }, "◀ Left"),
+            React.createElement("button", { style: optionBtnStyle(clStartSide === 'Right'), onClick: () => setClSide('Right') }, "▶ Right")
+          )
+        ),
+        
+        // Expanding Square Options
+        patternType === 'expandingSquare' && React.createElement("div", { style: { marginBottom: "15px" } },
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" } },
+            React.createElement("div", { style: styles.formGroup },
+              React.createElement("label", { style: styles.label }, "Initial Heading (°)"),
+              React.createElement("input", { type: "number", style: styles.input, value: initialHeading, min: "0", max: "359", onChange: e => setSpState(s => ({ ...s, initialHeading: parseInt(e.target.value) || 0 })) })
+            ),
+            React.createElement("div", { style: styles.formGroup },
+              React.createElement("label", { style: styles.label }, "Number of Legs"),
+              React.createElement("input", { type: "number", style: styles.input, value: numLegs, min: "2", max: "20", step: "2", onChange: e => setSpState(s => ({ ...s, numLegs: parseInt(e.target.value) || 8 })) })
+            )
+          ),
+          React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Turn Direction"),
+          React.createElement("div", { style: { display: "flex", gap: "8px" } },
+            React.createElement("button", { style: optionBtnStyle(turnDirection === 'Right'), onClick: () => setTurn('Right') }, "↻ Right (CW)"),
+            React.createElement("button", { style: optionBtnStyle(turnDirection === 'Left'), onClick: () => setTurn('Left') }, "↺ Left (CCW)")
+          )
+        ),
+        
+        // Generate Button
+        React.createElement("button", { style: { ...styles.button, width: "100%", marginTop: "10px", marginBottom: "20px", padding: "15px", fontSize: "1.1em", background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: generate }, "🧭 Generate Search Pattern"),
+        
+        // Results
+        lastPlan && React.createElement("div", null,
+          React.createElement("div", { className: "sp-coverage" }, 
+            React.createElement("div", { style: { fontWeight: "bold", color: "#68d391", marginBottom: "8px" } }, "✓ " + lastPlan.patternType), 
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", fontSize: "0.85em" } }, 
+              React.createElement("div", null, "Tracks: ", React.createElement("strong", null, lastPlan.summary.numTracks || lastPlan.summary.numLegs)), 
+              React.createElement("div", null, "Dist: ", React.createElement("strong", null, lastPlan.summary.totalDistance.toFixed(1) + " NM")), 
+              React.createElement("div", null, "Time: ", React.createElement("strong", null, lastPlan.summary.timeMinutes.toFixed(0) + " min")), 
+              lastPlan.coverage && React.createElement("div", null, "Eff: ", React.createElement("strong", null, lastPlan.coverage.efficiency.toFixed(1) + "%"))
+            )
+          ), 
+          
+          // Export buttons
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "15px" } }, 
+            React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary, padding: "12px" }, onClick: openMap }, "🗺️ Map"), 
+            React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #ed8936, #dd6b20)", padding: "12px" }, onClick: exportKML }, "🌍 KML"), 
+            React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)", padding: "12px" }, onClick: copyFF }, "✈️ ForeFlight")
+          ), 
+          
+          // Waypoints table
+          React.createElement("div", { style: { marginTop: "15px", maxHeight: "250px", overflowY: "auto" } }, 
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: "0.75em" } }, 
+              React.createElement("thead", null, 
+                React.createElement("tr", { style: { background: "rgba(128,90,213,0.2)" } }, 
+                  React.createElement("th", { style: { padding: "6px", textAlign: "left", color: "#cbd5e0" } }, "WP"), 
+                  React.createElement("th", { style: { padding: "6px", textAlign: "left", color: "#cbd5e0" } }, "Coordinates"), 
+                  React.createElement("th", { style: { padding: "6px", textAlign: "left", color: "#cbd5e0" } }, "ForeFlight"), 
+                  React.createElement("th", { style: { padding: "6px", textAlign: "left", color: "#cbd5e0" } }, "Hdg")
+                )
+              ), 
+              React.createElement("tbody", null, 
+                lastPlan.waypoints.map((w, i) => React.createElement("tr", { key: i, style: { borderBottom: "1px solid rgba(255,255,255,0.1)" } }, 
+                  React.createElement("td", { style: { padding: "4px", color: "#e2e8f0" } }, "WP" + String(w.number).padStart(2, '0')), 
+                  React.createElement("td", { style: { padding: "4px", color: "#e2e8f0", fontSize: "0.9em" } }, w.ddm), 
+                  React.createElement("td", { style: { padding: "4px", color: "#b794f4", fontFamily: "monospace", fontSize: "0.85em" } }, w.foreflight), 
+                  React.createElement("td", { style: { padding: "4px", color: "#e2e8f0" } }, w.heading !== null ? w.heading + "°" : "-")
+                ))
+              )
+            )
+          )
+        ),
+        
+        // Map Modal
+        sm && React.createElement("div", { style: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center" }, onClick: () => setSpState(s => ({ ...s, showMap: false })) }, 
+          React.createElement("div", { style: { background: "#1a2c42", borderRadius: "12px", padding: "20px", width: "95%", maxWidth: "800px" }, onClick: e => e.stopPropagation() }, 
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: "10px" } }, 
+              React.createElement("h3", { style: { color: "#e2e8f0", margin: 0 } }, "🗺️ Search Pattern Map"), 
+              React.createElement("button", { style: { background: "rgba(229,62,62,0.3)", border: "none", color: "#fc8181", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontSize: "1em" }, onClick: () => setSpState(s => ({ ...s, showMap: false })) }, "✕ Close")
+            ), 
+            React.createElement("div", { id: "spMapDiv", style: { height: "400px", borderRadius: "8px" } })
+          )
+        )
+      );
+    };
+    
+const tabs = [
       { id: "mission", label: "Mission", icon: "\u{1F4CB}" },
       { id: "times", label: "Times", icon: "\u23F1\uFE0F" },
       { id: "events", label: "Events", icon: "\u{1F4CD}" },
       { id: "crosshair", label: "Target", icon: "\u{1F3AF}", isTarget: true },
       { id: "eltAssist", label: "ELT", icon: "\u{1F4E1}", isElt: true },
+      { id: "searchPlanner", label: "Search", icon: "\u{1F9ED}", isSearch: true },
       { id: "radio", label: "Radio", icon: "\u{1F4E2}", isRadio: true },
       { id: "coComms", label: "CO Comms", icon: "\u{1F4E1}", isComms: true },
       { id: "emergency", label: "Emergency", icon: "\u{1F6A8}", isEmergency: true },
@@ -6137,6 +6767,15 @@ React.createElement(
           ...tab.isComms && activeTab === tab.id ? {
             background: "linear-gradient(135deg, #d69e2e, #b7791f)",
             boxShadow: "0 4px 12px rgba(214,158,46,0.5)"
+          } : {},
+          ...tab.isSearch && activeTab !== tab.id ? {
+            background: "linear-gradient(135deg, rgba(128,90,213,0.3), rgba(107,70,193,0.2))",
+            border: "1px solid rgba(128,90,213,0.5)",
+            color: "#b794f4"
+          } : {},
+          ...tab.isSearch && activeTab === tab.id ? {
+            background: "linear-gradient(135deg, #805ad5, #6b46c1)",
+            boxShadow: "0 4px 12px rgba(128,90,213,0.5)"
           } : {}
         },
         onClick: () => {
@@ -6155,7 +6794,7 @@ React.createElement(
       tab.icon,
       " ",
       tab.label
-    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #38a169, #2f855a)" }, onClick: copyLogToClipboard }, "\u{1F4CB} Copy"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")));
+    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #38a169, #2f855a)" }, onClick: copyLogToClipboard }, "\u{1F4CB} Copy"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")));
   };
   ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(CAPObserverLog, null));
 })();
