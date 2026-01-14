@@ -7,6 +7,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0c1929">
+  <meta name="description" content="CAP Mission Observer Log - Civil Air Patrol flight logging tool">
+  <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiQ0FQIE9ic2VydmVyIExvZyIsInNob3J0X25hbWUiOiJDQVAgTG9nIiwic3RhcnRfdXJsIjoiLiIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiMwYzE5MjkiLCJ0aGVtZV9jb2xvciI6IiMwYzE5MjkiLCJpY29ucyI6W3sic3JjIjoiZGF0YTppbWFnZS9zdmcreG1sLDxzdmcgeG1sbnM9J2h0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJyB2aWV3Qm94PScwIDAgMTAwIDEwMCc+PGNpcmNsZSBjeD0nNTAnIGN5PSc1MCcgcj0nNDUnIGZpbGw9JyVjNTMwMzAnLz48dGV4dCB4PSc1MCcgeT0nNjUnIGZvbnQtc2l6ZT0nMzAnIHRleHQtYW5jaG9yPSdtaWRkbGUnIGZpbGw9J3doaXRlJz5DQVA8L3RleHQ+PC9zdmc+Iiwic2l6ZXMiOiI5Nng5NiIsInR5cGUiOiJpbWFnZS9zdmcreG1sIn1dfQ==">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23c53030'/><text x='50' y='65' font-size='30' text-anchor='middle' fill='white'>CAP</text></svg>">
   <title>CAP Observer Log</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
@@ -17,6 +20,14 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+    /* Night/Red Mode for cockpit operations */
+    .night-mode { filter: sepia(100%) saturate(300%) hue-rotate(-50deg) brightness(0.7); }
+    .night-mode input, .night-mode select, .night-mode textarea { filter: sepia(100%) saturate(300%) hue-rotate(-50deg); }
+    /* Coordinate validation */
+    .coord-invalid { border-color: #e53e3e !important; background: rgba(229,62,62,0.2) !important; }
+    /* Ops Normal timer warning */
+    @keyframes pulse-warning { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .timer-warning { animation: pulse-warning 1s infinite; }
   </style>
 </head>
 <body>
@@ -1997,14 +2008,6 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
       searchTime: ""
     });
     const [fuelOil, setFuelOil] = useState({ fuelGallons: "", fuelCost: "", oilQt: "" });
-    const [checkIns, setCheckIns] = useState([
-      { scheduled: "", completed: false },
-      { scheduled: "", completed: false },
-      { scheduled: "", completed: false },
-      { scheduled: "", completed: false },
-      { scheduled: "", completed: false },
-      { scheduled: "", completed: false }
-    ]);
     const [notes, setNotes] = useState("");
     const eventSeqRef = React.useRef(1);
     const [events, setEvents] = useState([createEmptyEvent(1)]);
@@ -2025,6 +2028,16 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
     ]);
     const [activeTab, setActiveTab] = useState("mission");
     const [commsUnlocked, setCommsUnlocked] = useState(false);
+    // Night mode for cockpit operations
+    const [nightMode, setNightMode] = useState(false);
+    // Ops Normal Timer
+    const [opsTimerEnabled, setOpsTimerEnabled] = useState(false);
+    const [opsTimerMinutes, setOpsTimerMinutes] = useState(30);
+    const [opsTimerRemaining, setOpsTimerRemaining] = useState(null);
+    const [opsTimerLastReset, setOpsTimerLastReset] = useState(null);
+    // Voice recording state
+    const [isRecording, setIsRecording] = useState(false);
+    const speechRecognitionRef = React.useRef(null);
 const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedAircraft, setSelectedAircraft] = useState("C182T");
@@ -2084,6 +2097,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         id: Date.now() + Math.random(),
         eventNum: eventNum ?? "",
         eventType: "",
+        dateZ: "",
         timeZ: "",
         latDeg: "",
         latMin: "",
@@ -2736,9 +2750,56 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         } : e));
       }
     };
-    const getCurrentZuluTime = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 16).replace("T", " ");
-    const getZuluTimeOnly = () => (/* @__PURE__ */ new Date()).toISOString().slice(11, 16);
-    const getZuluDate = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    // UTC Time Utilities - Military 24-hour format
+    const getCurrentZuluTime = () => {
+      const d = new Date();
+      const day = d.getUTCDate().toString().padStart(2, '0');
+      const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+      const mon = months[d.getUTCMonth()];
+      const year = d.getUTCFullYear();
+      const hh = d.getUTCHours().toString().padStart(2, '0');
+      const mm = d.getUTCMinutes().toString().padStart(2, '0');
+      return `${day}${mon}${year} ${hh}${mm}`;
+    };
+    const getZuluTimeOnly = () => {
+      const d = new Date();
+      const hh = d.getUTCHours().toString().padStart(2, '0');
+      const mm = d.getUTCMinutes().toString().padStart(2, '0');
+      return `${hh}${mm}`;
+    };
+    const getZuluDate = () => {
+      const d = new Date();
+      const day = d.getUTCDate().toString().padStart(2, '0');
+      const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+      const mon = months[d.getUTCMonth()];
+      const year = d.getUTCFullYear();
+      return `${day}${mon}${year}`;
+    };
+    const getZuluDateTime = () => {
+      const d = new Date();
+      const day = d.getUTCDate().toString().padStart(2, '0');
+      const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+      const mon = months[d.getUTCMonth()];
+      const year = d.getUTCFullYear();
+      const hh = d.getUTCHours().toString().padStart(2, '0');
+      const mm = d.getUTCMinutes().toString().padStart(2, '0');
+      return `${day}${mon}${year} ${hh}${mm}Z`;
+    };
+    // Format for display: converts HHMM to HH:MM for time inputs, or returns as-is
+    const formatTimeDisplay = (t) => {
+      if (!t) return '';
+      // If already has colon, return as-is
+      if (t.includes(':')) return t;
+      // If 4 digits, format as HH:MM
+      if (/^\d{4}$/.test(t)) return t.slice(0,2) + ':' + t.slice(2,4);
+      return t;
+    };
+    // Parse time input - accepts HHMM or HH:MM
+    const parseTimeInput = (t) => {
+      if (!t) return '';
+      // Remove colon if present
+      return t.replace(':', '');
+    };
     useEffect(() => {
       if (!missionInfo.dateZ) setMissionInfo((prev) => ({ ...prev, dateZ: getZuluDate() }));
     }, []);
@@ -2757,9 +2818,19 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     };
     const calculateTimeElapsed = (start, end) => {
       if (!start || !end) return "";
-      const [startH, startM] = start.split(":").map(Number);
-      const [endH, endM] = end.split(":").map(Number);
-      const elapsed = (endH * 60 + endM - (startH * 60 + startM)) / 60;
+      // Handle both HHMM and HH:MM formats
+      const parseTime = (t) => {
+        if (t.includes(':')) {
+          const [h, m] = t.split(':').map(Number);
+          return h * 60 + m;
+        } else if (/^\d{4}$/.test(t)) {
+          return parseInt(t.slice(0,2)) * 60 + parseInt(t.slice(2,4));
+        }
+        return 0;
+      };
+      const startMins = parseTime(start);
+      const endMins = parseTime(end);
+      const elapsed = (endMins - startMins) / 60;
       return elapsed > 0 ? elapsed.toFixed(1) : "";
     };
     const addEvent = () => {
@@ -2768,44 +2839,221 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     };
     const removeEvent = (id) => events.length > 1 && setEvents(events.filter((e) => e.id !== id));
     const updateEvent = (id, field, value) => setEvents(events.map((e) => e.id === id ? { ...e, [field]: value } : e));
+    const setEventDateTime = (id) => {
+      setEvents(events.map((e) => e.id === id ? { ...e, dateZ: getZuluDate(), timeZ: getZuluTimeOnly() } : e));
+    };
     const selectEventType = (id, eventType) => {
       setEvents(events.map((e) => {
         if (e.id === id) {
           const updates = { eventType };
           if (!e.timeZ) {
             updates.timeZ = getZuluTimeOnly();
+            updates.dateZ = getZuluDate();
           }
           return { ...e, ...updates };
         }
         return e;
       }));
     };
-    const updateCheckIn = (index, field, value) => {
-      const newCheckIns = [...checkIns];
-      newCheckIns[index] = { ...newCheckIns[index], [field]: value };
-      setCheckIns(newCheckIns);
-    };
+    
+    // Enhanced localStorage - save all mission data including ELT
     useEffect(() => {
-      const data = { missionInfo, times, fuelOil, checkIns, notes, events, targetLocations };
+      const data = { 
+        missionInfo, times, fuelOil, notes, events, targetLocations,
+        eltObservations, eltSolutions, radioCallSigns, nightMode
+      };
       localStorage.setItem("capObserverLog", JSON.stringify(data));
-    }, [missionInfo, times, fuelOil, checkIns, notes, events, targetLocations]);
+    }, [missionInfo, times, fuelOil, notes, events, targetLocations, eltObservations, eltSolutions, radioCallSigns, nightMode]);
+    
+    // Load saved data on startup with resume prompt
     useEffect(() => {
       const saved = localStorage.getItem("capObserverLog");
       if (saved) {
         try {
           const data = JSON.parse(saved);
+          // Check if there's meaningful data to restore
+          const hasData = data.missionInfo?.missionNumber || 
+                         (data.events && data.events.some(e => e.eventType || e.notes)) ||
+                         (data.eltObservations && data.eltObservations.length > 0);
+          
+          if (hasData) {
+            const resume = confirm('Previous mission data found. Resume where you left off?');
+            if (!resume) {
+              localStorage.removeItem("capObserverLog");
+              return;
+            }
+          }
+          
           if (data.missionInfo) setMissionInfo(data.missionInfo);
           if (data.times) setTimes(data.times);
           if (data.fuelOil) setFuelOil(data.fuelOil);
-          if (data.checkIns) setCheckIns(data.checkIns);
           if (data.notes) setNotes(data.notes);
           if (data.events) setEvents(data.events);
           if (data.targetLocations) setTargetLocations(data.targetLocations);
+          if (data.eltObservations) setEltObservations(data.eltObservations);
+          if (data.eltSolutions) setEltSolutions(data.eltSolutions);
+          if (data.radioCallSigns) setRadioCallSigns(data.radioCallSigns);
+          if (data.nightMode) setNightMode(data.nightMode);
         } catch (e) {
-          console.error("Failed to load");
+          console.error("Failed to load saved data:", e);
         }
       }
     }, []);
+    
+    // Ops Normal Timer Effect
+    useEffect(() => {
+      if (!opsTimerEnabled || !opsTimerLastReset) return;
+      
+      const interval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - opsTimerLastReset) / 1000);
+        const remaining = (opsTimerMinutes * 60) - elapsed;
+        setOpsTimerRemaining(Math.max(0, remaining));
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }, [opsTimerEnabled, opsTimerLastReset, opsTimerMinutes]);
+    
+    // Night mode class toggle
+    useEffect(() => {
+      if (nightMode) {
+        document.body.classList.add('night-mode');
+      } else {
+        document.body.classList.remove('night-mode');
+      }
+    }, [nightMode]);
+    
+    // Voice-to-text helper
+    const startVoiceRecording = (targetField) => {
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert('Voice recognition not supported in this browser. Try Chrome or Safari.');
+        return;
+      }
+      
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (targetField === 'notes') {
+          setNotes(prev => prev + (prev ? ' ' : '') + transcript);
+        }
+      };
+      
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+      };
+      
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+      
+      speechRecognitionRef.current = recognition;
+      recognition.start();
+      setIsRecording(true);
+    };
+    
+    const stopVoiceRecording = () => {
+      if (speechRecognitionRef.current) {
+        speechRecognitionRef.current.stop();
+        setIsRecording(false);
+      }
+    };
+    
+    // Coordinate validation helper
+    const validateCoordinate = (value, type) => {
+      const num = parseFloat(value);
+      if (isNaN(num)) return true; // Empty is OK
+      if (type === 'latDeg') return num >= 0 && num <= 90;
+      if (type === 'lonDeg') return num >= 0 && num <= 180;
+      if (type === 'latMin' || type === 'lonMin') return num >= 0 && num < 60;
+      return true;
+    };
+    
+    // CSV Export function
+    const exportToCSV = () => {
+      const rows = [];
+      
+      // Header
+      rows.push(['CAP OBSERVER LOG EXPORT']);
+      rows.push(['Generated', new Date().toISOString()]);
+      rows.push([]);
+      
+      // Mission Info
+      rows.push(['MISSION INFORMATION']);
+      rows.push(['Mission #', missionInfo.missionNumber]);
+      rows.push(['Date (Z)', missionInfo.dateZ]);
+      rows.push(['Sortie #', missionInfo.sortieNumber]);
+      rows.push(['Aircraft', missionInfo.aircraftTailN]);
+      rows.push(['Observer', missionInfo.observerName]);
+      rows.push([]);
+      
+      // Times
+      rows.push(['TIME TRACKING']);
+      rows.push(['Tach Start', times.tachStart]);
+      rows.push(['Tach Shutdown', times.tachShutdown]);
+      rows.push(['Hobbs Start', times.hobbsStart]);
+      rows.push(['Hobbs Shutdown', times.hobbsShutdown]);
+      rows.push(['Takeoff', times.takeoffTime]);
+      rows.push(['Landing', times.landingTime]);
+      rows.push(['Entered Search', times.enteredSearchArea]);
+      rows.push(['Departed Search', times.departedSearchArea]);
+      rows.push([]);
+      
+      // Events
+      rows.push(['EVENTS LOG']);
+      rows.push(['#', 'Type', 'Date (Z)', 'Time (Z)', 'Lat Deg', 'Lat Min', 'Lon Deg', 'Lon Min', 'CAP Grid', 'MSL', 'AGL', 'Hdg', 'AS', 'GS', 'Notes']);
+      events.forEach(e => {
+        if (e.eventType || e.timeZ || e.notes) {
+          rows.push([
+            e.eventNum, e.eventType, e.dateZ || '', e.timeZ, e.latDeg, e.latMin, e.longDeg, e.longMin,
+            e.capGrid, e.altMSL, e.altAGL, e.heading, e.airspeed, e.groundSpeed, e.notes
+          ]);
+        }
+      });
+      rows.push([]);
+      
+      // ELT Observations
+      if (eltObservations && eltObservations.length > 0) {
+        rows.push(['ELT OBSERVATIONS']);
+        rows.push(['#', 'Time', 'Source', 'Lat Deg', 'Lat Min', 'Lon Deg', 'Lon Min', 'Range NM', 'Accuracy', 'DF Bearing', 'Strength', 'Notes']);
+        eltObservations.forEach(o => {
+          rows.push([
+            o.obsNum, o.timeZ, o.source, o.latDeg, o.latMin, o.lonDeg, o.lonMin,
+            o.directRange, o.rangeAccuracy, o.dfBearing, o.strength, o.notes
+          ]);
+        });
+        rows.push([]);
+      }
+      
+      // Convert to CSV string
+      const csvContent = rows.map(row => 
+        row.map(cell => {
+          const str = String(cell ?? '');
+          return str.includes(',') || str.includes('"') || str.includes('\n') 
+            ? '"' + str.replace(/"/g, '""') + '"' 
+            : str;
+        }).join(',')
+      ).join('\n');
+      
+      // Download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CAP_Log_${missionInfo.missionNumber || 'Mission'}_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
     const generatePDF = () => {
       try {
       const printWindow = window.open("", "_blank");
@@ -2849,7 +3097,7 @@ printWindow.document.write(`
                 <div class="field"><span class="label">Log Page:</span> <span class="value">${missionInfo.logPageNumber} of ${missionInfo.totalPages}</span></div>
                 <div class="field"><span class="label">Observer:</span> <span class="value">${missionInfo.observerName}</span></div>
               </div></div>
-              <div class="section"><div class="section-title">Time Tracking (All Times GMT/Zulu)</div>
+              <div class="section"><div class="section-title">Time Tracking (All Times UTC)</div>
                 <table><tr><th></th><th>Tach</th><th>Hobbs</th><th>Time (Z)</th></tr>
                 <tr><td><strong>Engine Start</strong></td><td>${times.tachStart}</td><td>${times.hobbsStart}</td><td></td></tr>
                 <tr><td><strong>\u2605 Takeoff</strong></td><td></td><td></td><td>${times.takeoffTime}</td></tr>
@@ -2867,16 +3115,13 @@ printWindow.document.write(`
                 <div class="field"><span class="label">Cost:</span> <span class="value">$${fuelOil.fuelCost}</span></div>
                 <div class="field"><span class="label">Oil:</span> <span class="value">${fuelOil.oilQt} qt</span></div>
               </div></div>
-              <div class="section"><div class="section-title">Check-ins</div><div class="grid grid-3">
-                ${checkIns.map((c, i) => `<div class="field"><span class="checkbox ${c.completed ? "checked" : ""}"></span><span class="value">${c.scheduled}</span></div>`).join("")}
-              </div></div>
             </div><div>
               <div class="section"><div class="section-title">Notes</div><div class="notes">${notes || "(No notes)"}</div></div>
             </div></div>
             <div class="section"><div class="section-title">Events Log</div>
               <table><tr>
   <th style="width:120px">Event</th>
-  <th style="width:70px">Time</th>
+  <th style="width:130px">Date/Time (Z)</th>
   <th style="width:135px">Lat N</th>
   <th style="width:135px">Lon W</th>
   <th style="width:110px">CAP Grid</th>
@@ -2889,7 +3134,7 @@ printWindow.document.write(`
 ${events.map((e) => `
   <tr>
     <td>${escHtml(e.eventType)}</td>
-    <td>${escHtml(e.timeZ)}</td>
+    <td>${escHtml((e.dateZ || "") + " " + (e.timeZ || ""))}</td>
     <td>${e.latDeg ? escHtml(e.latDeg + "° " + e.latMin + "'") : ""}</td>
     <td>${e.longDeg ? escHtml(e.longDeg + "° " + e.longMin + "'") : ""}</td>
     <td style="font-weight:bold;color:#1a365d">${escHtml(e.capGrid || "")}</td>
@@ -2960,17 +3205,6 @@ ${events.map((e) => `
       lines.push(`Fuel: ${fuelOil.fuelGallons || "____"} gal | Cost: $${fuelOil.fuelCost || "____"} | Oil: ${fuelOil.oilQt || "____"} qt`);
       lines.push("");
       
-      // Check-ins
-      lines.push("CHECK-INS");
-      lines.push(sepLight);
-      checkIns.forEach((c, i) => {
-        if (c.scheduled) {
-          lines.push(`${c.completed ? "[✓]" : "[ ]"} ${c.scheduled}`);
-        }
-      });
-      if (!checkIns.some(c => c.scheduled)) lines.push("(No check-ins scheduled)");
-      lines.push("");
-      
       // Notes
       lines.push("NOTES");
       lines.push(sepLight);
@@ -2985,7 +3219,8 @@ ${events.map((e) => `
         lines.push("(No events logged)");
       } else {
         validEvents.forEach((e, idx) => {
-          lines.push(`[${e.eventNum || idx + 1}] ${e.eventType || "(No type)"} @ ${e.timeZ || "____"}Z`);
+          const dateTime = (e.dateZ || "") + " " + (e.timeZ || "____") + "Z";
+          lines.push(`[${e.eventNum || idx + 1}] ${e.eventType || "(No type)"} @ ${dateTime.trim()}`);
           if (e.latDeg && e.latMin) {
             lines.push(`    Position: N ${e.latDeg}° ${e.latMin}' W ${e.longDeg}° ${e.longMin}'`);
           }
@@ -3178,9 +3413,8 @@ ${events.map((e) => `
       const interval = setInterval(() => setZuluClock(getCurrentZuluTime()), 1e3);
       return () => clearInterval(interval);
     }, []);
-    const renderMissionTab = () => /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4CB} Mission Information"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Mission #"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.missionNumber, onChange: (e) => setMissionInfo({ ...missionInfo, missionNumber: e.target.value }), placeholder: "Mission number" })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Sortie #"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.sortieNumber, onChange: (e) => setMissionInfo({ ...missionInfo, sortieNumber: e.target.value }), placeholder: "Sortie" }))), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Date (Zulu)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "date", value: missionInfo.dateZ, onChange: (e) => setMissionInfo({ ...missionInfo, dateZ: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Aircraft N"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.aircraftTailN, onChange: (e) => setMissionInfo({ ...missionInfo, aircraftTailN: e.target.value }), placeholder: "Tail #" }))), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Observer Name"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.observerName, onChange: (e) => setMissionInfo({ ...missionInfo, observerName: e.target.value }), placeholder: "Your name" }))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4DD} Notes & Instructions"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("textarea", { style: { ...styles.input, ...styles.textarea }, value: notes, onChange: (e) => setNotes(e.target.value), placeholder: "Notes, radio channels, ATIS..." }))));
-    const renderTimesTab = () => /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u23F1\uFE0F Tach & Hobbs"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: { ...styles.grid2, marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontWeight: "600", color: "#f6e05e" } }, "TACH"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontWeight: "600", color: "#f6e05e" } }, "HOBBS")), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px" } }, "Engine Start"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.tachStart, onChange: (e) => setTimes({ ...times, tachStart: e.target.value }), placeholder: "Tach" }), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.hobbsStart, onChange: (e) => setTimes({ ...times, hobbsStart: e.target.value }), placeholder: "Hobbs" }))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px" } }, "Shutdown"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.tachShutdown, onChange: (e) => setTimes({ ...times, tachShutdown: e.target.value }), placeholder: "Tach" }), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.hobbsShutdown, onChange: (e) => setTimes({ ...times, hobbsShutdown: e.target.value }), placeholder: "Hobbs" }))), /* @__PURE__ */ React.createElement("div", { style: styles.calculated }, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px", color: "#68d391" } }, "Elapsed (Auto)"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontSize: "18px", fontWeight: "700" } }, calculated.tachElapsed || "\u2014"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontSize: "18px", fontWeight: "700" } }, calculated.hobbsElapsed || "\u2014")))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F6EB} Flight Times (Z)"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, [{ key: "takeoffTime", label: "\u2605 Takeoff" }, { key: "enteredSearchArea", label: "\u2605\u25BC Entered Search" }, { key: "departedSearchArea", label: "\u2605\u25BC Departed Search" }, { key: "landingTime", label: "\u2605 Landing" }].map(({ key, label }) => /* @__PURE__ */ React.createElement("div", { key, style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, label), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "time", value: times[key], onChange: (e) => setTimes({ ...times, [key]: e.target.value }) }), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => setTimes({ ...times, [key]: getZuluTimeOnly() }) }, "NOW")))), /* @__PURE__ */ React.createElement("div", { style: styles.calculated }, /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, color: "#68d391" } }, "Search Time"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "700" } }, calculated.searchTime ? calculated.searchTime + " hrs" : "\u2014")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, color: "#68d391" } }, "Enroute"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "700" } }, calculated.enrouteTime ? calculated.enrouteTime + " hrs" : "\u2014"))))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u26FD Fuel & Oil"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.grid3 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Fuel (gal)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.fuelGallons, onChange: (e) => setFuelOil({ ...fuelOil, fuelGallons: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Cost ($)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.fuelCost, onChange: (e) => setFuelOil({ ...fuelOil, fuelCost: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Oil (qt)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.oilQt, onChange: (e) => setFuelOil({ ...fuelOil, oilQt: e.target.value }) }))))));
-    const renderCheckInsTab = () => /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4FB} Radio Check-ins"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("p", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "16px" } }, "Schedule times after takeoff, mark when completed."), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, checkIns.map((checkIn, index) => /* @__PURE__ */ React.createElement("div", { key: index, style: { display: "flex", alignItems: "center", gap: "12px" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", style: styles.checkbox, checked: checkIn.completed, onChange: (e) => updateCheckIn(index, "completed", e.target.checked) }), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Check-in #", index + 1), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "time", value: checkIn.scheduled, onChange: (e) => updateCheckIn(index, "scheduled", e.target.value) })), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => updateCheckIn(index, "scheduled", getZuluTimeOnly()) }, "NOW"))))));
+    const renderMissionTab = () => React.createElement("div", null, React.createElement("div", { style: styles.section }, React.createElement("div", { style: styles.sectionHeader }, "📋 Mission Information"), React.createElement("div", { style: styles.sectionBody }, React.createElement("div", { style: styles.fieldGroup }, React.createElement("div", { style: styles.grid2 }, React.createElement("div", { style: styles.field }, React.createElement("label", { style: styles.label }, "Mission #"), React.createElement("input", { style: styles.input, type: "text", value: missionInfo.missionNumber, onChange: (e) => setMissionInfo({ ...missionInfo, missionNumber: e.target.value }), placeholder: "Mission number" })), React.createElement("div", { style: styles.field }, React.createElement("label", { style: styles.label }, "Sortie #"), React.createElement("input", { style: styles.input, type: "text", value: missionInfo.sortieNumber, onChange: (e) => setMissionInfo({ ...missionInfo, sortieNumber: e.target.value }), placeholder: "Sortie" }))), React.createElement("div", { style: styles.grid2 }, React.createElement("div", { style: styles.field }, React.createElement("label", { style: styles.label }, "Date (UTC)"), React.createElement("div", { style: { display: "flex", gap: "8px" }}, React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", value: missionInfo.dateZ, onChange: (e) => setMissionInfo({ ...missionInfo, dateZ: e.target.value.toUpperCase() }), placeholder: "DDMMMYYYY" }), React.createElement("button", { style: styles.timeButton, onClick: () => setMissionInfo({ ...missionInfo, dateZ: getZuluDate() }) }, "TODAY"))), React.createElement("div", { style: styles.field }, React.createElement("label", { style: styles.label }, "Aircraft N"), React.createElement("input", { style: styles.input, type: "text", value: missionInfo.aircraftTailN, onChange: (e) => setMissionInfo({ ...missionInfo, aircraftTailN: e.target.value }), placeholder: "Tail #" }))), React.createElement("div", { style: styles.field }, React.createElement("label", { style: styles.label }, "Observer Name"), React.createElement("input", { style: styles.input, type: "text", value: missionInfo.observerName, onChange: (e) => setMissionInfo({ ...missionInfo, observerName: e.target.value }), placeholder: "Your name" }))))), React.createElement("div", { style: styles.section }, React.createElement("div", { style: styles.sectionHeader }, "⏱️ OPS Normal Timer"), React.createElement("div", { style: styles.sectionBody }, React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}, React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}, React.createElement("input", { type: "checkbox", checked: opsTimerEnabled, onChange: (e) => { setOpsTimerEnabled(e.target.checked); if (e.target.checked && !opsTimerLastReset) { setOpsTimerLastReset(Date.now()); setOpsTimerRemaining(opsTimerMinutes * 60); } }, style: { width: "20px", height: "20px" } }), React.createElement("span", { style: { color: "#e2e8f0", fontSize: "14px" }}, "Enable Timer")), React.createElement("select", { style: { ...styles.input, width: "100px" }, value: opsTimerMinutes, onChange: (e) => { setOpsTimerMinutes(parseInt(e.target.value)); if (opsTimerEnabled) { setOpsTimerLastReset(Date.now()); setOpsTimerRemaining(parseInt(e.target.value) * 60); } } }, React.createElement("option", { value: "15" }, "15 min"), React.createElement("option", { value: "30" }, "30 min"), React.createElement("option", { value: "45" }, "45 min"), React.createElement("option", { value: "60" }, "60 min"))), opsTimerEnabled && React.createElement("div", { style: { background: opsTimerRemaining <= 0 ? "rgba(229,62,62,0.2)" : opsTimerRemaining <= 120 ? "rgba(221,107,32,0.2)" : "rgba(56,161,105,0.1)", padding: "12px", borderRadius: "8px", textAlign: "center" }}, React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "4px" }}, "TIME UNTIL OPS NORMAL"), React.createElement("div", { style: { fontSize: "32px", fontWeight: "700", color: opsTimerRemaining <= 0 ? "#fc8181" : opsTimerRemaining <= 120 ? "#fbd38d" : "#68d391" }}, opsTimerRemaining !== null ? Math.floor(opsTimerRemaining / 60) + ":" + (opsTimerRemaining % 60).toString().padStart(2, "0") : "--:--"), React.createElement("button", { style: { ...styles.button, marginTop: "8px" }, onClick: () => { setOpsTimerLastReset(Date.now()); setOpsTimerRemaining(opsTimerMinutes * 60); } }, "🔄 RESET TIMER")), React.createElement("div", { style: { fontSize: "10px", color: "#718096", marginTop: "8px" }}, "Timer appears in header. Click to reset after OPS NORMAL call."))), React.createElement("div", { style: styles.section }, React.createElement("div", { style: styles.sectionHeader }, "📝 Notes & Instructions"), React.createElement("div", { style: styles.sectionBody }, React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "8px" }}, React.createElement("button", { style: { ...styles.button, flex: 1, background: isRecording ? "linear-gradient(135deg, #e53e3e, #c53030)" : "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: () => isRecording ? stopVoiceRecording() : startVoiceRecording("notes") }, isRecording ? "🔴 STOP RECORDING" : "🎤 VOICE NOTE")), isRecording && React.createElement("div", { style: { background: "rgba(229,62,62,0.2)", padding: "8px", borderRadius: "6px", marginBottom: "8px", textAlign: "center", fontSize: "12px", color: "#fc8181" }}, "🎙️ Listening... Speak your notes"), React.createElement("textarea", { style: { ...styles.input, ...styles.textarea }, value: notes, onChange: (e) => setNotes(e.target.value), placeholder: "Notes, radio channels, ATIS..." }))));
+    const renderTimesTab = () => /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u23F1\uFE0F Tach & Hobbs"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: { ...styles.grid2, marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontWeight: "600", color: "#f6e05e" } }, "TACH"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontWeight: "600", color: "#f6e05e" } }, "HOBBS")), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px" } }, "Engine Start"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.tachStart, onChange: (e) => setTimes({ ...times, tachStart: e.target.value }), placeholder: "Tach" }), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.hobbsStart, onChange: (e) => setTimes({ ...times, hobbsStart: e.target.value }), placeholder: "Hobbs" }))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px" } }, "Shutdown"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.tachShutdown, onChange: (e) => setTimes({ ...times, tachShutdown: e.target.value }), placeholder: "Tach" }), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.hobbsShutdown, onChange: (e) => setTimes({ ...times, hobbsShutdown: e.target.value }), placeholder: "Hobbs" }))), /* @__PURE__ */ React.createElement("div", { style: styles.calculated }, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px", color: "#68d391" } }, "Elapsed (Auto)"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontSize: "18px", fontWeight: "700" } }, calculated.tachElapsed || "\u2014"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontSize: "18px", fontWeight: "700" } }, calculated.hobbsElapsed || "\u2014")))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F6EB} Flight Times (Z)"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, [{ key: "takeoffTime", label: "\u2605 Takeoff" }, { key: "enteredSearchArea", label: "\u2605\u25BC Entered Search" }, { key: "departedSearchArea", label: "\u2605\u25BC Departed Search" }, { key: "landingTime", label: "\u2605 Landing" }].map(({ key, label }) => /* @__PURE__ */ React.createElement("div", { key, style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, label), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", inputMode: "numeric", placeholder: "HHMM", value: times[key], onChange: (e) => setTimes({ ...times, [key]: e.target.value }) }), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => setTimes({ ...times, [key]: getZuluTimeOnly() }) }, "NOW")))), /* @__PURE__ */ React.createElement("div", { style: styles.calculated }, /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, color: "#68d391" } }, "Search Time"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "700" } }, calculated.searchTime ? calculated.searchTime + " hrs" : "\u2014")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, color: "#68d391" } }, "Enroute"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "700" } }, calculated.enrouteTime ? calculated.enrouteTime + " hrs" : "\u2014"))))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u26FD Fuel & Oil"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.grid3 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Fuel (gal)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.fuelGallons, onChange: (e) => setFuelOil({ ...fuelOil, fuelGallons: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Cost ($)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.fuelCost, onChange: (e) => setFuelOil({ ...fuelOil, fuelCost: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Oil (qt)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.oilQt, onChange: (e) => setFuelOil({ ...fuelOil, oilQt: e.target.value }) }))))));
     const renderEventsTab = () => {
       const primaryEventTypes = [
         { value: "Engine Start", label: "🔑 ENG START", color: "#38a169" },
@@ -3273,7 +3507,7 @@ ${events.map((e) => `
           onClick: () => selectEventType(event.id, type.value)
         },
         type.label
-      ))), event.eventType && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "8px", padding: "10px 12px", background: "rgba(104,211,145,0.1)", borderRadius: "8px", border: "1px solid rgba(104,211,145,0.3)", textAlign: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391", fontWeight: "700", fontSize: "14px" } }, "\u2713 ", event.eventType))), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Time (Z)"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "time", value: event.timeZ, onChange: (e) => updateEvent(event.id, "timeZ", e.target.value) }), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => updateEvent(event.id, "timeZ", getZuluTimeOnly()) }, "NOW"))), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(99,179,237,0.1)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(99,179,237,0.2)", marginTop: "8px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" } }, /* @__PURE__ */ React.createElement("label", { style: { ...styles.label, margin: 0, color: "#63b3ed", fontWeight: "600" } }, "\u{1F6F0}\uFE0F Position (DDM Format)"), /* @__PURE__ */ React.createElement(
+      ))), event.eventType && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "8px", padding: "10px 12px", background: "rgba(104,211,145,0.1)", borderRadius: "8px", border: "1px solid rgba(104,211,145,0.3)", textAlign: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391", fontWeight: "700", fontSize: "14px" } }, "\u2713 ", event.eventType))), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Date/Time (UTC)"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", placeholder: "DDMMMYYYY", value: event.dateZ || "", onChange: (e) => updateEvent(event.id, "dateZ", e.target.value.toUpperCase()) }), /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, width: "70px" }, type: "text", inputMode: "numeric", placeholder: "HHMM", value: event.timeZ, onChange: (e) => updateEvent(event.id, "timeZ", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0", fontSize: "12px" } }, "Z"), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => setEventDateTime(event.id) }, "NOW"))), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(99,179,237,0.1)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(99,179,237,0.2)", marginTop: "8px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" } }, /* @__PURE__ */ React.createElement("label", { style: { ...styles.label, margin: 0, color: "#63b3ed", fontWeight: "600" } }, "\u{1F6F0}\uFE0F Position (DDM Format)"), /* @__PURE__ */ React.createElement(
         "button",
         {
           style: { ...styles.button, ...styles.buttonSmall, background: "linear-gradient(135deg, #3182ce, #2b6cb0)", padding: "6px 12px" },
@@ -4618,7 +4852,7 @@ React.createElement(
               // Time
               React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "10px" }},
                 React.createElement("div", { style: { flex: 1 }},
-                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Time (Z)"),
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Time (UTC)"),
                   React.createElement("input", {
                     style: { ...styles.input, fontSize: "14px" },
                     value: newEltObs.timeZ,
@@ -5786,7 +6020,6 @@ React.createElement(
     const tabs = [
       { id: "mission", label: "Mission", icon: "\u{1F4CB}" },
       { id: "times", label: "Times", icon: "\u23F1\uFE0F" },
-      { id: "checkins", label: "Check-ins", icon: "\u{1F4FB}" },
       { id: "events", label: "Events", icon: "\u{1F4CD}" },
       { id: "crosshair", label: "Target", icon: "\u{1F3AF}", isTarget: true },
       { id: "eltAssist", label: "ELT", icon: "\u{1F4E1}", isElt: true },
@@ -5795,7 +6028,65 @@ React.createElement(
       { id: "emergency", label: "Emergency", icon: "\u{1F6A8}", isEmergency: true },
       { id: "reference", label: "Reference", icon: "\u{1F4DA}" }
     ];
-    return /* @__PURE__ */ React.createElement("div", { style: styles.container }, /* @__PURE__ */ React.createElement("header", { style: styles.header }, /* @__PURE__ */ React.createElement("div", { style: styles.logo }, /* @__PURE__ */ React.createElement("div", { style: styles.logoCircle }, "CAP"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.title }, "CAP Observer Log"), /* @__PURE__ */ React.createElement("div", { style: styles.subtitle }, "CIVIL AIR PATROL"))), /* @__PURE__ */ React.createElement("div", { style: styles.zuluTime }, zuluClock, "Z")), /* @__PURE__ */ React.createElement("nav", { style: styles.tabs }, tabs.map((tab) => /* @__PURE__ */ React.createElement(
+    
+    // Format ops timer remaining
+    const formatOpsTimer = () => {
+      if (opsTimerRemaining === null) return null;
+      const mins = Math.floor(opsTimerRemaining / 60);
+      const secs = opsTimerRemaining % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+    const opsTimerDisplay = formatOpsTimer();
+    const opsTimerWarning = opsTimerRemaining !== null && opsTimerRemaining <= 120; // 2 min warning
+    const opsTimerExpired = opsTimerRemaining !== null && opsTimerRemaining === 0;
+    
+    return /* @__PURE__ */ React.createElement("div", { style: styles.container }, 
+      /* @__PURE__ */ React.createElement("header", { style: styles.header }, 
+        /* @__PURE__ */ React.createElement("div", { style: styles.logo }, 
+          /* @__PURE__ */ React.createElement("div", { style: styles.logoCircle }, "CAP"), 
+          /* @__PURE__ */ React.createElement("div", null, 
+            /* @__PURE__ */ React.createElement("div", { style: styles.title }, "CAP Observer Log"), 
+            /* @__PURE__ */ React.createElement("div", { style: styles.subtitle }, "CIVIL AIR PATROL")
+          )
+        ), 
+        /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px" }},
+          // Ops Normal Timer
+          opsTimerEnabled && React.createElement("div", { 
+            style: { 
+              ...styles.zuluTime, 
+              background: opsTimerExpired ? "#e53e3e" : opsTimerWarning ? "#dd6b20" : "rgba(0,0,0,0.3)",
+              color: opsTimerExpired || opsTimerWarning ? "#fff" : "#68d391",
+              cursor: "pointer",
+              minWidth: "70px",
+              textAlign: "center"
+            },
+            className: opsTimerExpired ? "timer-warning" : "",
+            onClick: () => {
+              setOpsTimerLastReset(Date.now());
+              setOpsTimerRemaining(opsTimerMinutes * 60);
+            },
+            title: "Click to reset OPS NORMAL timer"
+          }, 
+            opsTimerExpired ? "OPS!" : opsTimerDisplay || "OPS"
+          ),
+          // Night Mode Toggle
+          React.createElement("button", {
+            style: {
+              ...styles.zuluTime,
+              background: nightMode ? "#7c2d12" : "rgba(0,0,0,0.3)",
+              color: nightMode ? "#fca5a5" : "#a0aec0",
+              cursor: "pointer",
+              border: nightMode ? "1px solid #dc2626" : "1px solid rgba(255,255,255,0.1)",
+              padding: "6px 10px"
+            },
+            onClick: () => setNightMode(!nightMode),
+            title: nightMode ? "Switch to Day Mode" : "Switch to Night Mode"
+          }, nightMode ? "🌙" : "☀️"),
+          // Zulu Clock
+          React.createElement("div", { style: styles.zuluTime }, zuluClock, "Z")
+        )
+      ), 
+      /* @__PURE__ */ React.createElement("nav", { style: styles.tabs }, tabs.map((tab) => /* @__PURE__ */ React.createElement(
       "button",
       {
         key: tab.id,
@@ -5864,7 +6155,7 @@ React.createElement(
       tab.icon,
       " ",
       tab.label
-    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "checkins" && renderCheckInsTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #38a169, #2f855a)" }, onClick: copyLogToClipboard }, "\u{1F4CB} Copy Log"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} Export PDF")));
+    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #38a169, #2f855a)" }, onClick: copyLogToClipboard }, "\u{1F4CB} Copy"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")));
   };
   ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(CAPObserverLog, null));
 })();
