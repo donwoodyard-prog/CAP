@@ -8,6 +8,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0c1929">
   <title>CAP Observer Log</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Fira Code', monospace; background: #0c1929; overflow-x: hidden; }
@@ -2048,8 +2049,12 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
       r10: 0.5,           // NM at strength 10
       k: 2,               // range growth factor
       sigmaTheta: 20,     // bearing uncertainty degrees
-      resolution: 0.25    // grid resolution NM
+      resolution: 0.25,   // grid resolution NM
+      confidenceMode: 'auto', // 'auto', 'conservative', 'moderate', 'aggressive'
+      manualUncertainty: 50   // manual override percentage (when mode != auto)
     });
+    const [eltSolutions, setEltSolutions] = useState([]); // History of computed solutions
+    const eltSolutionSeqRef = React.useRef(0);
     const [newEltObs, setNewEltObs] = useState({
       timeZ: '',
       source: 'audio',
@@ -2060,6 +2065,8 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
       altMSL: '',
       altAGL: '',
       strength: 5,
+      directRange: '',  // Direct range entry in NM (overrides strength)
+      rangeAccuracy: '', // Range uncertainty in NM
       dfBearing: '',
       bearingRef: 'MAG',
       bearingAccuracy: '20',
@@ -2795,7 +2802,12 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
       }
     }, []);
     const generatePDF = () => {
+      try {
       const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        alert('Could not open print window. Please allow pop-ups for this site.');
+        return;
+      }
       const escHtml = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
 const escNl = (s) => escHtml(s).replace(/\n/g,"<br>");
 printWindow.document.write(`
@@ -2897,7 +2909,174 @@ ${events.map((e) => `
       printWindow.document.close();
       printWindow.focus();
       setTimeout(() => printWindow.print(), 250);
+      } catch (err) {
+        alert('PDF generation failed. Pop-ups may be blocked. Error: ' + err.message);
+      }
     };
+
+    // Generate text log for copying
+    const generateTextLog = () => {
+      const lines = [];
+      const sep = "═".repeat(50);
+      const sepLight = "─".repeat(50);
+      
+      lines.push(sep);
+      lines.push("CAP MISSION OBSERVER LOG");
+      lines.push(sep);
+      lines.push("");
+      
+      // Mission Info
+      lines.push("MISSION INFORMATION");
+      lines.push(sepLight);
+      lines.push(`Mission #: ${missionInfo.missionNumber || "(none)"}`);
+      lines.push(`Date (Z): ${missionInfo.dateZ || "(none)"}`);
+      lines.push(`Sortie #: ${missionInfo.sortieNumber || "(none)"}`);
+      lines.push(`Aircraft: N${missionInfo.aircraftTailN || "(none)"}`);
+      lines.push(`Observer: ${missionInfo.observerName || "(none)"}`);
+      lines.push(`Page: ${missionInfo.logPageNumber || "1"} of ${missionInfo.totalPages || "1"}`);
+      lines.push("");
+      
+      // Times
+      lines.push("TIME TRACKING (Zulu)");
+      lines.push(sepLight);
+      lines.push(`Tach Start: ${times.tachStart || "____"} | Hobbs Start: ${times.hobbsStart || "____"}`);
+      lines.push(`Takeoff: ${times.takeoffTime || "____"}Z`);
+      lines.push(`Entered Search: ${times.enteredSearchArea || "____"}Z`);
+      lines.push(`Departed Search: ${times.departedSearchArea || "____"}Z`);
+      lines.push(`Landing: ${times.landingTime || "____"}Z`);
+      lines.push(`Tach Stop: ${times.tachShutdown || "____"} | Hobbs Stop: ${times.hobbsShutdown || "____"}`);
+      lines.push(`Elapsed - Tach: ${calculated.tachElapsed || "____"} | Hobbs: ${calculated.hobbsElapsed || "____"}`);
+      lines.push(`Enroute Time: ${calculated.enrouteTime || "____"} | Search Time: ${calculated.searchTime || "____"}`);
+      lines.push("");
+      
+      // Fuel & Oil
+      lines.push("FUEL & OIL");
+      lines.push(sepLight);
+      lines.push(`Fuel: ${fuelOil.fuelGallons || "____"} gal | Cost: $${fuelOil.fuelCost || "____"} | Oil: ${fuelOil.oilQt || "____"} qt`);
+      lines.push("");
+      
+      // Check-ins
+      lines.push("CHECK-INS");
+      lines.push(sepLight);
+      checkIns.forEach((c, i) => {
+        if (c.scheduled) {
+          lines.push(`${c.completed ? "[✓]" : "[ ]"} ${c.scheduled}`);
+        }
+      });
+      if (!checkIns.some(c => c.scheduled)) lines.push("(No check-ins scheduled)");
+      lines.push("");
+      
+      // Notes
+      lines.push("NOTES");
+      lines.push(sepLight);
+      lines.push(notes || "(No notes)");
+      lines.push("");
+      
+      // Events
+      lines.push("EVENTS LOG");
+      lines.push(sepLight);
+      const validEvents = events.filter(e => e.eventType || e.timeZ || e.notes);
+      if (validEvents.length === 0) {
+        lines.push("(No events logged)");
+      } else {
+        validEvents.forEach((e, idx) => {
+          lines.push(`[${e.eventNum || idx + 1}] ${e.eventType || "(No type)"} @ ${e.timeZ || "____"}Z`);
+          if (e.latDeg && e.latMin) {
+            lines.push(`    Position: N ${e.latDeg}° ${e.latMin}' W ${e.longDeg}° ${e.longMin}'`);
+          }
+          if (e.capGrid) {
+            lines.push(`    CAP Grid: ${e.capGrid}`);
+          }
+          if (e.altMSL || e.altAGL) {
+            lines.push(`    Alt: ${e.altMSL ? e.altMSL + ' MSL' : ''} ${e.altAGL ? e.altAGL + ' AGL' : ''}`);
+          }
+          if (e.heading || e.airspeed || e.groundSpeed) {
+            lines.push(`    Hdg: ${e.heading || "___"}° | AS: ${e.airspeed || "___"} | GS: ${e.groundSpeed || "___"}`);
+          }
+          if (e.notes) {
+            lines.push(`    Notes: ${e.notes}`);
+          }
+          lines.push("");
+        });
+      }
+      
+      // ELT Observations (if any)
+      if (eltObservations && eltObservations.length > 0) {
+        lines.push("");
+        lines.push("ELT OBSERVATIONS");
+        lines.push(sepLight);
+        eltObservations.forEach((obs, idx) => {
+          lines.push(`[${obs.obsNum}] ${obs.timeZ || "____"}Z - Source: ${obs.source}`);
+          lines.push(`    Position: N ${obs.latDeg}° ${obs.latMin}' W ${obs.lonDeg}° ${obs.lonMin}'`);
+          if (obs.directRange) {
+            lines.push(`    Range: ${obs.directRange} NM ${obs.rangeAccuracy ? '±' + obs.rangeAccuracy : ''}`);
+          } else {
+            lines.push(`    Signal Strength: ${obs.strength}/10`);
+          }
+          if (obs.dfBearing) {
+            lines.push(`    DF Bearing: ${obs.dfBearing}° ${obs.bearingRef} ±${obs.bearingAccuracy}°`);
+          }
+          if (obs.notes) {
+            lines.push(`    Notes: ${obs.notes}`);
+          }
+          lines.push("");
+        });
+      }
+      
+      // ELT Solutions (if any)
+      if (eltSolutions && eltSolutions.length > 0) {
+        lines.push("");
+        lines.push("ELT COMPUTED SOLUTIONS");
+        lines.push(sepLight);
+        eltSolutions.forEach((sol, idx) => {
+          lines.push(`Solution #${sol.solutionNum} @ ${sol.timestamp}Z`);
+          lines.push(`    Centroid: N ${sol.centroid.latDeg}° ${sol.centroid.latMin}' W ${sol.centroid.lonDeg}° ${sol.centroid.lonMin}'`);
+          lines.push(`    CAP Grid: ${sol.capGrid}`);
+          lines.push(`    50% Area: ${sol.area50SizeNm2} NM² | 90% Area: ${sol.area90SizeNm2} NM²`);
+          lines.push(`    Quality: ${sol.qualityScore}/100 - ${sol.qualityLabel}`);
+          lines.push(`    Observations: ${sol.obsCount}${sol.dfCount > 0 ? ' (' + sol.dfCount + ' DF)' : ''}`);
+          lines.push("");
+        });
+      }
+      
+      // Target Locations (if any)
+      if (targetLocations && targetLocations.length > 0) {
+        lines.push("");
+        lines.push("TARGET LOCATIONS");
+        lines.push(sepLight);
+        targetLocations.forEach((t, idx) => {
+          lines.push(`Target #${idx + 1}: N ${t.lat.toFixed(5)}° W ${Math.abs(t.lon).toFixed(5)}°`);
+        });
+        lines.push("");
+      }
+      
+      lines.push(sep);
+      lines.push(`Generated: ${new Date().toISOString()}`);
+      lines.push(sep);
+      
+      return lines.join("\n");
+    };
+    
+    // Copy log to clipboard
+    const copyLogToClipboard = async () => {
+      const text = generateTextLog();
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Log copied to clipboard! You can now paste it into Notes or any text app.');
+      } catch (err) {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('Log copied to clipboard! You can now paste it into Notes or any text app.');
+      }
+    };
+
     const clearAllData = () => {
       if (confirm("Clear all log data?")) {
         setMissionInfo({ missionNumber: "", dateZ: getZuluDate(), sortieNumber: "", aircraftTailN: "", logPageNumber: "1", totalPages: "1", observerName: "" });
@@ -3714,6 +3893,147 @@ React.createElement(
 
     // ELT Assist Tab - ELT Signal Triangulation Tool
     const renderEltAssistTab = () => {
+      
+      // Import KML/KMZ file function
+      const importKmlKmz = async (file) => {
+        try {
+          let kmlText;
+          
+          if (file.name.toLowerCase().endsWith('.kmz')) {
+            // KMZ is a zipped KML - use JSZip via CDN
+            const arrayBuffer = await file.arrayBuffer();
+            const JSZip = window.JSZip;
+            if (!JSZip) {
+              alert('Loading JSZip library... Please try again in a moment.');
+              // Dynamically load JSZip
+              const script = document.createElement('script');
+              script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+              document.head.appendChild(script);
+              return;
+            }
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            const kmlFile = zip.file(/\.kml$/i)[0];
+            if (!kmlFile) {
+              alert('No KML file found in KMZ archive');
+              return;
+            }
+            kmlText = await kmlFile.async('text');
+          } else {
+            // Plain KML file
+            kmlText = await file.text();
+          }
+          
+          // Parse KML
+          const parser = new DOMParser();
+          const kml = parser.parseFromString(kmlText, 'text/xml');
+          
+          // Find all Placemarks with D_Sol style (detection points)
+          const placemarks = kml.querySelectorAll('Placemark');
+          const imported = [];
+          
+          placemarks.forEach((pm, idx) => {
+            const styleUrl = pm.querySelector('styleUrl');
+            if (!styleUrl) return;
+            
+            // Only process detection points (D_Sol) not rings (R_RINGS)
+            const style = styleUrl.textContent;
+            if (!style.includes('D_Sol') && !style.includes('Sol0')) return;
+            if (style.includes('R_RINGS')) return;
+            
+            // Get coordinates
+            const point = pm.querySelector('Point coordinates');
+            if (!point) return;
+            
+            const coords = point.textContent.trim().split(',');
+            if (coords.length < 2) return;
+            
+            const lon = parseFloat(coords[0]);
+            const lat = parseFloat(coords[1]);
+            
+            // Get extended data
+            let detectTime = '';
+            let errorNm = '';
+            let msgNum = '';
+            
+            const dataElements = pm.querySelectorAll('ExtendedData Data');
+            dataElements.forEach(d => {
+              const name = d.getAttribute('name');
+              const value = d.querySelector('value');
+              if (!value) return;
+              
+              if (name === 'DETECT TIME') {
+                detectTime = value.textContent.trim().replace('Z', '');
+              } else if (name === 'ERROR') {
+                // Parse "011 NM" format
+                const match = value.textContent.match(/(\d+)/);
+                if (match) errorNm = match[1];
+              } else if (name === 'USMCC MESSAGE NUMBER') {
+                msgNum = value.textContent.trim();
+              }
+            });
+            
+            // Get timestamp if available
+            const timestamp = pm.querySelector('TimeStamp when');
+            if (timestamp && !detectTime) {
+              const ts = timestamp.textContent;
+              const match = ts.match(/T(\d{2}):(\d{2})/);
+              if (match) {
+                detectTime = match[1] + match[2];
+              }
+            }
+            
+            // Convert to DDM
+            const latDdm = gpsUtils.ddToDdm(lat);
+            const lonDdm = gpsUtils.ddToDdm(Math.abs(lon));
+            
+            eltObsSeqRef.current = (eltObsSeqRef.current || 0) + 1;
+            
+            imported.push({
+              id: Date.now() + Math.random() + idx,
+              obsNum: eltObsSeqRef.current,
+              timeZ: detectTime || '',
+              source: 'sarsat',
+              latDeg: latDdm.deg.toString(),
+              latMin: latDdm.min.toFixed(3),
+              lonDeg: lonDdm.deg.toString(),
+              lonMin: lonDdm.min.toFixed(3),
+              altMSL: '',
+              altAGL: '30000', // Satellite detection - high altitude
+              strength: 5,
+              directRange: errorNm || '',
+              rangeAccuracy: errorNm ? (parseFloat(errorNm) * 0.3).toFixed(1) : '', // 30% uncertainty
+              dfBearing: '',
+              bearingRef: 'TRUE',
+              bearingAccuracy: '20',
+              notes: `SARSAT Import${msgNum ? ' - MSG#' + msgNum : ''}`,
+              useInCalc: true
+            });
+          });
+          
+          if (imported.length === 0) {
+            alert('No valid ELT detection points found in file');
+            return;
+          }
+          
+          // Add to observations
+          setEltObservations([...imported, ...eltObservations]);
+          alert(`Imported ${imported.length} ELT detection points from ${file.name}`);
+          
+        } catch (err) {
+          console.error('KML import error:', err);
+          alert('Error importing file: ' + err.message);
+        }
+      };
+      
+      // File input handler
+      const handleFileImport = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          importKmlKmz(file);
+        }
+        e.target.value = ''; // Reset for re-import
+      };
+      
       // Helper to create observation
       const addObservation = () => {
         if (!newEltObs.latDeg || !newEltObs.latMin || !newEltObs.lonDeg || !newEltObs.lonMin) {
@@ -3739,6 +4059,8 @@ React.createElement(
           altMSL: newEltObs.altMSL,
           altAGL: newEltObs.altAGL,
           strength: 5,
+          directRange: '',
+          rangeAccuracy: '',
           dfBearing: '',
           bearingRef: 'MAG',
           bearingAccuracy: '20',
@@ -3798,23 +4120,89 @@ React.createElement(
           lat: gpsUtils.ddmToDd(o.latDeg, o.latMin),
           lon: -gpsUtils.ddmToDd(o.lonDeg, o.lonMin), // West negative
           strength: parseInt(o.strength) || 5,
+          directRange: o.directRange ? parseFloat(o.directRange) : null,
+          rangeAccuracy: o.rangeAccuracy ? parseFloat(o.rangeAccuracy) : null,
           bearing: o.dfBearing ? parseFloat(o.dfBearing) : null,
           bearingAcc: parseFloat(o.bearingAccuracy) || 20,
-          agl: parseFloat(o.altAGL) || 1500
+          agl: parseFloat(o.altAGL) || 1500,
+          source: o.source || 'audio'
         }));
+
+        // ========================================
+        // ADAPTIVE UNCERTAINTY CALCULATION
+        // ========================================
+        // Assess data quality to determine uncertainty multiplier
+        const obsCount = obsData.length;
+        const dfCount = obsData.filter(o => o.bearing !== null).length;
+        const directRangeCount = obsData.filter(o => o.directRange !== null).length;
+        const dfRatio = dfCount / obsCount;
+        
+        // Calculate geographic spread of observations (are they well distributed?)
+        const lats = obsData.map(o => o.lat);
+        const lons = obsData.map(o => o.lon);
+        const latSpread = (Math.max(...lats) - Math.min(...lats)) * 60; // NM
+        const lonSpread = (Math.max(...lons) - Math.min(...lons)) * 60 * Math.cos((Math.min(...lats) + Math.max(...lats)) / 2 * Math.PI / 180);
+        const geoSpread = Math.sqrt(latSpread * latSpread + lonSpread * lonSpread);
+        
+        // Data quality score (0-100)
+        let qualityScore = 0;
+        qualityScore += Math.min(obsCount * 10, 40);  // Up to 40 pts for observation count (4+ obs)
+        qualityScore += dfRatio * 40;                  // Up to 40 pts for DF bearing coverage
+        qualityScore += Math.min(geoSpread / 10 * 20, 20); // Up to 20 pts for geographic spread
+        
+        // Determine uncertainty multiplier based on mode
+        let uncertaintyPct, uncertaintyMin;
+        let qualityLabel;
+        
+        if (eltSettings.confidenceMode === 'auto') {
+          // Adaptive: high quality = tight, low quality = wide
+          if (qualityScore >= 70) {
+            uncertaintyPct = 0.30;
+            uncertaintyMin = 1.0;
+            qualityLabel = 'HIGH (tight search area)';
+          } else if (qualityScore >= 50) {
+            uncertaintyPct = 0.50;
+            uncertaintyMin = 2.0;
+            qualityLabel = 'MEDIUM (moderate search area)';
+          } else if (qualityScore >= 30) {
+            uncertaintyPct = 0.75;
+            uncertaintyMin = 3.0;
+            qualityLabel = 'LOW (wide search area)';
+          } else {
+            uncertaintyPct = 1.00;
+            uncertaintyMin = 4.0;
+            qualityLabel = 'MINIMAL (very wide search area)';
+          }
+        } else if (eltSettings.confidenceMode === 'conservative') {
+          uncertaintyPct = 1.00;
+          uncertaintyMin = 4.0;
+          qualityLabel = 'CONSERVATIVE (manual)';
+        } else if (eltSettings.confidenceMode === 'moderate') {
+          uncertaintyPct = 0.50;
+          uncertaintyMin = 2.0;
+          qualityLabel = 'MODERATE (manual)';
+        } else if (eltSettings.confidenceMode === 'aggressive') {
+          uncertaintyPct = 0.25;
+          uncertaintyMin = 0.5;
+          qualityLabel = 'AGGRESSIVE (manual)';
+        } else {
+          // Manual slider
+          uncertaintyPct = eltSettings.manualUncertainty / 100;
+          uncertaintyMin = Math.max(uncertaintyPct * 4, 0.5);
+          qualityLabel = `MANUAL (${eltSettings.manualUncertainty}%)`;
+        }
 
         // Calculate expected ranges for dynamic bounds
         const expectedRanges = obsData.map(o => 
+          o.directRange !== null ? o.directRange :
           eltSettings.r10 * Math.pow(2, (10 - o.strength) / eltSettings.k)
         );
         const maxR0 = Math.max(...expectedRanges);
 
-        // Determine bounds - dynamic margin based on max expected range
-        const lats = obsData.map(o => o.lat);
-        const lons = obsData.map(o => o.lon);
+        // Determine bounds - dynamic margin based on max expected range + uncertainty
         const meanLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-        const marginNm = Math.max(5, maxR0 + 2); // At least 5 NM, or max range + 2 NM buffer
-        const margin = marginNm / 60; // Convert to degrees
+        const marginNm = Math.max(8, maxR0 * (1 + uncertaintyPct) + 3);
+        const margin = marginNm / 60;
         const lonMargin = margin / Math.cos(meanLat * Math.PI / 180);
         
         const bounds = {
@@ -3825,13 +4213,11 @@ React.createElement(
         };
 
         // Grid resolution
-        const step = eltSettings.resolution / 60; // NM to degrees
+        const step = eltSettings.resolution / 60;
         const lonStep = step / Math.cos(meanLat * Math.PI / 180);
 
-        // ELT horizon lookup table (based on CAP reference, interpolated)
-        // AGL ft -> approximate signal range NM
+        // ELT horizon lookup table
         const getEltHorizon = (aglFt) => {
-          // CAP reference: 1000ft~18nm, 3000ft~30nm, 5000ft~40nm, 8000ft~65nm, 10000ft~80nm
           const table = [
             [500, 12], [1000, 18], [2000, 25], [3000, 30], [4000, 35],
             [5000, 40], [6000, 50], [7000, 58], [8000, 65], [10000, 80], [15000, 100]
@@ -3844,7 +4230,7 @@ React.createElement(
               return table[i][1] + t * (table[i+1][1] - table[i][1]);
             }
           }
-          return 30; // fallback
+          return 30;
         };
 
         // Build probability grid
@@ -3856,14 +4242,22 @@ React.createElement(
             let logL = 0;
             
             for (const obs of obsData) {
-              // Distance in NM
               const dLat = (lat - obs.lat) * 60;
               const dLon = (lon - obs.lon) * 60 * Math.cos(obs.lat * Math.PI / 180);
               const distNm = Math.sqrt(dLat * dLat + dLon * dLon);
               
-              // Strength-based range likelihood
-              const r0 = eltSettings.r10 * Math.pow(2, (10 - obs.strength) / eltSettings.k);
-              const sigmaR = Math.max(r0 * 0.35, 0.3);
+              // Range likelihood with adaptive uncertainty
+              let r0, sigmaR;
+              if (obs.directRange !== null) {
+                r0 = obs.directRange;
+                // Use provided accuracy, or apply adaptive uncertainty
+                sigmaR = obs.rangeAccuracy !== null 
+                  ? obs.rangeAccuracy 
+                  : Math.max(r0 * uncertaintyPct, uncertaintyMin);
+              } else {
+                r0 = eltSettings.r10 * Math.pow(2, (10 - obs.strength) / eltSettings.k);
+                sigmaR = Math.max(r0 * uncertaintyPct, uncertaintyMin);
+              }
               const lRange = -0.5 * Math.pow((distNm - r0) / sigmaR, 2);
               
               // Bearing likelihood (if available)
@@ -3877,7 +4271,7 @@ React.createElement(
                 lBearing = -0.5 * Math.pow(dTheta / obs.bearingAcc, 2);
               }
               
-              // Radio horizon soft cap (using CAP reference table)
+              // Radio horizon soft cap
               const horizonNm = getEltHorizon(obs.agl);
               let lHorizon = 0;
               if (distNm > horizonNm) {
@@ -3900,14 +4294,14 @@ React.createElement(
         });
         grid.forEach(g => g.p /= totalP);
 
-        // Compute centroid (weighted average)
+        // Compute centroid
         let centLat = 0, centLon = 0;
         grid.forEach(g => {
           centLat += g.lat * g.p;
           centLon += g.lon * g.p;
         });
 
-        // Sort by probability for contour computation
+        // Sort by probability for contours
         grid.sort((a, b) => b.p - a.p);
         
         // Find 50% and 90% areas
@@ -3924,12 +4318,17 @@ React.createElement(
         const centLonDdm = gpsUtils.ddToDdm(Math.abs(centLon));
         const capGrid = gpsUtils.calculateCapGrid(centLat, centLon);
 
-        // Calculate area sizes (approximate)
+        // Calculate area sizes
         const cellAreaNm2 = eltSettings.resolution * eltSettings.resolution;
         const area50SizeNm2 = area50.length * cellAreaNm2;
         const area90SizeNm2 = area90.length * cellAreaNm2;
 
+        // Increment solution counter
+        eltSolutionSeqRef.current = (eltSolutionSeqRef.current || 0) + 1;
+
         const result = {
+          id: Date.now() + Math.random(),
+          solutionNum: eltSolutionSeqRef.current,
           timestamp: getZuluTimeOnly(),
           centroid: {
             lat: centLat,
@@ -3945,12 +4344,25 @@ React.createElement(
           area50SizeNm2: area50SizeNm2.toFixed(2),
           area90SizeNm2: area90SizeNm2.toFixed(2),
           obsCount: activeObs.length,
+          dfCount: dfCount,
+          qualityScore: Math.round(qualityScore),
+          qualityLabel: qualityLabel,
+          uncertaintyPct: Math.round(uncertaintyPct * 100),
           grid: grid,
           bounds: bounds,
           observations: obsData
         };
 
         setEltResult(result);
+        
+        // Auto-save to solutions history
+        setEltSolutions(prev => [result, ...prev]);
+      };
+
+      // Log solution to Events and save to history
+      const saveSolutionToHistory = () => {
+        if (!eltResult) return;
+        logSolutionToEvents();
       };
 
       // Log observation to Events
@@ -4119,6 +4531,38 @@ React.createElement(
                 "The tool calculates the most probable location. At least 2 observations required."
               )
             ),
+            // Import KML/KMZ Section
+            React.createElement("div", { style: {
+              background: "rgba(99,179,237,0.1)",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+              border: "1px solid rgba(99,179,237,0.3)"
+            }},
+              React.createElement("div", { style: { fontSize: "11px", color: "#63b3ed", marginBottom: "8px", fontWeight: "600" }}, 
+                "📥 IMPORT SARSAT/ATC DATA"
+              ),
+              React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "10px" }},
+                "Import KML or KMZ file with ELT ping data from ATC or SARSAT"
+              ),
+              React.createElement("input", {
+                type: "file",
+                accept: ".kml,.kmz",
+                onChange: handleFileImport,
+                style: { display: "none" },
+                id: "kml-import-input"
+              }),
+              React.createElement("label", {
+                htmlFor: "kml-import-input",
+                style: {
+                  ...styles.button,
+                  display: "block",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  background: "linear-gradient(135deg, #3182ce, #2b6cb0)"
+                }
+              }, "📂 SELECT KML/KMZ FILE")
+            ),
             // Add Observation Form
             React.createElement("div", { style: { 
               background: "rgba(0,0,0,0.2)", 
@@ -4227,6 +4671,38 @@ React.createElement(
                   React.createElement("span", null, "10 = Strong")
                 )
               ),
+              // Direct Range (optional - overrides strength)
+              React.createElement("div", { style: { 
+                marginBottom: "12px",
+                padding: "10px",
+                background: "rgba(99,179,237,0.1)",
+                borderRadius: "8px",
+                border: "1px solid rgba(99,179,237,0.2)"
+              }},
+                React.createElement("div", { style: { fontSize: "10px", color: "#63b3ed", marginBottom: "8px" }}, 
+                  "📏 Direct Range (optional - overrides strength estimate)"
+                ),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }},
+                  React.createElement("div", null,
+                    React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Range (NM)"),
+                    React.createElement("input", {
+                      style: styles.input,
+                      value: newEltObs.directRange,
+                      onChange: (e) => setNewEltObs({ ...newEltObs, directRange: e.target.value }),
+                      placeholder: "e.g. 5.2"
+                    })
+                  ),
+                  React.createElement("div", null,
+                    React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "± Accuracy (NM)"),
+                    React.createElement("input", {
+                      style: styles.input,
+                      value: newEltObs.rangeAccuracy,
+                      onChange: (e) => setNewEltObs({ ...newEltObs, rangeAccuracy: e.target.value }),
+                      placeholder: "e.g. 1.0"
+                    })
+                  )
+                )
+              ),
               // DF Bearing (optional)
               React.createElement("div", { style: { display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "8px", marginBottom: "10px" }},
                 React.createElement("div", null,
@@ -4263,7 +4739,7 @@ React.createElement(
               React.createElement("div", { style: { marginBottom: "10px" }},
                 React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Signal Source"),
                 React.createElement("div", { style: { display: "flex", gap: "6px", marginTop: "6px" }},
-                  ["audio", "df", "both"].map(src => 
+                  ["audio", "df", "both", "sarsat"].map(src => 
                     React.createElement("button", {
                       key: src,
                       style: {
@@ -4340,7 +4816,7 @@ React.createElement(
                     ),
                     React.createElement("div", { style: { fontSize: "11px", color: "#e2e8f0" }},
                       `N ${obs.latDeg}° ${obs.latMin}' W ${obs.lonDeg}° ${obs.lonMin}' | `,
-                      `Str: ${obs.strength}/10 | `,
+                      obs.directRange ? `Range: ${obs.directRange} NM${obs.rangeAccuracy ? ` ±${obs.rangeAccuracy}` : ''} | ` : `Str: ${obs.strength}/10 | `,
                       obs.dfBearing && `DF: ${obs.dfBearing}° ${obs.bearingRef} | `,
                       `Src: ${obs.source}`,
                       obs.notes && React.createElement("div", { style: { color: "#a0aec0", marginTop: "4px" }}, obs.notes)
@@ -4354,6 +4830,45 @@ React.createElement(
         React.createElement("div", { style: styles.section },
           React.createElement("div", { style: styles.sectionHeader }, "🎯 Compute Probable Area"),
           React.createElement("div", { style: styles.sectionBody },
+            // Confidence Mode Selector
+            React.createElement("div", { style: { 
+              marginBottom: "16px",
+              padding: "12px",
+              background: "rgba(99,179,237,0.1)",
+              borderRadius: "8px",
+              border: "1px solid rgba(99,179,237,0.2)"
+            }},
+              React.createElement("div", { style: { fontSize: "11px", color: "#63b3ed", marginBottom: "8px", fontWeight: "600" }}, 
+                "⚙️ CONFIDENCE MODE"
+              ),
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "6px", marginBottom: "10px" }},
+                ["auto", "conservative", "moderate", "aggressive"].map(mode => 
+                  React.createElement("button", {
+                    key: mode,
+                    style: {
+                      ...styles.button,
+                      ...styles.buttonSmall,
+                      fontSize: "9px",
+                      padding: "8px 4px",
+                      background: eltSettings.confidenceMode === mode 
+                        ? "linear-gradient(135deg, #3182ce, #2b6cb0)" 
+                        : "rgba(0,0,0,0.3)",
+                      border: eltSettings.confidenceMode === mode 
+                        ? "2px solid #63b3ed" 
+                        : "1px solid rgba(255,255,255,0.1)"
+                    },
+                    onClick: () => setEltSettings({ ...eltSettings, confidenceMode: mode })
+                  }, mode.toUpperCase())
+                )
+              ),
+              React.createElement("div", { style: { fontSize: "9px", color: "#a0aec0", lineHeight: "1.4" }},
+                eltSettings.confidenceMode === 'auto' && "🤖 AUTO: Adjusts based on data quality - more data/DF = tighter area",
+                eltSettings.confidenceMode === 'conservative' && "🛡️ CONSERVATIVE: Wide search area (100% uncertainty) - safest option",
+                eltSettings.confidenceMode === 'moderate' && "⚖️ MODERATE: Balanced search area (50% uncertainty)",
+                eltSettings.confidenceMode === 'aggressive' && "🎯 AGGRESSIVE: Tight search area (25% uncertainty) - use with good data only"
+              )
+            ),
+            // Calculate button
             React.createElement("button", {
               style: { 
                 ...styles.button, 
@@ -4371,6 +4886,33 @@ React.createElement(
             
             // Results
             eltResult && React.createElement("div", { style: { marginTop: "16px" }},
+              // Quality Assessment
+              React.createElement("div", { style: { 
+                display: "flex", 
+                justifyContent: "space-between", 
+                alignItems: "center",
+                padding: "10px 12px",
+                background: "rgba(0,0,0,0.2)",
+                borderRadius: "8px",
+                marginBottom: "12px"
+              }},
+                React.createElement("div", null,
+                  React.createElement("div", { style: { fontSize: "9px", color: "#a0aec0" }}, "DATA QUALITY"),
+                  React.createElement("div", { style: { 
+                    fontSize: "12px", 
+                    fontWeight: "700", 
+                    color: eltResult.qualityScore >= 70 ? "#68d391" : 
+                           eltResult.qualityScore >= 50 ? "#f6e05e" : 
+                           eltResult.qualityScore >= 30 ? "#ed8936" : "#fc8181"
+                  }}, eltResult.qualityScore, "/100 - ", eltResult.qualityLabel)
+                ),
+                React.createElement("div", { style: { textAlign: "right" }},
+                  React.createElement("div", { style: { fontSize: "9px", color: "#a0aec0" }}, "SOLUTION #", eltResult.solutionNum),
+                  React.createElement("div", { style: { fontSize: "11px", color: "#e2e8f0" }}, 
+                    eltResult.obsCount, " obs", eltResult.dfCount > 0 && ` (${eltResult.dfCount} DF)`
+                  )
+                )
+              ),
               // Visualization
               React.createElement("div", { style: { marginBottom: "16px" }}, renderVisualization()),
               // Legend
@@ -4428,6 +4970,57 @@ React.createElement(
                 "⚠️ This is a probability estimate. Reflections, terrain, and signal multipath can cause errors. ",
                 "Always verify with additional observations from different angles."
               )
+            )
+          )
+        ),
+
+        // Solutions History Section
+        eltSolutions.length > 0 && React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, 
+            "📊 Solution History (", eltSolutions.length, ")",
+            React.createElement("button", {
+              style: { ...styles.button, ...styles.buttonSmall, marginLeft: "auto", background: "#e53e3e", fontSize: "9px" },
+              onClick: () => { if (confirm("Clear all solution history?")) setEltSolutions([]); }
+            }, "CLEAR")
+          ),
+          React.createElement("div", { style: styles.sectionBody },
+            React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "12px" }},
+              "Track how your estimate improves as you add more observations"
+            ),
+            eltSolutions.slice(0, 10).map((sol, idx) => 
+              React.createElement("div", { 
+                key: sol.id,
+                style: {
+                  background: idx === 0 ? "rgba(56,161,105,0.15)" : "rgba(0,0,0,0.2)",
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  marginBottom: "6px",
+                  border: idx === 0 ? "1px solid rgba(104,211,145,0.3)" : "1px solid rgba(255,255,255,0.05)"
+                }
+              },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" }},
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: "11px", fontWeight: "700", color: idx === 0 ? "#68d391" : "#e2e8f0" }},
+                      idx === 0 ? "🎯 CURRENT - " : "",
+                      "Solution #", sol.solutionNum, " @ ", sol.timestamp, "Z"
+                    ),
+                    React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginTop: "2px" }},
+                      `N ${sol.centroid.latDeg}° ${sol.centroid.latMin}' W ${sol.centroid.lonDeg}° ${sol.centroid.lonMin}'`
+                    )
+                  ),
+                  React.createElement("div", { style: { textAlign: "right" }},
+                    React.createElement("div", { style: { fontSize: "10px", color: "#fbd38d" }}, 
+                      sol.area90SizeNm2, " NM²"
+                    ),
+                    React.createElement("div", { style: { fontSize: "9px", color: "#718096" }},
+                      sol.obsCount, " obs", sol.dfCount > 0 && ` / ${sol.dfCount} DF`
+                    )
+                  )
+                )
+              )
+            ),
+            eltSolutions.length > 10 && React.createElement("div", { style: { textAlign: "center", fontSize: "10px", color: "#718096", marginTop: "8px" }},
+              `+ ${eltSolutions.length - 10} more solutions...`
             )
           )
         )
@@ -5176,7 +5769,7 @@ React.createElement(
       tab.icon,
       " ",
       tab.label
-    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "checkins" && renderCheckInsTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} Export PDF")));
+    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "checkins" && renderCheckInsTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #38a169, #2f855a)" }, onClick: copyLogToClipboard }, "\u{1F4CB} Copy Log"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} Export PDF")));
   };
   ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(CAPObserverLog, null));
 })();
