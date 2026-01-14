@@ -2041,6 +2041,32 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
         const targetSeqRef = React.useRef(0); // per refresh
 const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     const [intersectionConstraint, setIntersectionConstraint] = useState("lines"); // "lines" or "segments"
+    // ELT Assist state
+    const [eltObservations, setEltObservations] = useState([]);
+    const [eltResult, setEltResult] = useState(null);
+    const [eltSettings, setEltSettings] = useState({
+      r10: 0.5,           // NM at strength 10
+      k: 2,               // range growth factor
+      sigmaTheta: 20,     // bearing uncertainty degrees
+      resolution: 0.25    // grid resolution NM
+    });
+    const [newEltObs, setNewEltObs] = useState({
+      timeZ: '',
+      source: 'audio',
+      latDeg: '',
+      latMin: '',
+      lonDeg: '',
+      lonMin: '',
+      altMSL: '',
+      altAGL: '',
+      strength: 5,
+      dfBearing: '',
+      bearingRef: 'MAG',
+      bearingAccuracy: '20',
+      notes: '',
+      useInCalc: true
+    });
+    const eltObsSeqRef = React.useRef(0);
     function createEmptyEvent(eventNum) {
       return {
         id: Date.now() + Math.random(),
@@ -3686,6 +3712,702 @@ React.createElement(
       ))))));
     };
 
+    // ELT Assist Tab - ELT Signal Triangulation Tool
+    const renderEltAssistTab = () => {
+      // Helper to create observation
+      const addObservation = () => {
+        if (!newEltObs.latDeg || !newEltObs.latMin || !newEltObs.lonDeg || !newEltObs.lonMin) {
+          alert('Position required (Lat/Lon)');
+          return;
+        }
+        eltObsSeqRef.current = (eltObsSeqRef.current || 0) + 1;
+        const obs = {
+          id: Date.now() + Math.random(),
+          obsNum: eltObsSeqRef.current,
+          ...newEltObs,
+          timeZ: newEltObs.timeZ || getZuluTimeOnly()
+        };
+        setEltObservations([obs, ...eltObservations]);
+        // Reset form but keep some defaults
+        setNewEltObs({
+          timeZ: '',
+          source: 'audio',
+          latDeg: '',
+          latMin: '',
+          lonDeg: '',
+          lonMin: '',
+          altMSL: newEltObs.altMSL,
+          altAGL: newEltObs.altAGL,
+          strength: 5,
+          dfBearing: '',
+          bearingRef: 'MAG',
+          bearingAccuracy: '20',
+          notes: '',
+          useInCalc: true
+        });
+      };
+
+      // Remove observation
+      const removeObservation = (id) => {
+        setEltObservations(eltObservations.filter(o => o.id !== id));
+      };
+
+      // Toggle use in calculation
+      const toggleObsUse = (id) => {
+        setEltObservations(eltObservations.map(o => 
+          o.id === id ? { ...o, useInCalc: !o.useInCalc } : o
+        ));
+      };
+
+      // Get current GPS position
+      const captureGPS = () => {
+        if (!navigator.geolocation) {
+          alert('GPS not available');
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            const latDdm = gpsUtils.ddToDdm(lat);
+            const lonDdm = gpsUtils.ddToDdm(Math.abs(lon));
+            setNewEltObs({
+              ...newEltObs,
+              latDeg: latDdm.deg.toString(),
+              latMin: latDdm.min.toFixed(3),
+              lonDeg: lonDdm.deg.toString(),
+              lonMin: lonDdm.min.toFixed(3),
+              timeZ: getZuluTimeOnly()
+            });
+          },
+          (err) => alert('GPS error: ' + err.message),
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      };
+
+      // Compute probable area
+      const computeProbableArea = () => {
+        const activeObs = eltObservations.filter(o => o.useInCalc);
+        if (activeObs.length < 2) {
+          alert('Need at least 2 observations to compute probable area');
+          return;
+        }
+
+        // Convert observations to decimal degrees
+        const obsData = activeObs.map(o => ({
+          lat: gpsUtils.ddmToDd(o.latDeg, o.latMin),
+          lon: -gpsUtils.ddmToDd(o.lonDeg, o.lonMin), // West negative
+          strength: parseInt(o.strength) || 5,
+          bearing: o.dfBearing ? parseFloat(o.dfBearing) : null,
+          bearingAcc: parseFloat(o.bearingAccuracy) || 20,
+          agl: parseFloat(o.altAGL) || 1500
+        }));
+
+        // Determine bounds
+        const lats = obsData.map(o => o.lat);
+        const lons = obsData.map(o => o.lon);
+        const meanLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+        const margin = 5 / 60; // 5 NM in degrees
+        const lonMargin = margin / Math.cos(meanLat * Math.PI / 180);
+        
+        const bounds = {
+          minLat: Math.min(...lats) - margin,
+          maxLat: Math.max(...lats) + margin,
+          minLon: Math.min(...lons) - lonMargin,
+          maxLon: Math.max(...lons) + lonMargin
+        };
+
+        // Grid resolution
+        const step = eltSettings.resolution / 60; // NM to degrees
+        const lonStep = step / Math.cos(meanLat * Math.PI / 180);
+
+        // Build probability grid
+        const grid = [];
+        let maxLogL = -Infinity;
+        
+        for (let lat = bounds.minLat; lat <= bounds.maxLat; lat += step) {
+          for (let lon = bounds.minLon; lon <= bounds.maxLon; lon += lonStep) {
+            let logL = 0;
+            
+            for (const obs of obsData) {
+              // Distance in NM
+              const dLat = (lat - obs.lat) * 60;
+              const dLon = (lon - obs.lon) * 60 * Math.cos(obs.lat * Math.PI / 180);
+              const distNm = Math.sqrt(dLat * dLat + dLon * dLon);
+              
+              // Strength-based range likelihood
+              const r0 = eltSettings.r10 * Math.pow(2, (10 - obs.strength) / eltSettings.k);
+              const sigmaR = Math.max(r0 * 0.35, 0.3);
+              const lRange = -0.5 * Math.pow((distNm - r0) / sigmaR, 2);
+              
+              // Bearing likelihood (if available)
+              let lBearing = 0;
+              if (obs.bearing !== null) {
+                const bearingToPoint = Math.atan2(dLon, dLat) * 180 / Math.PI;
+                const normBearing = ((bearingToPoint % 360) + 360) % 360;
+                let dTheta = normBearing - obs.bearing;
+                if (dTheta > 180) dTheta -= 360;
+                if (dTheta < -180) dTheta += 360;
+                lBearing = -0.5 * Math.pow(dTheta / obs.bearingAcc, 2);
+              }
+              
+              // Radio horizon soft cap
+              const horizonNm = 1.23 * Math.sqrt(obs.agl) / 1.15078;
+              let lHorizon = 0;
+              if (distNm > horizonNm) {
+                lHorizon = -0.5 * Math.pow((distNm - horizonNm) / 2, 2);
+              }
+              
+              logL += lRange + lBearing + lHorizon;
+            }
+            
+            grid.push({ lat, lon, logL });
+            if (logL > maxLogL) maxLogL = logL;
+          }
+        }
+
+        // Normalize to probability
+        let totalP = 0;
+        grid.forEach(g => {
+          g.p = Math.exp(g.logL - maxLogL);
+          totalP += g.p;
+        });
+        grid.forEach(g => g.p /= totalP);
+
+        // Compute centroid (weighted average)
+        let centLat = 0, centLon = 0;
+        grid.forEach(g => {
+          centLat += g.lat * g.p;
+          centLon += g.lon * g.p;
+        });
+
+        // Sort by probability for contour computation
+        grid.sort((a, b) => b.p - a.p);
+        
+        // Find 50% and 90% areas
+        let cumP = 0;
+        let area50 = [], area90 = [];
+        for (const g of grid) {
+          cumP += g.p;
+          if (cumP <= 0.5) area50.push(g);
+          if (cumP <= 0.9) area90.push(g);
+        }
+
+        // Convert centroid to DDM
+        const centLatDdm = gpsUtils.ddToDdm(centLat);
+        const centLonDdm = gpsUtils.ddToDdm(Math.abs(centLon));
+        const capGrid = gpsUtils.calculateCapGrid(centLat, centLon);
+
+        // Calculate area sizes (approximate)
+        const cellAreaNm2 = eltSettings.resolution * eltSettings.resolution;
+        const area50SizeNm2 = area50.length * cellAreaNm2;
+        const area90SizeNm2 = area90.length * cellAreaNm2;
+
+        const result = {
+          timestamp: getZuluTimeOnly(),
+          centroid: {
+            lat: centLat,
+            lon: centLon,
+            latDeg: centLatDdm.deg,
+            latMin: centLatDdm.min.toFixed(3),
+            lonDeg: centLonDdm.deg,
+            lonMin: centLonDdm.min.toFixed(3)
+          },
+          capGrid: capGrid.full,
+          area50: area50,
+          area90: area90,
+          area50SizeNm2: area50SizeNm2.toFixed(2),
+          area90SizeNm2: area90SizeNm2.toFixed(2),
+          obsCount: activeObs.length,
+          grid: grid,
+          bounds: bounds,
+          observations: obsData
+        };
+
+        setEltResult(result);
+      };
+
+      // Log observation to Events
+      const logObservationToEvents = (obs) => {
+        eventSeqRef.current = (eventSeqRef.current || 1) + 1;
+        const noteText = `ELT OBS #${obs.obsNum} | Strength: ${obs.strength}/10 | ` +
+          (obs.dfBearing ? `DF: ${obs.dfBearing}° ${obs.bearingRef} ±${obs.bearingAccuracy}° | ` : '') +
+          `Source: ${obs.source} | AGL: ${obs.altAGL || 'N/A'} ft` +
+          (obs.notes ? ` | ${obs.notes}` : '');
+        
+        const newEvent = {
+          id: Date.now() + Math.random(),
+          eventNum: eventSeqRef.current,
+          eventType: 'ELT Signal',
+          timeZ: obs.timeZ,
+          latDeg: obs.latDeg,
+          latMin: obs.latMin,
+          longDeg: obs.lonDeg,
+          longMin: obs.lonMin,
+          altMSL: obs.altMSL,
+          altAGL: obs.altAGL,
+          heading: obs.dfBearing || '',
+          airspeed: '',
+          groundSpeed: '',
+          capGrid: '',
+          notes: noteText
+        };
+        setEvents([newEvent, ...events]);
+        alert('Observation logged to Events');
+      };
+
+      // Log solution to Events
+      const logSolutionToEvents = () => {
+        if (!eltResult) return;
+        eventSeqRef.current = (eventSeqRef.current || 1) + 1;
+        const noteText = `ELT ESTIMATE | Method: Probability Grid | ` +
+          `Observations: ${eltResult.obsCount} | ` +
+          `50% Area: ${eltResult.area50SizeNm2} NM² | ` +
+          `90% Area: ${eltResult.area90SizeNm2} NM² | ` +
+          `Grid: ${eltResult.capGrid} | ` +
+          `N ${eltResult.centroid.latDeg}° ${eltResult.centroid.latMin}' ` +
+          `W ${eltResult.centroid.lonDeg}° ${eltResult.centroid.lonMin}'`;
+        
+        const newEvent = {
+          id: Date.now() + Math.random(),
+          eventNum: eventSeqRef.current,
+          eventType: 'ELT Signal',
+          timeZ: eltResult.timestamp,
+          latDeg: eltResult.centroid.latDeg.toString(),
+          latMin: eltResult.centroid.latMin,
+          longDeg: eltResult.centroid.lonDeg.toString(),
+          longMin: eltResult.centroid.lonMin,
+          altMSL: '',
+          altAGL: '',
+          heading: '',
+          airspeed: '',
+          groundSpeed: '',
+          capGrid: eltResult.capGrid,
+          notes: noteText
+        };
+        setEvents([newEvent, ...events]);
+        alert('ELT Estimate logged to Events');
+      };
+
+      // Render SVG visualization
+      const renderVisualization = () => {
+        if (!eltResult || !eltResult.grid.length) return null;
+        
+        const svgWidth = 300;
+        const svgHeight = 250;
+        const padding = 20;
+        const { bounds, centroid, observations, area50, area90 } = eltResult;
+        
+        // Scale functions
+        const scaleX = (lon) => padding + ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon)) * (svgWidth - 2 * padding);
+        const scaleY = (lat) => svgHeight - padding - ((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * (svgHeight - 2 * padding);
+        
+        // Get max probability for color scaling
+        const maxP = Math.max(...eltResult.grid.map(g => g.p));
+        
+        return React.createElement("svg", {
+          width: svgWidth,
+          height: svgHeight,
+          style: { background: "rgba(0,0,0,0.3)", borderRadius: "8px", display: "block", margin: "0 auto" }
+        },
+          // 90% area (lighter)
+          area90.map((g, i) => React.createElement("rect", {
+            key: `a90-${i}`,
+            x: scaleX(g.lon) - 2,
+            y: scaleY(g.lat) - 2,
+            width: 4,
+            height: 4,
+            fill: `rgba(237,137,54,${0.3 + (g.p / maxP) * 0.4})`
+          })),
+          // 50% area (brighter)
+          area50.map((g, i) => React.createElement("rect", {
+            key: `a50-${i}`,
+            x: scaleX(g.lon) - 3,
+            y: scaleY(g.lat) - 3,
+            width: 6,
+            height: 6,
+            fill: `rgba(252,211,77,${0.5 + (g.p / maxP) * 0.5})`
+          })),
+          // Observation points
+          observations.map((obs, i) => React.createElement("circle", {
+            key: `obs-${i}`,
+            cx: scaleX(obs.lon),
+            cy: scaleY(obs.lat),
+            r: 6,
+            fill: "#3182ce",
+            stroke: "#fff",
+            strokeWidth: 2
+          })),
+          // Bearing lines (if any)
+          observations.filter(o => o.bearing !== null).map((obs, i) => {
+            const len = 100;
+            const rad = (90 - obs.bearing) * Math.PI / 180;
+            const endX = scaleX(obs.lon) + Math.cos(rad) * len;
+            const endY = scaleY(obs.lat) - Math.sin(rad) * len;
+            return React.createElement("line", {
+              key: `bear-${i}`,
+              x1: scaleX(obs.lon),
+              y1: scaleY(obs.lat),
+              x2: endX,
+              y2: endY,
+              stroke: "#63b3ed",
+              strokeWidth: 2,
+              strokeDasharray: "4,4",
+              opacity: 0.7
+            });
+          }),
+          // Centroid marker
+          React.createElement("circle", {
+            cx: scaleX(centroid.lon),
+            cy: scaleY(centroid.lat),
+            r: 8,
+            fill: "#e53e3e",
+            stroke: "#fff",
+            strokeWidth: 2
+          }),
+          React.createElement("text", {
+            x: scaleX(centroid.lon) + 12,
+            y: scaleY(centroid.lat) + 4,
+            fill: "#fff",
+            fontSize: "10px",
+            fontWeight: "bold"
+          }, "EST")
+        );
+      };
+
+      return React.createElement("div", null,
+        // Instructions
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, "📡 ELT Triangulation Assistant"),
+          React.createElement("div", { style: styles.sectionBody },
+            React.createElement("div", { style: {
+              background: "rgba(237,137,54,0.1)",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+              border: "1px solid rgba(237,137,54,0.3)"
+            }},
+              React.createElement("p", { style: { margin: 0, fontSize: "12px", color: "#fbd38d", lineHeight: "1.5" }},
+                React.createElement("strong", null, "How to use: "),
+                "Add multiple observations (position + signal strength and/or DF bearing) while tracking the ELT. ",
+                "The tool calculates the most probable location. At least 2 observations required."
+              )
+            ),
+            // Add Observation Form
+            React.createElement("div", { style: { 
+              background: "rgba(0,0,0,0.2)", 
+              padding: "16px", 
+              borderRadius: "10px",
+              border: "1px solid rgba(255,255,255,0.1)"
+            }},
+              React.createElement("div", { style: { fontSize: "14px", fontWeight: "700", color: "#fbd38d", marginBottom: "12px" }}, "➕ Add Observation"),
+              // GPS Capture button
+              React.createElement("button", {
+                style: { ...styles.button, width: "100%", marginBottom: "12px", background: "linear-gradient(135deg, #38a169, #2f855a)" },
+                onClick: captureGPS
+              }, "📍 CAPTURE GPS POSITION"),
+              // Time
+              React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "10px" }},
+                React.createElement("div", { style: { flex: 1 }},
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Time (Z)"),
+                  React.createElement("input", {
+                    style: { ...styles.input, fontSize: "14px" },
+                    value: newEltObs.timeZ,
+                    onChange: (e) => setNewEltObs({ ...newEltObs, timeZ: e.target.value }),
+                    placeholder: "HHMM"
+                  })
+                ),
+                React.createElement("button", {
+                  style: { ...styles.button, ...styles.buttonSmall, alignSelf: "flex-end" },
+                  onClick: () => setNewEltObs({ ...newEltObs, timeZ: getZuluTimeOnly() })
+                }, "NOW")
+              ),
+              // Position
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "6px", marginBottom: "10px" }},
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Lat °"),
+                  React.createElement("input", {
+                    style: styles.input,
+                    value: newEltObs.latDeg,
+                    onChange: (e) => setNewEltObs({ ...newEltObs, latDeg: e.target.value }),
+                    placeholder: "39"
+                  })
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Lat '"),
+                  React.createElement("input", {
+                    style: styles.input,
+                    value: newEltObs.latMin,
+                    onChange: (e) => setNewEltObs({ ...newEltObs, latMin: e.target.value }),
+                    placeholder: "45.123"
+                  })
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Lon °"),
+                  React.createElement("input", {
+                    style: styles.input,
+                    value: newEltObs.lonDeg,
+                    onChange: (e) => setNewEltObs({ ...newEltObs, lonDeg: e.target.value }),
+                    placeholder: "104"
+                  })
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Lon '"),
+                  React.createElement("input", {
+                    style: styles.input,
+                    value: newEltObs.lonMin,
+                    onChange: (e) => setNewEltObs({ ...newEltObs, lonMin: e.target.value }),
+                    placeholder: "52.456"
+                  })
+                )
+              ),
+              // Altitude
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }},
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Alt MSL (ft)"),
+                  React.createElement("input", {
+                    style: styles.input,
+                    value: newEltObs.altMSL,
+                    onChange: (e) => setNewEltObs({ ...newEltObs, altMSL: e.target.value }),
+                    placeholder: "8500"
+                  })
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Alt AGL (ft)"),
+                  React.createElement("input", {
+                    style: styles.input,
+                    value: newEltObs.altAGL,
+                    onChange: (e) => setNewEltObs({ ...newEltObs, altAGL: e.target.value }),
+                    placeholder: "3000"
+                  })
+                )
+              ),
+              // Signal Strength
+              React.createElement("div", { style: { marginBottom: "12px" }},
+                React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, 
+                  "Signal Strength: ", 
+                  React.createElement("span", { style: { color: "#fbd38d", fontWeight: "700" }}, newEltObs.strength, "/10")
+                ),
+                React.createElement("input", {
+                  type: "range",
+                  min: "1",
+                  max: "10",
+                  value: newEltObs.strength,
+                  onChange: (e) => setNewEltObs({ ...newEltObs, strength: e.target.value }),
+                  style: { width: "100%", marginTop: "6px" }
+                }),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#718096" }},
+                  React.createElement("span", null, "1 = Weak"),
+                  React.createElement("span", null, "10 = Strong")
+                )
+              ),
+              // DF Bearing (optional)
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "8px", marginBottom: "10px" }},
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "DF Bearing (optional)"),
+                  React.createElement("input", {
+                    style: styles.input,
+                    value: newEltObs.dfBearing,
+                    onChange: (e) => setNewEltObs({ ...newEltObs, dfBearing: e.target.value }),
+                    placeholder: "248"
+                  })
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Ref"),
+                  React.createElement("select", {
+                    style: { ...styles.input, padding: "10px" },
+                    value: newEltObs.bearingRef,
+                    onChange: (e) => setNewEltObs({ ...newEltObs, bearingRef: e.target.value })
+                  },
+                    React.createElement("option", { value: "MAG" }, "MAG"),
+                    React.createElement("option", { value: "TRUE" }, "TRUE")
+                  )
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "±°"),
+                  React.createElement("input", {
+                    style: styles.input,
+                    value: newEltObs.bearingAccuracy,
+                    onChange: (e) => setNewEltObs({ ...newEltObs, bearingAccuracy: e.target.value }),
+                    placeholder: "20"
+                  })
+                )
+              ),
+              // Source
+              React.createElement("div", { style: { marginBottom: "10px" }},
+                React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Signal Source"),
+                React.createElement("div", { style: { display: "flex", gap: "6px", marginTop: "6px" }},
+                  ["audio", "df", "both"].map(src => 
+                    React.createElement("button", {
+                      key: src,
+                      style: {
+                        ...styles.button,
+                        ...styles.buttonSmall,
+                        flex: 1,
+                        background: newEltObs.source === src ? "linear-gradient(135deg, #ed8936, #dd6b20)" : "rgba(0,0,0,0.3)",
+                        border: newEltObs.source === src ? "2px solid #fbd38d" : "1px solid rgba(255,255,255,0.1)"
+                      },
+                      onClick: () => setNewEltObs({ ...newEltObs, source: src })
+                    }, src.toUpperCase())
+                  )
+                )
+              ),
+              // Notes
+              React.createElement("div", { style: { marginBottom: "12px" }},
+                React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0" }}, "Notes"),
+                React.createElement("input", {
+                  style: styles.input,
+                  value: newEltObs.notes,
+                  onChange: (e) => setNewEltObs({ ...newEltObs, notes: e.target.value }),
+                  placeholder: "Polarity, antenna, reflections suspected..."
+                })
+              ),
+              // Add button
+              React.createElement("button", {
+                style: { ...styles.button, width: "100%", background: "linear-gradient(135deg, #ed8936, #dd6b20)" },
+                onClick: addObservation
+              }, "➕ ADD OBSERVATION")
+            )
+          )
+        ),
+
+        // Observations List
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, 
+            "📋 Observations (", eltObservations.length, ")",
+            eltObservations.length > 0 && React.createElement("button", {
+              style: { ...styles.button, ...styles.buttonSmall, marginLeft: "auto", background: "#e53e3e" },
+              onClick: () => { if (confirm("Clear all observations?")) { setEltObservations([]); setEltResult(null); } }
+            }, "CLEAR ALL")
+          ),
+          React.createElement("div", { style: styles.sectionBody },
+            eltObservations.length === 0 
+              ? React.createElement("div", { style: { textAlign: "center", color: "#718096", padding: "20px" }}, "No observations yet")
+              : eltObservations.map((obs, idx) => 
+                  React.createElement("div", { 
+                    key: obs.id,
+                    style: {
+                      background: obs.useInCalc ? "rgba(56,161,105,0.1)" : "rgba(0,0,0,0.2)",
+                      padding: "12px",
+                      borderRadius: "8px",
+                      marginBottom: "8px",
+                      border: obs.useInCalc ? "1px solid rgba(104,211,145,0.3)" : "1px solid rgba(255,255,255,0.1)",
+                      opacity: obs.useInCalc ? 1 : 0.6
+                    }
+                  },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }},
+                      React.createElement("span", { style: { fontWeight: "700", color: "#fbd38d" }}, "#", obs.obsNum, " - ", obs.timeZ, "Z"),
+                      React.createElement("div", { style: { display: "flex", gap: "6px" }},
+                        React.createElement("button", {
+                          style: { ...styles.button, ...styles.buttonSmall, fontSize: "10px", padding: "6px 10px" },
+                          onClick: () => logObservationToEvents(obs)
+                        }, "LOG"),
+                        React.createElement("button", {
+                          style: { ...styles.button, ...styles.buttonSmall, fontSize: "10px", padding: "6px 10px", background: obs.useInCalc ? "#38a169" : "#718096" },
+                          onClick: () => toggleObsUse(obs.id)
+                        }, obs.useInCalc ? "✓ USE" : "SKIP"),
+                        React.createElement("button", {
+                          style: { ...styles.button, ...styles.buttonSmall, ...styles.buttonDanger, fontSize: "10px", padding: "6px 10px" },
+                          onClick: () => removeObservation(obs.id)
+                        }, "✕")
+                      )
+                    ),
+                    React.createElement("div", { style: { fontSize: "11px", color: "#e2e8f0" }},
+                      `N ${obs.latDeg}° ${obs.latMin}' W ${obs.lonDeg}° ${obs.lonMin}' | `,
+                      `Str: ${obs.strength}/10 | `,
+                      obs.dfBearing && `DF: ${obs.dfBearing}° ${obs.bearingRef} | `,
+                      `Src: ${obs.source}`,
+                      obs.notes && React.createElement("div", { style: { color: "#a0aec0", marginTop: "4px" }}, obs.notes)
+                    )
+                  )
+                )
+          )
+        ),
+
+        // Compute Section
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, "🎯 Compute Probable Area"),
+          React.createElement("div", { style: styles.sectionBody },
+            React.createElement("button", {
+              style: { 
+                ...styles.button, 
+                width: "100%", 
+                padding: "16px",
+                fontSize: "16px",
+                background: eltObservations.filter(o => o.useInCalc).length >= 2 
+                  ? "linear-gradient(135deg, #e53e3e, #c53030)" 
+                  : "rgba(0,0,0,0.3)",
+                opacity: eltObservations.filter(o => o.useInCalc).length >= 2 ? 1 : 0.5
+              },
+              onClick: computeProbableArea,
+              disabled: eltObservations.filter(o => o.useInCalc).length < 2
+            }, "📡 CALCULATE ELT LOCATION"),
+            
+            // Results
+            eltResult && React.createElement("div", { style: { marginTop: "16px" }},
+              // Visualization
+              React.createElement("div", { style: { marginBottom: "16px" }}, renderVisualization()),
+              // Legend
+              React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: "16px", marginBottom: "12px", fontSize: "10px" }},
+                React.createElement("span", null, React.createElement("span", { style: { display: "inline-block", width: "12px", height: "12px", background: "#3182ce", borderRadius: "50%", marginRight: "4px" }}), "Observation"),
+                React.createElement("span", null, React.createElement("span", { style: { display: "inline-block", width: "12px", height: "12px", background: "#fcd34d", marginRight: "4px" }}), "50% Area"),
+                React.createElement("span", null, React.createElement("span", { style: { display: "inline-block", width: "12px", height: "12px", background: "#ed8936", marginRight: "4px" }}), "90% Area"),
+                React.createElement("span", null, React.createElement("span", { style: { display: "inline-block", width: "12px", height: "12px", background: "#e53e3e", borderRadius: "50%", marginRight: "4px" }}), "Estimate")
+              ),
+              // Result details
+              React.createElement("div", { style: { 
+                background: "rgba(229,62,62,0.15)", 
+                padding: "16px", 
+                borderRadius: "10px",
+                border: "2px solid #e53e3e"
+              }},
+                React.createElement("div", { style: { fontSize: "12px", color: "#fc8181", textTransform: "uppercase", marginBottom: "8px" }}, "Best Estimate Location"),
+                React.createElement("div", { style: { fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "8px" }},
+                  `N ${eltResult.centroid.latDeg}° ${eltResult.centroid.latMin}' W ${eltResult.centroid.lonDeg}° ${eltResult.centroid.lonMin}'`
+                ),
+                React.createElement("div", { style: { fontSize: "14px", color: "#fbd38d", marginBottom: "12px" }},
+                  "CAP Grid: ", eltResult.capGrid
+                ),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "12px" }},
+                  React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", padding: "8px", borderRadius: "6px" }},
+                    React.createElement("div", { style: { color: "#a0aec0" }}, "50% Confidence"),
+                    React.createElement("div", { style: { color: "#fcd34d", fontWeight: "700" }}, eltResult.area50SizeNm2, " NM²")
+                  ),
+                  React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", padding: "8px", borderRadius: "6px" }},
+                    React.createElement("div", { style: { color: "#a0aec0" }}, "90% Confidence"),
+                    React.createElement("div", { style: { color: "#ed8936", fontWeight: "700" }}, eltResult.area90SizeNm2, " NM²")
+                  )
+                ),
+                React.createElement("div", { style: { marginTop: "12px", display: "flex", gap: "8px" }},
+                  React.createElement("button", {
+                    style: { ...styles.button, flex: 1 },
+                    onClick: logSolutionToEvents
+                  }, "📋 LOG TO EVENTS"),
+                  React.createElement("button", {
+                    style: { ...styles.button, flex: 1, background: "linear-gradient(135deg, #38a169, #2f855a)" },
+                    onClick: () => window.open(`https://www.openstreetmap.org/?mlat=${eltResult.centroid.lat}&mlon=${eltResult.centroid.lon}&zoom=14`, '_blank')
+                  }, "🗺️ VIEW MAP")
+                )
+              ),
+              // Warning
+              React.createElement("div", { style: { 
+                marginTop: "12px", 
+                padding: "10px", 
+                background: "rgba(214,158,46,0.1)", 
+                borderRadius: "6px",
+                border: "1px solid rgba(246,224,94,0.3)",
+                fontSize: "10px",
+                color: "#f6e05e"
+              }},
+                "⚠️ This is a probability estimate. Reflections, terrain, and signal multipath can cause errors. ",
+                "Always verify with additional observations from different angles."
+              )
+            )
+          )
+        )
+      );
+    };
+
     // Radio Calls Quick Reference Tab
     const renderRadioTab = () => {
       const radioCalls = [
@@ -4353,6 +5075,7 @@ React.createElement(
       { id: "checkins", label: "Check-ins", icon: "\u{1F4FB}" },
       { id: "events", label: "Events", icon: "\u{1F4CD}" },
       { id: "crosshair", label: "Target", icon: "\u{1F3AF}", isTarget: true },
+      { id: "eltAssist", label: "ELT", icon: "\u{1F4E1}", isElt: true },
       { id: "radio", label: "Radio", icon: "\u{1F4E2}", isRadio: true },
       { id: "coComms", label: "CO Comms", icon: "\u{1F4E1}", isComms: true },
       { id: "emergency", label: "Emergency", icon: "\u{1F6A8}", isEmergency: true },
@@ -4373,6 +5096,15 @@ React.createElement(
           ...tab.isTarget && activeTab === tab.id ? {
             background: "linear-gradient(135deg, #38a169, #2f855a)",
             boxShadow: "0 4px 12px rgba(56,161,105,0.5)"
+          } : {},
+          ...tab.isElt && activeTab !== tab.id ? {
+            background: "linear-gradient(135deg, rgba(237,137,54,0.4), rgba(221,107,32,0.3))",
+            border: "1px solid #ed8936",
+            color: "#fbd38d"
+          } : {},
+          ...tab.isElt && activeTab === tab.id ? {
+            background: "linear-gradient(135deg, #ed8936, #dd6b20)",
+            boxShadow: "0 4px 12px rgba(237,137,54,0.5)"
           } : {},
           ...tab.isRadio && activeTab !== tab.id ? {
             background: "linear-gradient(135deg, rgba(99,179,237,0.3), rgba(49,130,206,0.2))",
@@ -4418,7 +5150,7 @@ React.createElement(
       tab.icon,
       " ",
       tab.label
-    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "checkins" && renderCheckInsTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} Export PDF")));
+    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "checkins" && renderCheckInsTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} Export PDF")));
   };
   ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(CAPObserverLog, null));
 })();
