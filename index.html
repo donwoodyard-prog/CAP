@@ -2005,7 +2005,8 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
       { scheduled: "", completed: false }
     ]);
     const [notes, setNotes] = useState("");
-    const [events, setEvents] = useState([createEmptyEvent()]);
+    const eventSeqRef = React.useRef(1);
+    const [events, setEvents] = useState([createEmptyEvent(1)]);
     const [showMoreEventTypes, setShowMoreEventTypes] = useState({});
     const [pirepModal, setPirepModal] = useState({ open: false, eventId: null });
     const [pirepData, setPirepData] = useState({
@@ -2039,9 +2040,10 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
         const targetSeqRef = React.useRef(0); // per refresh
 const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     const [intersectionConstraint, setIntersectionConstraint] = useState("lines"); // "lines" or "segments"
-    function createEmptyEvent() {
+    function createEmptyEvent(eventNum) {
       return {
         id: Date.now() + Math.random(),
+        eventNum: eventNum ?? "",
         eventType: "",
         timeZ: "",
         latDeg: "",
@@ -2721,7 +2723,10 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
       const elapsed = (endH * 60 + endM - (startH * 60 + startM)) / 60;
       return elapsed > 0 ? elapsed.toFixed(1) : "";
     };
-    const addEvent = () => setEvents([createEmptyEvent(), ...events]);
+    const addEvent = () => {
+      eventSeqRef.current = (eventSeqRef.current || 1) + 1;
+      setEvents([createEmptyEvent(eventSeqRef.current), ...events]);
+    };
     const removeEvent = (id) => events.length > 1 && setEvents(events.filter((e) => e.id !== id));
     const updateEvent = (id, field, value) => setEvents(events.map((e) => e.id === id ? { ...e, [field]: value } : e));
     const updateCheckIn = (index, field, value) => {
@@ -2752,8 +2757,10 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     }, []);
     const generatePDF = () => {
       const printWindow = window.open("", "_blank");
-      printWindow.document.write(`
-          <!DOCTYPE html><html><head><title>CAP Observer Log - ${missionInfo.missionNumber || "Mission"}</title>
+      const escHtml = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+const escNl = (s) => escHtml(s).replace(/\n/g,"<br>");
+printWindow.document.write(`
+          <!DOCTYPE html><html><head><title>MISSION Observer Log - ${missionInfo.missionNumber || "Mission"}</title>
           <style>
             @page { size: letter landscape; margin: 0.5in; }
             body { font-family: 'Courier New', monospace; font-size: 10pt; color: #000; background: #fff; }
@@ -2776,7 +2783,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
             .checkbox.checked::after { content: '\u2713'; }
             .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
           </style></head><body>
-            <div class="header"><div class="cap-logo">CAP</div><div><div class="title">HI Wing CAP Kneeboard Observer Log</div><div>Civil Air Patrol - U.S. Air Force Auxiliary</div></div></div>
+            <div class="header"><div class="cap-logo">CAP</div><div><div class="title">MISSION Observer Log</div><div>Civil Air Patrol - U.S. Air Force Auxiliary</div></div></div>
             <div class="two-column"><div>
               <div class="section"><div class="section-title">Mission Information</div><div class="grid grid-2">
                 <div class="field"><span class="label">Mission #:</span> <span class="value">${missionInfo.missionNumber}</span></div>
@@ -2811,10 +2818,42 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
               <div class="section"><div class="section-title">Notes</div><div class="notes">${notes || "(No notes)"}</div></div>
             </div></div>
             <div class="section"><div class="section-title">Events Log</div>
-              <table><tr><th>Event</th><th>Time</th><th>Lat N</th><th>Long W</th><th>CAP Grid</th><th>MSL</th><th>AGL</th><th>Hdg</th><th>AS</th><th>GS</th></tr>
-              ${events.map((e) => `<tr><td>${e.eventType}</td><td>${e.timeZ}</td><td>${e.latDeg ? e.latDeg + "\xB0 " + e.latMin + "'" : ""}</td><td>${e.longDeg ? e.longDeg + "\xB0 " + e.longMin + "'" : ""}</td><td style="font-weight:bold;color:#1a365d">${e.capGrid || ""}</td><td>${e.altMSL}</td><td>${e.altAGL}</td><td>${e.heading}</td><td>${e.airspeed}</td><td>${e.groundSpeed}</td></tr>`).join("")}
-              </table></div>
-            <div style="margin-top: 20px; font-size: 8pt; text-align: center; color: #666;">Generated: ${(/* @__PURE__ */ new Date()).toISOString()} | CAP Observer Log</div>
+              <table><tr>
+  <th style="width:120px">Event</th>
+  <th style="width:70px">Time</th>
+  <th style="width:135px">Lat N</th>
+  <th style="width:135px">Lon W</th>
+  <th style="width:110px">CAP Grid</th>
+  <th style="width:55px">MSL</th>
+  <th style="width:55px">AGL</th>
+  <th style="width:55px">Hdg</th>
+  <th style="width:55px">AS</th>
+  <th style="width:55px">GS</th>
+</tr>
+${events.map((e) => `
+  <tr>
+    <td>${escHtml(e.eventType)}</td>
+    <td>${escHtml(e.timeZ)}</td>
+    <td>${e.latDeg ? escHtml(e.latDeg + "° " + e.latMin + "'") : ""}</td>
+    <td>${e.longDeg ? escHtml(e.longDeg + "° " + e.longMin + "'") : ""}</td>
+    <td style="font-weight:bold;color:#1a365d">${escHtml(e.capGrid || "")}</td>
+    <td>${escHtml(e.altMSL)}</td>
+    <td>${escHtml(e.altAGL)}</td>
+    <td>${escHtml(e.heading)}</td>
+    <td>${escHtml(e.airspeed)}</td>
+    <td>${escHtml(e.groundSpeed)}</td>
+  </tr>
+  <tr>
+    <td colspan="10" style="padding:6px 8px">
+      <div style="font-size:9pt;color:#333;white-space:normal;line-height:1.25">
+        <span style="font-weight:bold;color:#555">Details:</span>
+        ${e.notes ? escNl(e.notes) : "<span style='color:#777'>(No details)</span>"}
+      </div>
+    </td>
+  </tr>
+`).join("")}
+</table></div>
+            <div style="margin-top: 20px; font-size: 8pt; text-align: center; color: #666;">Generated: ${(/* @__PURE__ */ new Date()).toISOString()} | MISSION Observer Log</div>
           </body></html>`);
       printWindow.document.close();
       printWindow.focus();
@@ -2827,7 +2866,8 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         setFuelOil({ fuelGallons: "", fuelCost: "", oilQt: "" });
         setCheckIns([{ scheduled: "", completed: false }, { scheduled: "", completed: false }, { scheduled: "", completed: false }, { scheduled: "", completed: false }, { scheduled: "", completed: false }, { scheduled: "", completed: false }]);
         setNotes("");
-        setEvents([createEmptyEvent()]);
+        eventSeqRef.current = 1;
+        setEvents([createEmptyEvent(1)]);
       }
     };
     const styles = {
@@ -2886,27 +2926,27 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     const renderCheckInsTab = () => /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4FB} Radio Check-ins"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("p", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "16px" } }, "Schedule times after takeoff, mark when completed."), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, checkIns.map((checkIn, index) => /* @__PURE__ */ React.createElement("div", { key: index, style: { display: "flex", alignItems: "center", gap: "12px" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", style: styles.checkbox, checked: checkIn.completed, onChange: (e) => updateCheckIn(index, "completed", e.target.checked) }), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Check-in #", index + 1), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "time", value: checkIn.scheduled, onChange: (e) => updateCheckIn(index, "scheduled", e.target.value) })), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => updateCheckIn(index, "scheduled", getZuluTimeOnly()) }, "NOW"))))));
     const renderEventsTab = () => {
       const primaryEventTypes = [
-        { value: "Sighting", label: "\u{1F441} SIGHTING", color: "#3182ce" },
-        { value: "ELT Signal", label: "\u{1F4E1} ELT", color: "#e53e3e" },
-        { value: "Target Located", label: "\u{1F3AF} TARGET", color: "#38a169" },
-        { value: "Checkpoint", label: "\u2713 CHKPT", color: "#805ad5" },
-        { value: "Weather Change", label: "\u2601 WX CHG", color: "#dd6b20" }
+        { value: "Engine Start", label: "🔑 ENG START", color: "#38a169" },
+        { value: "Wheels Up", label: "🛫 WHEELS UP", color: "#3182ce" },
+        { value: "In Grid", label: "📍 IN GRID", color: "#805ad5" },
+        { value: "Out of Grid", label: "📍 OUT GRID", color: "#718096" },
+        { value: "Ops Normal", label: "✓ OPS NORMAL", color: "#38a169" },
+        { value: "RTB", label: "↩ RTB", color: "#dd6b20" },
+        { value: "Wheels Down", label: "🛬 WHEELS DN", color: "#3182ce" },
+        { value: "Engine Stop", label: "🔴 ENG STOP", color: "#e53e3e" }
       ];
       const moreEventTypes = [
-        { value: "Engine Start", label: "\u{1F511} ENG START", color: "#38a169" },
-        { value: "Wheels Up", label: "\u{1F6EB} WHEELS UP", color: "#3182ce" },
-        { value: "In Grid", label: "\u{1F4CD} IN GRID", color: "#805ad5" },
-        { value: "Out of Grid", label: "\u{1F4CD} OUT GRID", color: "#718096" },
-        { value: "Ops Normal", label: "\u2713 OPS NORMAL", color: "#38a169" },
-        { value: "RTB", label: "\u21A9 RTB", color: "#dd6b20" },
-        { value: "Wheels Down", label: "\u{1F6EC} WHEELS DN", color: "#3182ce" },
-        { value: "Engine Stop", label: "\u{1F534} ENG STOP", color: "#e53e3e" },
-        { value: "Other", label: "\u{1F4CB} OTHER", color: "#718096" }
+        { value: "Sighting", label: "👁 SIGHTING", color: "#3182ce" },
+        { value: "ELT Signal", label: "📡 ELT", color: "#e53e3e" },
+        { value: "Target Located", label: "🎯 TARGET", color: "#38a169" },
+        { value: "Checkpoint", label: "✓ CHKPT", color: "#805ad5" },
+        { value: "Weather Change", label: "☁ WX CHG", color: "#dd6b20" },
+        { value: "Other", label: "📋 OTHER", color: "#718096" }
       ];
       const toggleShowMore = (eventId) => {
         setShowMoreEventTypes((prev) => ({ ...prev, [eventId]: !prev[eventId] }));
       };
-      return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4CD} Events Log ", /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, marginLeft: "auto" }, onClick: addEvent }, "+ ADD EVENT")), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, events.map((event, index) => /* @__PURE__ */ React.createElement("div", { key: event.id, style: styles.eventCard }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "700", color: "#f6e05e", fontSize: "16px" } }, "Event #", index + 1), events.length > 1 && /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, ...styles.buttonDanger }, onClick: () => removeEvent(event.id) }, "\u2715 REMOVE")), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Event Type"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "6px" } }, primaryEventTypes.map((type) => /* @__PURE__ */ React.createElement(
+      return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4CD} Events Log ", /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, marginLeft: "auto" }, onClick: addEvent }, "+ ADD EVENT")), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, events.map((event, index) => /* @__PURE__ */ React.createElement("div", { key: event.id, style: styles.eventCard }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "700", color: "#f6e05e", fontSize: "16px" } }, "Event #", event.eventNum || index + 1), events.length > 1 && /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, ...styles.buttonDanger }, onClick: () => removeEvent(event.id) }, "\u2715 REMOVE")), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Event Type"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "6px" } }, primaryEventTypes.map((type) => /* @__PURE__ */ React.createElement(
         "button",
         {
           key: type.value,
@@ -3127,7 +3167,86 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
           }
         },
         "\u2601 PIREP"
-      )), /* @__PURE__ */ React.createElement(
+      ), /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          style: {
+            marginTop: "14px",
+            background: "rgba(0,0,0,0.2)",
+            border: "1px dashed rgba(255,255,255,0.25)",
+            borderRadius: "10px",
+            padding: "10px"
+          }
+        },
+        /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            style: {
+              fontSize: "11px",
+              color: "#a0aec0",
+              fontWeight: "700",
+              letterSpacing: "1px",
+              marginBottom: "8px"
+            }
+          },
+          "QUICK DETAILS"
+        ),
+        (event.eventType === "Target Located" || event.eventType === "ELT Signal" || event.eventType === "Weather Change" || event.eventType === "Sighting") && /* @__PURE__ */ React.createElement(
+          "div",
+          { style: { display: "flex", flexWrap: "wrap", gap: "8px" } },
+          ...(event.eventType === "Target Located" ? [
+            { label: "Target Confirmed" },
+            { label: "High Confidence" },
+            { label: "Low Confidence" },
+            { label: "Survivor Located" }
+          ] : event.eventType === "ELT Signal" ? [
+            { label: "Strong Signal" },
+            { label: "Weak Signal" }
+          ] : event.eventType === "Weather Change" ? [
+            { label: "Visibility Decreasing" },
+            { label: "Wind Increasing" },
+            { label: "Turbulence Increasing" },
+            { label: "Rain" },
+            { label: "Snow" },
+            { label: "Conditions Improved" },
+            { label: "Poor conditions, RTB" }
+          ] : [
+            { label: "Possible Target" },
+            { label: "Person" },
+            { label: "Vehicle" },
+            { label: "Aircraft" },
+            { label: "Fire" },
+            { label: "Reflection" }
+          ]).map((opt) => /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              key: opt.label,
+              type: "button",
+              style: {
+                padding: "10px 12px",
+                fontSize: "13px",
+                fontWeight: "800",
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.18)",
+                borderRadius: "10px",
+                color: "#fff",
+                fontFamily: "inherit",
+                cursor: "pointer",
+                touchAction: "manipulation"
+              },
+              onClick: () => {
+                const timestamp = getZuluTimeOnly();
+                const prefix = event.eventType === "Weather Change" ? "WX CHG" : event.eventType === "ELT Signal" ? "ELT" : event.eventType === "Target Located" ? "TARGET" : "SIGHTING";
+                const line = timestamp + " - " + prefix + " - " + opt.label;
+                const newNote = event.notes ? event.notes + "\n" + line : line;
+                updateEvent(event.id, "notes", newNote);
+              }
+            },
+            opt.label
+          ))
+        )
+      )
+), /* @__PURE__ */ React.createElement(
         "textarea",
         {
           style: {
@@ -3272,8 +3391,10 @@ const resultObj = {
 setCrosshairResult(resultObj);
 
 // Automatically add to log as a new event
-const newEvent = {
+eventSeqRef.current = (eventSeqRef.current || 1) + 1;
+        const newEvent = {
   id: Date.now() + Math.random(),
+          eventNum: eventSeqRef.current,
   eventType: "Target Located",
   timeZ: resultObj.timestamp,
   latDeg: resultObj.latDeg.toString(),
@@ -3989,4 +4110,3 @@ React.createElement(
   </script>
 </body>
 </html>
-
