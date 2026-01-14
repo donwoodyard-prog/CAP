@@ -2035,7 +2035,8 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
         heading: "",
         airspeed: "",
         groundSpeed: "",
-        capGrid: ""
+        capGrid: "",
+        notes: ""
       };
     }
     const capSectionals = [
@@ -2516,7 +2517,7 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
             .checkbox.checked::after { content: '\u2713'; }
             .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
           </style></head><body>
-            <div class="header"><div class="cap-logo">CAP</div><div><div class="title">MISSION OBSERVER LOG</div><div>Civil Air Patrol - U.S. Air Force Auxiliary</div></div></div>
+            <div class="header"><div class="cap-logo">CAP</div><div><div class="title">HI Wing CAP Kneeboard Observer Log</div><div>Civil Air Patrol - U.S. Air Force Auxiliary</div></div></div>
             <div class="two-column"><div>
               <div class="section"><div class="section-title">Mission Information</div><div class="grid grid-2">
                 <div class="field"><span class="label">Mission #:</span> <span class="value">${missionInfo.missionNumber}</span></div>
@@ -2579,33 +2580,33 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
       subtitle: { fontSize: "10px", color: "#a0aec0", letterSpacing: "1px" },
       zuluTime: { background: "rgba(0,0,0,0.3)", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: "600", color: "#68d391", border: "1px solid rgba(104, 211, 145, 0.3)" },
       tabs: { display: "flex", gap: "2px", padding: "8px 12px", background: "rgba(0,0,0,0.2)", overflowX: "auto", WebkitOverflowScrolling: "touch" },
-      tab: { padding: "10px 14px", fontSize: "10px", fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", border: "none", borderRadius: "6px", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" },
+      tab: { padding: "12px 16px", fontSize: "11px", fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", border: "none", borderRadius: "6px", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", minHeight: "48px", touchAction: "manipulation" },
       tabActive: { background: "linear-gradient(135deg, #dd6b20 0%, #c05621 100%)", color: "#fff", boxShadow: "0 4px 12px rgba(221, 107, 32, 0.4)" },
       tabInactive: { background: "rgba(255,255,255,0.05)", color: "#a0aec0" },
       content: { padding: "16px", maxWidth: "800px", margin: "0 auto" },
       section: { background: "rgba(255,255,255,0.03)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", marginBottom: "16px", overflow: "hidden" },
-      sectionHeader: { background: "linear-gradient(90deg, rgba(221,107,32,0.3) 0%, transparent 100%)", padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: "12px", fontWeight: "700", letterSpacing: "1px", textTransform: "uppercase", color: "#f6e05e", display: "flex", alignItems: "center", gap: "8px" },
+      sectionHeader: { background: "linear-gradient(90deg, rgba(221,107,32,0.3) 0%, transparent 100%)", padding: "14px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: "13px", fontWeight: "700", letterSpacing: "1px", textTransform: "uppercase", color: "#f6e05e", display: "flex", alignItems: "center", gap: "8px" },
       sectionBody: { padding: "16px" },
-      fieldGroup: { display: "grid", gap: "12px" },
-      field: { display: "flex", flexDirection: "column", gap: "4px" },
-      label: { fontSize: "10px", fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", color: "#a0aec0" },
-      input: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "12px", fontSize: "16px", color: "#fff", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" },
+      fieldGroup: { display: "grid", gap: "14px" },
+      field: { display: "flex", flexDirection: "column", gap: "6px" },
+      label: { fontSize: "11px", fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", color: "#a0aec0" },
+      input: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "14px", fontSize: "16px", color: "#fff", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box", minHeight: "50px" },
       textarea: { minHeight: "100px", resize: "vertical" },
-      button: { background: "linear-gradient(135deg, #dd6b20 0%, #c05621 100%)", color: "#fff", border: "none", borderRadius: "8px", padding: "12px 20px", fontSize: "12px", fontWeight: "700", cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px rgba(221, 107, 32, 0.3)" },
+      button: { background: "linear-gradient(135deg, #dd6b20 0%, #c05621 100%)", color: "#fff", border: "none", borderRadius: "10px", padding: "16px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px rgba(221, 107, 32, 0.3)", minHeight: "52px", touchAction: "manipulation" },
       buttonSecondary: { background: "rgba(255,255,255,0.1)", color: "#e2e8f0", boxShadow: "none" },
-      buttonSmall: { padding: "8px 12px", fontSize: "10px" },
+      buttonSmall: { padding: "12px 16px", fontSize: "12px", minHeight: "48px" },
       buttonDanger: { background: "linear-gradient(135deg, #c53030 0%, #9b2c2c 100%)" },
-      checkbox: { width: "24px", height: "24px", accentColor: "#dd6b20" },
-      eventCard: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "12px", marginBottom: "12px", border: "1px solid rgba(255,255,255,0.05)" },
-      grid2: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" },
+      checkbox: { width: "28px", height: "28px", accentColor: "#dd6b20" },
+      eventCard: { background: "rgba(0,0,0,0.2)", borderRadius: "10px", padding: "16px", marginBottom: "16px", border: "1px solid rgba(255,255,255,0.05)" },
+      grid2: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "14px" },
       grid3: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" },
       grid4: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" },
       calculated: { background: "rgba(104, 211, 145, 0.1)", border: "1px solid rgba(104, 211, 145, 0.3)", borderRadius: "8px", padding: "12px", color: "#68d391" },
       footer: { position: "fixed", bottom: 0, left: 0, right: 0, background: "linear-gradient(180deg, transparent 0%, rgba(12, 25, 41, 0.95) 20%, #0c1929 100%)", padding: "16px", display: "flex", gap: "12px", justifyContent: "center" },
-      timeButton: { background: "rgba(104, 211, 145, 0.2)", border: "1px solid #68d391", color: "#68d391", borderRadius: "6px", padding: "6px 10px", fontSize: "10px", fontWeight: "600", cursor: "pointer", fontFamily: "inherit" },
+      timeButton: { background: "rgba(104, 211, 145, 0.2)", border: "2px solid #68d391", color: "#68d391", borderRadius: "8px", padding: "12px 16px", fontSize: "13px", fontWeight: "700", cursor: "pointer", fontFamily: "inherit", minHeight: "48px", touchAction: "manipulation" },
       // Reference section styles
-      refNav: { display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "16px" },
-      refNavBtn: { padding: "8px 12px", fontSize: "10px", fontWeight: "600", border: "none", borderRadius: "6px", cursor: "pointer", fontFamily: "inherit" },
+      refNav: { display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" },
+      refNavBtn: { padding: "12px 16px", fontSize: "11px", fontWeight: "600", border: "none", borderRadius: "8px", cursor: "pointer", fontFamily: "inherit", minHeight: "44px", touchAction: "manipulation" },
       refNavActive: { background: "#dd6b20", color: "#fff" },
       refNavInactive: { background: "rgba(255,255,255,0.1)", color: "#a0aec0" },
       refCard: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "12px", marginBottom: "8px", border: "1px solid rgba(255,255,255,0.05)" },
@@ -2614,96 +2615,217 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
       refTd: { padding: "8px", borderBottom: "1px solid rgba(255,255,255,0.05)" },
       refHighlight: { background: "rgba(104, 211, 145, 0.1)", border: "1px solid rgba(104, 211, 145, 0.3)", borderRadius: "4px", padding: "2px 6px", fontSize: "11px", color: "#68d391" },
       pre: { background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "6px", overflow: "auto", fontSize: "11px", lineHeight: "1.4", whiteSpace: "pre-wrap", fontFamily: "monospace" },
-      searchInput: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "10px 12px", fontSize: "14px", color: "#fff", width: "100%", marginBottom: "12px" }
+      searchInput: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "14px", fontSize: "16px", color: "#fff", width: "100%", marginBottom: "12px", minHeight: "50px" }
     };
     const [zuluClock, setZuluClock] = useState(getCurrentZuluTime());
     useEffect(() => {
       const interval = setInterval(() => setZuluClock(getCurrentZuluTime()), 1e3);
       return () => clearInterval(interval);
     }, []);
-    const renderMissionTab = () => /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4CB} Mission Information"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Mission #"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.missionNumber, onChange: (e) => setMissionInfo({ ...missionInfo, missionNumber: e.target.value }), placeholder: "Mission number" })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Sortie #"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.sortieNumber, onChange: (e) => setMissionInfo({ ...missionInfo, sortieNumber: e.target.value }), placeholder: "Sortie" }))), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Date (Zulu)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "date", value: missionInfo.dateZ, onChange: (e) => setMissionInfo({ ...missionInfo, dateZ: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Aircraft N"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.aircraftTailN, onChange: (e) => setMissionInfo({ ...missionInfo, aircraftTailN: e.target.value }), placeholder: "Tail #" }))), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Observer Name"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.observerName, onChange: (e) => setMissionInfo({ ...missionInfo, observerName: e.target.value }), placeholder: "Your name" })), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Log Page #"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "number", min: "1", value: missionInfo.logPageNumber, onChange: (e) => setMissionInfo({ ...missionInfo, logPageNumber: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "of Total"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "number", min: "1", value: missionInfo.totalPages, onChange: (e) => setMissionInfo({ ...missionInfo, totalPages: e.target.value }) })))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4DD} Notes & Instructions"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("textarea", { style: { ...styles.input, ...styles.textarea }, value: notes, onChange: (e) => setNotes(e.target.value), placeholder: "Notes, radio channels, ATIS..." }))));
+    const renderMissionTab = () => /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4CB} Mission Information"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Mission #"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.missionNumber, onChange: (e) => setMissionInfo({ ...missionInfo, missionNumber: e.target.value }), placeholder: "Mission number" })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Sortie #"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.sortieNumber, onChange: (e) => setMissionInfo({ ...missionInfo, sortieNumber: e.target.value }), placeholder: "Sortie" }))), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Date (Zulu)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "date", value: missionInfo.dateZ, onChange: (e) => setMissionInfo({ ...missionInfo, dateZ: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Aircraft N"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.aircraftTailN, onChange: (e) => setMissionInfo({ ...missionInfo, aircraftTailN: e.target.value }), placeholder: "Tail #" }))), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Observer Name"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", value: missionInfo.observerName, onChange: (e) => setMissionInfo({ ...missionInfo, observerName: e.target.value }), placeholder: "Your name" }))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4DD} Notes & Instructions"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("textarea", { style: { ...styles.input, ...styles.textarea }, value: notes, onChange: (e) => setNotes(e.target.value), placeholder: "Notes, radio channels, ATIS..." }))));
     const renderTimesTab = () => /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u23F1\uFE0F Tach & Hobbs"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: { ...styles.grid2, marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontWeight: "600", color: "#f6e05e" } }, "TACH"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontWeight: "600", color: "#f6e05e" } }, "HOBBS")), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px" } }, "Engine Start"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.tachStart, onChange: (e) => setTimes({ ...times, tachStart: e.target.value }), placeholder: "Tach" }), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.hobbsStart, onChange: (e) => setTimes({ ...times, hobbsStart: e.target.value }), placeholder: "Hobbs" }))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px" } }, "Shutdown"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.tachShutdown, onChange: (e) => setTimes({ ...times, tachShutdown: e.target.value }), placeholder: "Tach" }), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.hobbsShutdown, onChange: (e) => setTimes({ ...times, hobbsShutdown: e.target.value }), placeholder: "Hobbs" }))), /* @__PURE__ */ React.createElement("div", { style: styles.calculated }, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px", color: "#68d391" } }, "Elapsed (Auto)"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontSize: "18px", fontWeight: "700" } }, calculated.tachElapsed || "\u2014"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontSize: "18px", fontWeight: "700" } }, calculated.hobbsElapsed || "\u2014")))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F6EB} Flight Times (Z)"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, [{ key: "takeoffTime", label: "\u2605 Takeoff" }, { key: "enteredSearchArea", label: "\u2605\u25BC Entered Search" }, { key: "departedSearchArea", label: "\u2605\u25BC Departed Search" }, { key: "landingTime", label: "\u2605 Landing" }].map(({ key, label }) => /* @__PURE__ */ React.createElement("div", { key, style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, label), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "time", value: times[key], onChange: (e) => setTimes({ ...times, [key]: e.target.value }) }), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => setTimes({ ...times, [key]: getZuluTimeOnly() }) }, "NOW")))), /* @__PURE__ */ React.createElement("div", { style: styles.calculated }, /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, color: "#68d391" } }, "Search Time"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "700" } }, calculated.searchTime ? calculated.searchTime + " hrs" : "\u2014")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, color: "#68d391" } }, "Enroute"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "700" } }, calculated.enrouteTime ? calculated.enrouteTime + " hrs" : "\u2014"))))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u26FD Fuel & Oil"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.grid3 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Fuel (gal)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.fuelGallons, onChange: (e) => setFuelOil({ ...fuelOil, fuelGallons: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Cost ($)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.fuelCost, onChange: (e) => setFuelOil({ ...fuelOil, fuelCost: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Oil (qt)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.oilQt, onChange: (e) => setFuelOil({ ...fuelOil, oilQt: e.target.value }) }))))));
     const renderCheckInsTab = () => /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4FB} Radio Check-ins"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("p", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "16px" } }, "Schedule times after takeoff, mark when completed."), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, checkIns.map((checkIn, index) => /* @__PURE__ */ React.createElement("div", { key: index, style: { display: "flex", alignItems: "center", gap: "12px" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", style: styles.checkbox, checked: checkIn.completed, onChange: (e) => updateCheckIn(index, "completed", e.target.checked) }), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Check-in #", index + 1), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "time", value: checkIn.scheduled, onChange: (e) => updateCheckIn(index, "scheduled", e.target.value) })), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => updateCheckIn(index, "scheduled", getZuluTimeOnly()) }, "NOW"))))));
-    const renderEventsTab = () => /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4CD} Events Log ", /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, marginLeft: "auto" }, onClick: addEvent }, "+ Add")), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, events.map((event, index) => /* @__PURE__ */ React.createElement("div", { key: event.id, style: styles.eventCard }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: "12px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "600", color: "#f6e05e" } }, "Event #", index + 1), events.length > 1 && /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, ...styles.buttonDanger }, onClick: () => removeEvent(event.id) }, "Remove")), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Event Type"), /* @__PURE__ */ React.createElement("select", { style: styles.input, value: event.eventType, onChange: (e) => updateEvent(event.id, "eventType", e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "" }, "Select..."), /* @__PURE__ */ React.createElement("option", { value: "Sighting" }, "Sighting"), /* @__PURE__ */ React.createElement("option", { value: "ELT Signal" }, "ELT Signal"), /* @__PURE__ */ React.createElement("option", { value: "Target Located" }, "Target Located"), /* @__PURE__ */ React.createElement("option", { value: "Possible Wreckage" }, "Possible Wreckage"), /* @__PURE__ */ React.createElement("option", { value: "Ground Contact" }, "Ground Contact"), /* @__PURE__ */ React.createElement("option", { value: "Survivor Signal" }, "Survivor Signal"), /* @__PURE__ */ React.createElement("option", { value: "Checkpoint" }, "Checkpoint"), /* @__PURE__ */ React.createElement("option", { value: "Weather Change" }, "Weather Change"), /* @__PURE__ */ React.createElement("option", { value: "Other" }, "Other"))), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Time (Z)"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "time", value: event.timeZ, onChange: (e) => updateEvent(event.id, "timeZ", e.target.value) }), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => updateEvent(event.id, "timeZ", getZuluTimeOnly()) }, "NOW"))), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(99,179,237,0.1)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(99,179,237,0.2)", marginTop: "8px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" } }, /* @__PURE__ */ React.createElement("label", { style: { ...styles.label, margin: 0, color: "#63b3ed", fontWeight: "600" } }, "\u{1F6F0}\uFE0F Position (DDM Format)"), /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        style: { ...styles.button, ...styles.buttonSmall, background: "linear-gradient(135deg, #3182ce, #2b6cb0)", padding: "6px 12px" },
-        onClick: () => openGpsModal(event.id, event.latDeg, event.latMin, event.longDeg, event.longMin)
-      },
-      "\u{1F6F0}\uFE0F GPS Tools"
-    )), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Lat N (deg\xB0 min')"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, width: "60px", textAlign: "center" }, type: "text", inputMode: "numeric", placeholder: "DD", value: event.latDeg, onChange: (e) => updateEvent(event.id, "latDeg", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "\xB0"), /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", inputMode: "decimal", placeholder: "MM.MMM", value: event.latMin, onChange: (e) => updateEvent(event.id, "latMin", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "'"))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Long W (deg\xB0 min')"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, width: "60px", textAlign: "center" }, type: "text", inputMode: "numeric", placeholder: "DDD", value: event.longDeg, onChange: (e) => updateEvent(event.id, "longDeg", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "\xB0"), /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", inputMode: "decimal", placeholder: "MM.MMM", value: event.longMin, onChange: (e) => updateEvent(event.id, "longMin", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "'")))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", marginTop: "10px" } }, /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        style: { ...styles.button, ...styles.buttonSmall, flex: 1, background: "rgba(56,161,105,0.2)", border: "1px solid rgba(56,161,105,0.4)", color: "#68d391" },
-        onClick: () => {
-          if (!navigator.geolocation) {
-            alert("GPS not supported");
-            return;
+    const renderEventsTab = () => {
+      const eventTypes = [
+        { value: "Sighting", label: "\u{1F441} SIGHTING", color: "#3182ce" },
+        { value: "ELT Signal", label: "\u{1F4E1} ELT", color: "#e53e3e" },
+        { value: "Target Located", label: "\u{1F3AF} TARGET", color: "#38a169" },
+        { value: "Checkpoint", label: "\u2713 CHKPT", color: "#805ad5" },
+        { value: "Weather Change", label: "\u2601 WX CHG", color: "#dd6b20" },
+        { value: "Other", label: "\u{1F4CB} OTHER", color: "#718096" }
+      ];
+      return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4CD} Events Log ", /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, marginLeft: "auto" }, onClick: addEvent }, "+ ADD EVENT")), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, events.map((event, index) => /* @__PURE__ */ React.createElement("div", { key: event.id, style: styles.eventCard }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "700", color: "#f6e05e", fontSize: "16px" } }, "Event #", index + 1), events.length > 1 && /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, ...styles.buttonDanger }, onClick: () => removeEvent(event.id) }, "\u2715 REMOVE")), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Event Type"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "6px" } }, eventTypes.map((type) => /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          key: type.value,
+          style: {
+            minHeight: "56px",
+            padding: "12px 8px",
+            fontSize: "12px",
+            fontWeight: "700",
+            background: event.eventType === type.value ? `linear-gradient(135deg, ${type.color}, ${type.color}dd)` : "rgba(0,0,0,0.3)",
+            border: event.eventType === type.value ? `3px solid ${type.color}` : "2px solid rgba(255,255,255,0.15)",
+            borderRadius: "10px",
+            color: event.eventType === type.value ? "#fff" : "#a0aec0",
+            fontFamily: "inherit",
+            cursor: "pointer",
+            touchAction: "manipulation",
+            boxShadow: event.eventType === type.value ? `0 4px 12px ${type.color}44` : "none"
+          },
+          onClick: () => updateEvent(event.id, "eventType", type.value)
+        },
+        type.label
+      ))), event.eventType && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "8px", padding: "8px 12px", background: "rgba(104,211,145,0.1)", borderRadius: "6px", border: "1px solid rgba(104,211,145,0.3)", textAlign: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391", fontWeight: "600" } }, "Selected: ", event.eventType))), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Time (Z)"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "time", value: event.timeZ, onChange: (e) => updateEvent(event.id, "timeZ", e.target.value) }), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => updateEvent(event.id, "timeZ", getZuluTimeOnly()) }, "NOW"))), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(99,179,237,0.1)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(99,179,237,0.2)", marginTop: "8px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" } }, /* @__PURE__ */ React.createElement("label", { style: { ...styles.label, margin: 0, color: "#63b3ed", fontWeight: "600" } }, "\u{1F6F0}\uFE0F Position (DDM Format)"), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          style: { ...styles.button, ...styles.buttonSmall, background: "linear-gradient(135deg, #3182ce, #2b6cb0)", padding: "6px 12px" },
+          onClick: () => openGpsModal(event.id, event.latDeg, event.latMin, event.longDeg, event.longMin)
+        },
+        "\u{1F6F0}\uFE0F GPS Tools"
+      )), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Lat N (deg\xB0 min')"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, width: "60px", textAlign: "center" }, type: "text", inputMode: "numeric", placeholder: "DD", value: event.latDeg, onChange: (e) => updateEvent(event.id, "latDeg", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "\xB0"), /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", inputMode: "decimal", placeholder: "MM.MMM", value: event.latMin, onChange: (e) => updateEvent(event.id, "latMin", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "'"))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Long W (deg\xB0 min')"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, width: "60px", textAlign: "center" }, type: "text", inputMode: "numeric", placeholder: "DDD", value: event.longDeg, onChange: (e) => updateEvent(event.id, "longDeg", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "\xB0"), /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", inputMode: "decimal", placeholder: "MM.MMM", value: event.longMin, onChange: (e) => updateEvent(event.id, "longMin", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "'")))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", marginTop: "10px" } }, /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          style: { ...styles.button, ...styles.buttonSmall, flex: 1, background: "rgba(56,161,105,0.2)", border: "1px solid rgba(56,161,105,0.4)", color: "#68d391" },
+          onClick: () => {
+            if (!navigator.geolocation) {
+              alert("GPS not supported");
+              return;
+            }
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = Math.abs(pos.coords.longitude);
+                const latDdm = gpsUtils.ddToDdm(lat);
+                const lonDdm = gpsUtils.ddToDdm(lon);
+                const grid = gpsUtils.calculateCapGrid(lat, -lon);
+                setEvents(events.map((e) => e.id === event.id ? {
+                  ...e,
+                  latDeg: latDdm.deg.toString(),
+                  latMin: latDdm.min.toFixed(3),
+                  longDeg: lonDdm.deg.toString(),
+                  longMin: lonDdm.min.toFixed(3),
+                  capGrid: grid?.full || ""
+                } : e));
+              },
+              (err) => alert("GPS Error: " + err.message),
+              { enableHighAccuracy: true, timeout: 1e4 }
+            );
           }
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              const lat = pos.coords.latitude;
-              const lon = Math.abs(pos.coords.longitude);
-              const latDdm = gpsUtils.ddToDdm(lat);
-              const lonDdm = gpsUtils.ddToDdm(lon);
+        },
+        "\u{1F4CD} Current Loc"
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          style: { ...styles.button, ...styles.buttonSmall, flex: 1, background: "rgba(99,179,237,0.2)", border: "1px solid rgba(99,179,237,0.4)", color: "#63b3ed" },
+          onClick: () => {
+            if (event.latDeg && event.longDeg) {
+              const lat = gpsUtils.ddmToDd(event.latDeg, event.latMin || 0);
+              const lon = gpsUtils.ddmToDd(event.longDeg, event.longMin || 0);
+              window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=-${lon}&zoom=14`, "_blank");
+            } else {
+              alert("Enter coordinates first");
+            }
+          }
+        },
+        "\u{1F5FA}\uFE0F View Map"
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          style: { ...styles.button, ...styles.buttonSmall, flex: 1, background: "rgba(246,224,94,0.2)", border: "1px solid rgba(246,224,94,0.4)", color: "#f6e05e" },
+          onClick: () => {
+            if (event.latDeg && event.longDeg) {
+              const lat = gpsUtils.ddmToDd(event.latDeg, event.latMin || 0);
+              const lon = gpsUtils.ddmToDd(event.longDeg, event.longMin || 0);
               const grid = gpsUtils.calculateCapGrid(lat, -lon);
-              setEvents(events.map((e) => e.id === event.id ? {
-                ...e,
-                latDeg: latDdm.deg.toString(),
-                latMin: latDdm.min.toFixed(3),
-                longDeg: lonDdm.deg.toString(),
-                longMin: lonDdm.min.toFixed(3),
-                capGrid: grid?.full || ""
-              } : e));
-            },
-            (err) => alert("GPS Error: " + err.message),
-            { enableHighAccuracy: true, timeout: 1e4 }
-          );
-        }
-      },
-      "\u{1F4CD} Current Loc"
-    ), /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        style: { ...styles.button, ...styles.buttonSmall, flex: 1, background: "rgba(99,179,237,0.2)", border: "1px solid rgba(99,179,237,0.4)", color: "#63b3ed" },
-        onClick: () => {
-          if (event.latDeg && event.longDeg) {
-            const lat = gpsUtils.ddmToDd(event.latDeg, event.latMin || 0);
-            const lon = gpsUtils.ddmToDd(event.longDeg, event.longMin || 0);
-            window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=-${lon}&zoom=14`, "_blank");
-          } else {
-            alert("Enter coordinates first");
+              updateEvent(event.id, "capGrid", grid?.full || "N/A");
+            } else {
+              alert("Enter coordinates first");
+            }
           }
-        }
-      },
-      "\u{1F5FA}\uFE0F View Map"
-    ), /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        style: { ...styles.button, ...styles.buttonSmall, flex: 1, background: "rgba(246,224,94,0.2)", border: "1px solid rgba(246,224,94,0.4)", color: "#f6e05e" },
-        onClick: () => {
-          if (event.latDeg && event.longDeg) {
-            const lat = gpsUtils.ddmToDd(event.latDeg, event.latMin || 0);
-            const lon = gpsUtils.ddmToDd(event.longDeg, event.longMin || 0);
-            const grid = gpsUtils.calculateCapGrid(lat, -lon);
-            updateEvent(event.id, "capGrid", grid?.full || "N/A");
-          } else {
-            alert("Enter coordinates first");
+        },
+        "\u{1F5FA}\uFE0F Calc Grid"
+      )), event.capGrid && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "10px", padding: "8px 12px", background: "linear-gradient(135deg, rgba(246,224,94,0.15), rgba(237,137,54,0.15))", borderRadius: "6px", border: "1px solid rgba(246,224,94,0.3)", textAlign: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "11px", color: "#a0aec0" } }, "CAP Grid: "), /* @__PURE__ */ React.createElement("span", { style: { fontSize: "16px", fontWeight: "700", color: "#f6e05e", fontFamily: "monospace", letterSpacing: "1px" } }, event.capGrid))), /* @__PURE__ */ React.createElement("div", { style: { ...styles.grid2, marginTop: "12px" } }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Alt MSL"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", placeholder: "ft", value: event.altMSL, onChange: (e) => updateEvent(event.id, "altMSL", e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Alt AGL"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", placeholder: "ft", value: event.altAGL, onChange: (e) => updateEvent(event.id, "altAGL", e.target.value) }))), /* @__PURE__ */ React.createElement("div", { style: styles.grid3 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Heading"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", placeholder: "\xB0", value: event.heading, onChange: (e) => updateEvent(event.id, "heading", e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Airspeed"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", placeholder: "kts", value: event.airspeed, onChange: (e) => updateEvent(event.id, "airspeed", e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Gnd Spd"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", placeholder: "kts", value: event.groundSpeed, onChange: (e) => updateEvent(event.id, "groundSpeed", e.target.value) }))), /* @__PURE__ */ React.createElement("div", { style: { marginTop: "16px", background: "rgba(246,224,94,0.08)", padding: "14px", borderRadius: "10px", border: "1px solid rgba(246,224,94,0.25)" } }, /* @__PURE__ */ React.createElement("label", { style: { ...styles.label, color: "#f6e05e", fontWeight: "600", marginBottom: "10px", display: "block" } }, "\u{1F4DD} Notes"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "10px", marginBottom: "12px", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          style: {
+            minHeight: "56px",
+            minWidth: "100px",
+            flex: 1,
+            padding: "14px 18px",
+            fontSize: "15px",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #38a169, #2f855a)",
+            border: "2px solid #48bb78",
+            borderRadius: "10px",
+            color: "#fff",
+            fontFamily: "inherit",
+            cursor: "pointer",
+            touchAction: "manipulation"
+          },
+          onClick: () => {
+            const timestamp = getZuluTimeOnly();
+            const newNote = event.notes ? event.notes + "\n" + timestamp + " - Ops Normal" : timestamp + " - Ops Normal";
+            updateEvent(event.id, "notes", newNote);
           }
+        },
+        "\u2713 OPS NORMAL"
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          style: {
+            minHeight: "56px",
+            minWidth: "100px",
+            flex: 1,
+            padding: "14px 18px",
+            fontSize: "15px",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #dd6b20, #c05621)",
+            border: "2px solid #ed8936",
+            borderRadius: "10px",
+            color: "#fff",
+            fontFamily: "inherit",
+            cursor: "pointer",
+            touchAction: "manipulation"
+          },
+          onClick: () => {
+            const timestamp = getZuluTimeOnly();
+            const newNote = event.notes ? event.notes + "\n" + timestamp + " - RTB" : timestamp + " - RTB";
+            updateEvent(event.id, "notes", newNote);
+          }
+        },
+        "\u21A9 RTB"
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          style: {
+            minHeight: "56px",
+            minWidth: "100px",
+            flex: 1,
+            padding: "14px 18px",
+            fontSize: "15px",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
+            border: "2px solid #4299e1",
+            borderRadius: "10px",
+            color: "#fff",
+            fontFamily: "inherit",
+            cursor: "pointer",
+            touchAction: "manipulation"
+          },
+          onClick: () => {
+            const timestamp = getZuluTimeOnly();
+            const newNote = event.notes ? event.notes + "\n" + timestamp + " - PIREP: " : timestamp + " - PIREP: ";
+            updateEvent(event.id, "notes", newNote);
+          }
+        },
+        "\u2601 PIREP"
+      )), /* @__PURE__ */ React.createElement(
+        "textarea",
+        {
+          style: {
+            ...styles.input,
+            minHeight: "120px",
+            resize: "vertical",
+            fontSize: "16px",
+            lineHeight: "1.5",
+            padding: "14px"
+          },
+          placeholder: "Enter observation notes...",
+          value: event.notes,
+          onChange: (e) => updateEvent(event.id, "notes", e.target.value)
         }
-      },
-      "\u{1F5FA}\uFE0F Calc Grid"
-    )), event.capGrid && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "10px", padding: "8px 12px", background: "linear-gradient(135deg, rgba(246,224,94,0.15), rgba(237,137,54,0.15))", borderRadius: "6px", border: "1px solid rgba(246,224,94,0.3)", textAlign: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "11px", color: "#a0aec0" } }, "CAP Grid: "), /* @__PURE__ */ React.createElement("span", { style: { fontSize: "16px", fontWeight: "700", color: "#f6e05e", fontFamily: "monospace", letterSpacing: "1px" } }, event.capGrid))), /* @__PURE__ */ React.createElement("div", { style: { ...styles.grid2, marginTop: "12px" } }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Alt MSL"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", placeholder: "ft", value: event.altMSL, onChange: (e) => updateEvent(event.id, "altMSL", e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Alt AGL"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", placeholder: "ft", value: event.altAGL, onChange: (e) => updateEvent(event.id, "altAGL", e.target.value) }))), /* @__PURE__ */ React.createElement("div", { style: styles.grid3 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Heading"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", placeholder: "\xB0", value: event.heading, onChange: (e) => updateEvent(event.id, "heading", e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Airspeed"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", placeholder: "kts", value: event.airspeed, onChange: (e) => updateEvent(event.id, "airspeed", e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Gnd Spd"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", placeholder: "kts", value: event.groundSpeed, onChange: (e) => updateEvent(event.id, "groundSpeed", e.target.value) })))))))), /* @__PURE__ */ React.createElement(
-      GpsToolsModal,
-      {
-        isOpen: gpsModalOpen,
-        onClose: () => setGpsModalOpen(false),
-        onApply: handleGpsApply,
-        initialLat: gpsModalInitialLat,
-        initialLon: gpsModalInitialLon,
-        eventId: gpsModalEventId
-      }
-    ));
+      ))))))), /* @__PURE__ */ React.createElement(
+        GpsToolsModal,
+        {
+          isOpen: gpsModalOpen,
+          onClose: () => setGpsModalOpen(false),
+          onApply: handleGpsApply,
+          initialLat: gpsModalInitialLat,
+          initialLon: gpsModalInitialLon,
+          eventId: gpsModalEventId
+        }
+      ));
+    };
     const renderReferenceTab = () => {
       const refSections = [
         { id: "radioFrequencies", label: "Frequencies" },
