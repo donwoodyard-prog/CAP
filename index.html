@@ -12,6 +12,8 @@
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23c53030'/><text x='50' y='65' font-size='30' text-anchor='middle' fill='white'>CAP</text></svg>">
   <title>CAP Observer Log</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Fira Code', monospace; background: #0c1929; overflow-x: hidden; }
@@ -434,6 +436,98 @@ function spGenGridParallel(params) {
     if (i < off.numTracks - 1) totalDist += spacing;
   }
   return { patternType: 'CAP Grid Parallel Track', poi, gridInfo: { gridId: gridInfo.gridId, cellId: gridInfo.cellId, quarterGrid: gridInfo.quarterGrid, magVariation: gridInfo.magVariation, corners: gridInfo.corners }, dimensions: { actualWidth: dims.widthNM, actualHeight: dims.heightNM, centerLat: dims.centerLat, centerLon: dims.centerLon }, coverage: { numTracks: off.numTracks, spacing, edgeOffset: off.edgeOffset, efficiency: off.efficiency }, waypoints: wps, summary: { spacing, numTracks: off.numTracks, totalDistance: totalDist, timeMinutes: (totalDist / groundspeed) * 60, entryCorner, gridAligned: true } };
+}
+
+// POI-Centered Parallel Track - creates parallel tracks centered on POI
+function spGenPoiCenteredParallel(params) {
+  const { poi, spacing = 1, numTracks = 6, trackLength = 3, heading = 0, groundspeed = 120 } = params;
+  if (!poi || !poi.latDD || !poi.lonDD) return { error: 'Invalid POI' };
+  if (!spacing || spacing <= 0) return { error: 'Invalid spacing' };
+  if (!numTracks || numTracks < 2) return { error: 'Need at least 2 tracks' };
+  if (!trackLength || trackLength <= 0) return { error: 'Invalid track length' };
+  
+  const wps = [];
+  let wpNum = 0, totalDist = 0;
+  const halfWidth = ((numTracks - 1) * spacing) / 2;
+  const halfLength = trackLength / 2;
+  const perpRight = spNormalizeBearing(heading + 90); // perpendicular to the right
+  const perpLeft = spNormalizeBearing(heading - 90);  // perpendicular to the left
+  const fwdHdg = spNormalizeBearing(heading);
+  const revHdg = spNormalizeBearing(heading + 180);
+  
+  for (let i = 0; i < numTracks; i++) {
+    // Calculate offset from center for this track (negative = left, positive = right)
+    const offset = -halfWidth + (i * spacing);
+    
+    // Find track center point - use appropriate bearing based on offset sign
+    let trackCenter;
+    if (offset >= 0) {
+      trackCenter = spDestPoint(poi.latDD, poi.lonDD, perpRight, offset);
+    } else {
+      trackCenter = spDestPoint(poi.latDD, poi.lonDD, perpLeft, Math.abs(offset));
+    }
+    
+    const reverse = (i % 2 === 1);
+    const startHdg = reverse ? revHdg : fwdHdg;
+    
+    // Start point is half track length behind, end point is half track length ahead
+    const startPt = spDestPoint(trackCenter.latDeg, trackCenter.lonDeg, reverse ? fwdHdg : revHdg, halfLength);
+    const endPt = spDestPoint(trackCenter.latDeg, trackCenter.lonDeg, reverse ? revHdg : fwdHdg, halfLength);
+    
+    wps.push({ 
+      number: wpNum++, 
+      lat: startPt.latDeg, 
+      lon: startPt.lonDeg, 
+      heading: startHdg, 
+      legLength: trackLength, 
+      ddm: spFormatCoordDDM(startPt.latDeg, startPt.lonDeg), 
+      foreflight: spFormatForeFlight(startPt.latDeg, startPt.lonDeg), 
+      note: 'Track ' + (i+1) + ' start' 
+    });
+    wps.push({ 
+      number: wpNum++, 
+      lat: endPt.latDeg, 
+      lon: endPt.lonDeg, 
+      heading: i < numTracks - 1 ? perpRight : null, 
+      legLength: i < numTracks - 1 ? spacing : 0, 
+      ddm: spFormatCoordDDM(endPt.latDeg, endPt.lonDeg), 
+      foreflight: spFormatForeFlight(endPt.latDeg, endPt.lonDeg), 
+      note: 'Track ' + (i+1) + ' end' 
+    });
+    
+    totalDist += trackLength;
+    if (i < numTracks - 1) totalDist += spacing;
+  }
+  
+  const actualWidth = numTracks * spacing;
+  const actualHeight = trackLength;
+  
+  return { 
+    patternType: 'POI-Centered Parallel', 
+    poi, 
+    dimensions: { 
+      actualWidth, 
+      actualHeight, 
+      centerLat: poi.latDD, 
+      centerLon: poi.lonDD 
+    }, 
+    coverage: { 
+      numTracks, 
+      spacing, 
+      trackLength,
+      heading
+    }, 
+    waypoints: wps, 
+    summary: { 
+      spacing, 
+      numTracks, 
+      trackLength,
+      heading,
+      totalDistance: totalDist, 
+      timeMinutes: (totalDist / groundspeed) * 60, 
+      gridAligned: false 
+    } 
+  };
 }
 
 function spGenExpandingSquare(params) {
@@ -2145,13 +2239,24 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
   var CAPObserverLog = () => {
     const [missionInfo, setMissionInfo] = useState({
       missionNumber: "",
+      missionSymbol: "",
       dateZ: "",
       sortieNumber: "",
       aircraftTailN: "",
       logPageNumber: "1",
       totalPages: "1",
-      observerName: ""
+      observerName: "",
+      routeOfFlight: ""
     });
+    // Crew Manifest
+    const [crewManifest, setCrewManifest] = useState([
+      { name: "", capid: "", position: "PIC", qualification: "MP" },
+      { name: "", capid: "", position: "Crew", qualification: "" }
+    ]);
+    // Share Modal
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [shareCode, setShareCode] = useState("");
+    const [importCode, setImportCode] = useState("");
     const [times, setTimes] = useState({
       tachStart: "",
       tachShutdown: "",
@@ -2206,7 +2311,7 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     const [expandedProcedure, setExpandedProcedure] = useState(null);
     const [expandedRadioCall, setExpandedRadioCall] = useState(null);
 
-    const [spState, setSpState] = useState({ patternType: 'gridParallelTrack', poiInput: '', poi: null, detectedGrid: null, spacing: 1.0, groundspeed: 120, entryCorner: 'NW', initialHeading: 0, turnDirection: 'Right', numLegs: 8, clDirection: 0, clStartSide: 'Left', lastPlan: null, showMap: false });
+    const [spState, setSpState] = useState({ patternType: 'gridParallelTrack', poiInput: '', poi: null, detectedGrid: null, spacing: 1.0, groundspeed: 120, entryCorner: 'NW', initialHeading: 0, turnDirection: 'Right', numLegs: 8, clDirection: 0, clStartSide: 'Left', poiNumTracks: 6, poiTrackLength: 3, poiHeading: 0, lastPlan: null, showMap: false });
     const [selectedState, setSelectedState] = useState("CO");
     const [selectedCommsCategory, setSelectedCommsCategory] = useState("channels");
     const [commsView, setCommsView] = useState("channels");
@@ -3277,11 +3382,11 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     // Enhanced localStorage - save all mission data including ELT
     useEffect(() => {
       const data = { 
-        missionInfo, times, fuelOil, notes, events, targetLocations,
+        missionInfo, crewManifest, times, fuelOil, notes, events, targetLocations,
         eltObservations, eltSolutions, radioCallSigns, nightMode
       };
       localStorage.setItem("capObserverLog", JSON.stringify(data));
-    }, [missionInfo, times, fuelOil, notes, events, targetLocations, eltObservations, eltSolutions, radioCallSigns, nightMode]);
+    }, [missionInfo, crewManifest, times, fuelOil, notes, events, targetLocations, eltObservations, eltSolutions, radioCallSigns, nightMode]);
     
     // Load saved data on startup with resume prompt
     useEffect(() => {
@@ -3303,6 +3408,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
           }
           
           if (data.missionInfo) setMissionInfo(data.missionInfo);
+          if (data.crewManifest) setCrewManifest(data.crewManifest);
           if (data.times) setTimes(data.times);
           if (data.fuelOil) setFuelOil(data.fuelOil);
           if (data.notes) setNotes(data.notes);
@@ -3728,6 +3834,90 @@ ${events.map((e) => `
       return lines.join("\n");
     };
     
+    // Export mission file for sharing
+    const exportMissionFile = () => {
+      const exportData = {
+        version: "3.0",
+        exportDate: new Date().toISOString(),
+        missionInfo,
+        crewManifest,
+        times,
+        fuelOil,
+        notes,
+        events,
+        targetLocations,
+        radioCallSigns,
+        eltObservations,
+        eltSolutions
+      };
+      
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const compressed = btoa(encodeURIComponent(jsonString));
+      setShareCode(compressed);
+      
+      // Also create downloadable file
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CAP_Mission_${missionInfo.missionSymbol || 'Mission'}_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+    
+    // Import mission file from code or file
+    const importMissionFile = (inputData) => {
+      try {
+        let data;
+        if (typeof inputData === 'string') {
+          // Try to decode from base64
+          try {
+            const decoded = decodeURIComponent(atob(inputData));
+            data = JSON.parse(decoded);
+          } catch {
+            // Try direct JSON parse
+            data = JSON.parse(inputData);
+          }
+        } else {
+          data = inputData;
+        }
+        
+        if (data.missionInfo) setMissionInfo(data.missionInfo);
+        if (data.crewManifest) setCrewManifest(data.crewManifest);
+        if (data.times) setTimes(data.times);
+        if (data.fuelOil) setFuelOil(data.fuelOil);
+        if (data.notes) setNotes(data.notes);
+        if (data.events) setEvents(data.events);
+        if (data.targetLocations) setTargetLocations(data.targetLocations);
+        if (data.radioCallSigns) setRadioCallSigns(data.radioCallSigns);
+        if (data.eltObservations) setEltObservations(data.eltObservations);
+        if (data.eltSolutions) setEltSolutions(data.eltSolutions);
+        
+        setShowShareModal(false);
+        setImportCode("");
+        alert('Mission data imported successfully!');
+      } catch (err) {
+        alert('Error importing data: ' + err.message);
+      }
+    };
+    
+    // Handle file import
+    const handleFileImport = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = JSON.parse(event.target.result);
+          importMissionFile(data);
+        } catch (err) {
+          alert('Error reading file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+    
     // Copy log to clipboard
     const copyLogToClipboard = () => {
       try {
@@ -3773,6 +3963,144 @@ ${events.map((e) => `
         console.error('Fallback copy failed:', err);
         alert('Copy failed: ' + err.message);
       }
+    };
+
+    // Render share modal
+    const renderShareModal = () => {
+      if (!showShareModal) return null;
+      
+      // Native share function using Web Share API
+      const nativeShare = async () => {
+        const data = {
+          missionInfo, crewManifest, times, fuelOil, notes, events, targetLocations,
+          eltObservations, eltSolutions, radioCallSigns, nightMode
+        };
+        const jsonStr = JSON.stringify(data);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const file = new File([blob], `CAP_Mission_${missionInfo.missionNumber || 'Log'}_${missionInfo.dateZ || 'export'}.json`, { type: 'application/json' });
+        
+        // Create a summary text for sharing
+        const summary = `CAP Mission Log
+Mission: ${missionInfo.missionNumber || 'N/A'}
+Date: ${missionInfo.dateZ || 'N/A'}
+Aircraft: ${missionInfo.aircraftTailN || 'N/A'}
+Events: ${events.length}`;
+        
+        if (navigator.share) {
+          try {
+            // Try sharing with file first
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                title: 'CAP Mission Log',
+                text: summary,
+                files: [file]
+              });
+            } else {
+              // Fall back to text-only share
+              await navigator.share({
+                title: 'CAP Mission Log',
+                text: summary + '\n\nShare Code:\n' + btoa(jsonStr).substring(0, 500) + '...'
+              });
+            }
+          } catch (err) {
+            if (err.name !== 'AbortError') {
+              alert('Share failed: ' + err.message);
+            }
+          }
+        } else {
+          alert('Native sharing not supported on this device. Use Download or Copy options instead.');
+        }
+      };
+      
+      const canNativeShare = typeof navigator.share === 'function';
+      
+      return React.createElement("div", {
+        style: {
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.85)",
+          zIndex: 1000,
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "20px"
+        },
+        onClick: () => setShowShareModal(false)
+      },
+        React.createElement("div", {
+          style: {
+            background: "#1a2c42",
+            borderRadius: "12px",
+            padding: "20px",
+            width: "100%",
+            maxWidth: "500px",
+            maxHeight: "80vh",
+            overflowY: "auto"
+          },
+          onClick: e => e.stopPropagation()
+        },
+          React.createElement("div", {
+            style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }
+          },
+            React.createElement("h3", { style: { color: "#e2e8f0", margin: 0 } }, "📤 Share / Import Mission"),
+            React.createElement("button", {
+              style: { background: "rgba(229,62,62,0.3)", border: "none", color: "#fc8181", padding: "8px 12px", borderRadius: "4px", cursor: "pointer" },
+              onClick: () => setShowShareModal(false)
+            }, "✕")
+          ),
+          
+          // Native Share Button (mobile)
+          canNativeShare && React.createElement("div", { style: { marginBottom: "20px" } },
+            React.createElement("button", {
+              style: { ...styles.button, width: "100%", background: "linear-gradient(135deg, #38a169, #2f855a)", padding: "16px", fontSize: "16px" },
+              onClick: nativeShare
+            }, "📱 Share via Text, Email, AirDrop...")
+          ),
+          
+          // Export Section
+          React.createElement("div", { style: { marginBottom: "20px" } },
+            React.createElement("h4", { style: { color: "#68d391", marginBottom: "10px" } }, "Export Mission"),
+            React.createElement("button", {
+              style: { ...styles.button, width: "100%", marginBottom: "10px" },
+              onClick: exportMissionFile
+            }, "📥 Download Mission File"),
+            shareCode && React.createElement("div", { style: { marginTop: "10px" } },
+              React.createElement("label", { style: { color: "#a0aec0", fontSize: "12px" } }, "Or copy share code:"),
+              React.createElement("textarea", {
+                style: { ...styles.input, height: "60px", fontSize: "10px", fontFamily: "monospace", marginTop: "5px" },
+                value: shareCode,
+                readOnly: true,
+                onClick: e => e.target.select()
+              })
+            )
+          ),
+          
+          // Import Section
+          React.createElement("div", { style: { borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "20px" } },
+            React.createElement("h4", { style: { color: "#63b3ed", marginBottom: "10px" } }, "Import Mission"),
+            React.createElement("input", {
+              type: "file",
+              accept: ".json",
+              onChange: handleFileImport,
+              style: { marginBottom: "10px", color: "#e2e8f0" }
+            }),
+            React.createElement("div", { style: { color: "#a0aec0", fontSize: "12px", marginBottom: "5px" } }, "Or paste share code:"),
+            React.createElement("textarea", {
+              style: { ...styles.input, height: "60px", fontSize: "10px", fontFamily: "monospace", marginBottom: "10px" },
+              value: importCode,
+              onChange: e => setImportCode(e.target.value),
+              placeholder: "Paste share code here..."
+            }),
+            React.createElement("button", {
+              style: { ...styles.button, width: "100%", background: "linear-gradient(135deg, #3182ce, #2b6cb0)" },
+              onClick: importMissionFile
+            }, "📤 Import Mission Data")
+          )
+        )
+      );
     };
 
     const clearAllData = () => {
@@ -3830,15 +4158,194 @@ ${events.map((e) => `
       refTd: { padding: "8px", borderBottom: "1px solid rgba(255,255,255,0.05)" },
       refHighlight: { background: "rgba(104, 211, 145, 0.1)", border: "1px solid rgba(104, 211, 145, 0.3)", borderRadius: "4px", padding: "2px 6px", fontSize: "11px", color: "#68d391" },
       pre: { background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "6px", overflow: "auto", fontSize: "11px", lineHeight: "1.4", whiteSpace: "pre-wrap", fontFamily: "monospace" },
-      searchInput: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "14px", fontSize: "16px", color: "#fff", width: "100%", marginBottom: "12px", minHeight: "50px" }
+      searchInput: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "14px", fontSize: "16px", color: "#fff", width: "100%", marginBottom: "12px", minHeight: "50px" },
+      selectLarge: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "16px 14px", fontSize: "18px", color: "#fff", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box", minHeight: "58px", cursor: "pointer", WebkitAppearance: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f6e05e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: "44px" }
     };
     const [zuluClock, setZuluClock] = useState(getCurrentZuluTime());
     useEffect(() => {
       const interval = setInterval(() => setZuluClock(getCurrentZuluTime()), 1e3);
       return () => clearInterval(interval);
     }, []);
-    const renderMissionTab = () => React.createElement("div", null, React.createElement("div", { style: styles.section }, React.createElement("div", { style: styles.sectionHeader }, "📋 Mission Information"), React.createElement("div", { style: styles.sectionBody }, React.createElement("div", { style: styles.fieldGroup }, React.createElement("div", { style: styles.grid2 }, React.createElement("div", { style: styles.field }, React.createElement("label", { style: styles.label }, "Mission #"), React.createElement("input", { style: styles.input, type: "text", value: missionInfo.missionNumber, onChange: (e) => setMissionInfo({ ...missionInfo, missionNumber: e.target.value }), placeholder: "Mission number" })), React.createElement("div", { style: styles.field }, React.createElement("label", { style: styles.label }, "Sortie #"), React.createElement("input", { style: styles.input, type: "text", value: missionInfo.sortieNumber, onChange: (e) => setMissionInfo({ ...missionInfo, sortieNumber: e.target.value }), placeholder: "Sortie" }))), React.createElement("div", { style: styles.grid2 }, React.createElement("div", { style: styles.field }, React.createElement("label", { style: styles.label }, "Date (UTC)"), React.createElement("div", { style: { display: "flex", gap: "8px" }}, React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", value: missionInfo.dateZ, onChange: (e) => setMissionInfo({ ...missionInfo, dateZ: e.target.value.toUpperCase() }), placeholder: "DDMMMYYYY" }), React.createElement("button", { style: styles.timeButton, onClick: () => setMissionInfo({ ...missionInfo, dateZ: getZuluDate() }) }, "TODAY"))), React.createElement("div", { style: styles.field }, React.createElement("label", { style: styles.label }, "Aircraft N"), React.createElement("input", { style: styles.input, type: "text", value: missionInfo.aircraftTailN, onChange: (e) => setMissionInfo({ ...missionInfo, aircraftTailN: e.target.value }), placeholder: "Tail #" }))), React.createElement("div", { style: styles.field }, React.createElement("label", { style: styles.label }, "Observer Name"), React.createElement("input", { style: styles.input, type: "text", value: missionInfo.observerName, onChange: (e) => setMissionInfo({ ...missionInfo, observerName: e.target.value }), placeholder: "Your name" }))))), React.createElement("div", { style: styles.section }, React.createElement("div", { style: styles.sectionHeader }, "⏱️ OPS Normal Timer"), React.createElement("div", { style: styles.sectionBody }, React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}, React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}, React.createElement("input", { type: "checkbox", checked: opsTimerEnabled, onChange: (e) => { setOpsTimerEnabled(e.target.checked); if (e.target.checked && !opsTimerLastReset) { setOpsTimerLastReset(Date.now()); setOpsTimerRemaining(opsTimerMinutes * 60); } }, style: { width: "20px", height: "20px" } }), React.createElement("span", { style: { color: "#e2e8f0", fontSize: "14px" }}, "Enable Timer")), React.createElement("select", { style: { ...styles.input, width: "100px" }, value: opsTimerMinutes, onChange: (e) => { setOpsTimerMinutes(parseInt(e.target.value)); if (opsTimerEnabled) { setOpsTimerLastReset(Date.now()); setOpsTimerRemaining(parseInt(e.target.value) * 60); } } }, React.createElement("option", { value: "15" }, "15 min"), React.createElement("option", { value: "30" }, "30 min"), React.createElement("option", { value: "45" }, "45 min"), React.createElement("option", { value: "60" }, "60 min"))), opsTimerEnabled && React.createElement("div", { style: { background: opsTimerRemaining <= 0 ? "rgba(229,62,62,0.2)" : opsTimerRemaining <= 120 ? "rgba(221,107,32,0.2)" : "rgba(56,161,105,0.1)", padding: "12px", borderRadius: "8px", textAlign: "center" }}, React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "4px" }}, "TIME UNTIL OPS NORMAL"), React.createElement("div", { style: { fontSize: "32px", fontWeight: "700", color: opsTimerRemaining <= 0 ? "#fc8181" : opsTimerRemaining <= 120 ? "#fbd38d" : "#68d391" }}, opsTimerRemaining !== null ? Math.floor(opsTimerRemaining / 60) + ":" + (opsTimerRemaining % 60).toString().padStart(2, "0") : "--:--"), React.createElement("button", { style: { ...styles.button, marginTop: "8px" }, onClick: () => { setOpsTimerLastReset(Date.now()); setOpsTimerRemaining(opsTimerMinutes * 60); } }, "🔄 RESET TIMER")), React.createElement("div", { style: { fontSize: "10px", color: "#718096", marginTop: "8px" }}, "Timer appears in header. Click to reset after OPS NORMAL call."))), React.createElement("div", { style: styles.section }, React.createElement("div", { style: styles.sectionHeader }, "📝 Notes & Instructions"), React.createElement("div", { style: styles.sectionBody }, React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "8px" }}, React.createElement("button", { style: { ...styles.button, flex: 1, background: isRecording ? "linear-gradient(135deg, #e53e3e, #c53030)" : "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: () => isRecording ? stopVoiceRecording() : startVoiceRecording("notes") }, isRecording ? "🔴 STOP RECORDING" : "🎤 VOICE NOTE")), isRecording && React.createElement("div", { style: { background: "rgba(229,62,62,0.2)", padding: "8px", borderRadius: "6px", marginBottom: "8px", textAlign: "center", fontSize: "12px", color: "#fc8181" }}, "🎙️ Listening... Speak your notes"), React.createElement("textarea", { style: { ...styles.input, ...styles.textarea }, value: notes, onChange: (e) => setNotes(e.target.value), placeholder: "Notes, radio channels, ATIS..." }))));
-    const renderTimesTab = () => /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u23F1\uFE0F Tach & Hobbs"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: { ...styles.grid2, marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontWeight: "600", color: "#f6e05e" } }, "TACH"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontWeight: "600", color: "#f6e05e" } }, "HOBBS")), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px" } }, "Engine Start"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.tachStart, onChange: (e) => setTimes({ ...times, tachStart: e.target.value }), placeholder: "Tach" }), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.hobbsStart, onChange: (e) => setTimes({ ...times, hobbsStart: e.target.value }), placeholder: "Hobbs" }))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px" } }, "Shutdown"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.tachShutdown, onChange: (e) => setTimes({ ...times, tachShutdown: e.target.value }), placeholder: "Tach" }), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.hobbsShutdown, onChange: (e) => setTimes({ ...times, hobbsShutdown: e.target.value }), placeholder: "Hobbs" }))), /* @__PURE__ */ React.createElement("div", { style: styles.calculated }, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, marginBottom: "8px", color: "#68d391" } }, "Elapsed (Auto)"), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontSize: "18px", fontWeight: "700" } }, calculated.tachElapsed || "\u2014"), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", fontSize: "18px", fontWeight: "700" } }, calculated.hobbsElapsed || "\u2014")))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F6EB} Flight Times (Z)"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, [{ key: "takeoffTime", label: "\u2605 Takeoff" }, { key: "enteredSearchArea", label: "\u2605\u25BC Entered Search" }, { key: "departedSearchArea", label: "\u2605\u25BC Departed Search" }, { key: "landingTime", label: "\u2605 Landing" }].map(({ key, label }) => /* @__PURE__ */ React.createElement("div", { key, style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, label), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", inputMode: "numeric", placeholder: "HHMM", value: times[key], onChange: (e) => setTimes({ ...times, [key]: e.target.value }) }), /* @__PURE__ */ React.createElement("button", { style: styles.timeButton, onClick: () => setTimes({ ...times, [key]: getZuluTimeOnly() }) }, "NOW")))), /* @__PURE__ */ React.createElement("div", { style: styles.calculated }, /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, color: "#68d391" } }, "Search Time"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "700" } }, calculated.searchTime ? calculated.searchTime + " hrs" : "\u2014")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.label, color: "#68d391" } }, "Enroute"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "700" } }, calculated.enrouteTime ? calculated.enrouteTime + " hrs" : "\u2014"))))))), /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u26FD Fuel & Oil"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.grid3 }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Fuel (gal)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.fuelGallons, onChange: (e) => setFuelOil({ ...fuelOil, fuelGallons: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Cost ($)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.fuelCost, onChange: (e) => setFuelOil({ ...fuelOil, fuelCost: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Oil (qt)"), /* @__PURE__ */ React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.oilQt, onChange: (e) => setFuelOil({ ...fuelOil, oilQt: e.target.value }) }))))));
+    const renderMissionTab = () => {
+      const missionSymbols = [
+        { value: "", label: "Select Symbol..." },
+        { value: "A1", label: "A1 - SAR" },
+        { value: "A2", label: "A2 - Disaster Relief" },
+        { value: "A3", label: "A3 - HLS" },
+        { value: "A5", label: "A5 - Training/Eval" },
+        { value: "A6", label: "A6 - CD/Counterdrug" },
+        { value: "A7", label: "A7 - Check Ride/Prof" },
+        { value: "A8", label: "A8 - O-Flights" },
+        { value: "A9", label: "A9 - Cadet O-Flights" },
+        { value: "A12", label: "A12 - Proficiency" },
+        { value: "A15", label: "A15 - Unit Training" },
+        { value: "A24", label: "A24 - Re-Training" },
+        { value: "B5", label: "B5 - Training (Non-AFAM)" },
+        { value: "B7", label: "B7 - Check Ride (Non-AFAM)" },
+        { value: "B12", label: "B12 - Prof (Non-AFAM)" },
+        { value: "C", label: "C - Corporate" }
+      ];
+      const qualifications = ["", "MP", "MO", "MS", "AP", "TMP", "CFII", "IP", "Other"];
+      const positions = ["PIC", "MO", "MS", "AP", "MP", "Trainee", "Other"];
+      
+      const updateCrewMember = (index, field, value) => {
+        const updated = [...crewManifest];
+        updated[index] = { ...updated[index], [field]: value };
+        setCrewManifest(updated);
+      };
+      
+      const addCrewMember = () => {
+        if (crewManifest.length < 7) {
+          setCrewManifest([...crewManifest, { name: "", capid: "", position: "Crew", qualification: "" }]);
+        }
+      };
+      
+      const removeCrewMember = (index) => {
+        if (crewManifest.length > 1) {
+          setCrewManifest(crewManifest.filter((_, i) => i !== index));
+        }
+      };
+      
+      return React.createElement("div", null,
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, "📋 Mission Information"),
+          React.createElement("div", { style: styles.sectionBody },
+            React.createElement("div", { style: styles.fieldGroup },
+              React.createElement("div", { style: styles.grid2 },
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: styles.label }, "Mission #"),
+                  React.createElement("input", { style: styles.input, type: "text", value: missionInfo.missionNumber, onChange: (e) => setMissionInfo({ ...missionInfo, missionNumber: e.target.value }), placeholder: "e.g., 26-T-3912" })),
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: styles.label }, "Mission Symbol"),
+                  React.createElement("select", { style: styles.selectLarge, value: missionInfo.missionSymbol, onChange: (e) => setMissionInfo({ ...missionInfo, missionSymbol: e.target.value }) },
+                    missionSymbols.map(s => React.createElement("option", { key: s.value, value: s.value }, s.label))))),
+              React.createElement("div", { style: styles.grid2 },
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: styles.label }, "Sortie #"),
+                  React.createElement("input", { style: styles.input, type: "text", value: missionInfo.sortieNumber, onChange: (e) => setMissionInfo({ ...missionInfo, sortieNumber: e.target.value }), placeholder: "e.g., A0013" })),
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: styles.label }, "Date (UTC)"),
+                  React.createElement("div", { style: { display: "flex", gap: "8px" }},
+                    React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", value: missionInfo.dateZ, onChange: (e) => setMissionInfo({ ...missionInfo, dateZ: e.target.value.toUpperCase() }), placeholder: "DDMMMYYYY" }),
+                    React.createElement("button", { style: styles.timeButton, onClick: () => setMissionInfo({ ...missionInfo, dateZ: getZuluDate() }) }, "TODAY")))),
+              React.createElement("div", { style: styles.grid2 },
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: styles.label }, "Aircraft N"),
+                  React.createElement("input", { style: styles.input, type: "text", value: missionInfo.aircraftTailN, onChange: (e) => setMissionInfo({ ...missionInfo, aircraftTailN: e.target.value }), placeholder: "Tail #" })),
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: styles.label }, "Observer Name"),
+                  React.createElement("input", { style: styles.input, type: "text", value: missionInfo.observerName, onChange: (e) => setMissionInfo({ ...missionInfo, observerName: e.target.value }), placeholder: "Your name" }))),
+              React.createElement("div", { style: styles.field },
+                React.createElement("label", { style: styles.label }, "Route of Flight"),
+                React.createElement("input", { style: styles.input, type: "text", value: missionInfo.routeOfFlight, onChange: (e) => setMissionInfo({ ...missionInfo, routeOfFlight: e.target.value }), placeholder: "e.g., KAPA - DEN111 vicinity - KFLY" }))))),
+        
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, "👥 Crew Manifest"),
+          React.createElement("div", { style: styles.sectionBody },
+            crewManifest.map((crew, index) => React.createElement("div", { key: index, style: { background: "rgba(255,255,255,0.03)", padding: "12px", borderRadius: "8px", marginBottom: "8px", border: "1px solid rgba(255,255,255,0.08)" }},
+              React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }},
+                React.createElement("span", { style: { fontSize: "11px", fontWeight: "600", color: "#f6e05e" }}, "CREW " + (index + 1)),
+                crewManifest.length > 1 && React.createElement("button", { style: { background: "rgba(229,62,62,0.2)", border: "none", color: "#fc8181", padding: "4px 8px", borderRadius: "4px", fontSize: "10px", cursor: "pointer" }, onClick: () => removeCrewMember(index) }, "✕ REMOVE")),
+              React.createElement("div", { style: styles.grid2 },
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: { ...styles.label, fontSize: "10px" }}, "Name"),
+                  React.createElement("input", { style: styles.input, type: "text", value: crew.name, onChange: (e) => updateCrewMember(index, "name", e.target.value), placeholder: "Last, First" })),
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: { ...styles.label, fontSize: "10px" }}, "CAPID"),
+                  React.createElement("input", { style: styles.input, type: "text", inputMode: "numeric", value: crew.capid, onChange: (e) => updateCrewMember(index, "capid", e.target.value), placeholder: "6 digits" }))),
+              React.createElement("div", { style: styles.grid2 },
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: { ...styles.label, fontSize: "10px" }}, "Position"),
+                  React.createElement("select", { style: styles.selectLarge, value: crew.position, onChange: (e) => updateCrewMember(index, "position", e.target.value) },
+                    positions.map(p => React.createElement("option", { key: p, value: p }, p)))),
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: { ...styles.label, fontSize: "10px" }}, "Qualification"),
+                  React.createElement("select", { style: styles.selectLarge, value: crew.qualification, onChange: (e) => updateCrewMember(index, "qualification", e.target.value) },
+                    qualifications.map(q => React.createElement("option", { key: q, value: q }, q || "(None)"))))))),
+            crewManifest.length < 7 && React.createElement("button", { style: { ...styles.button, width: "100%", marginTop: "8px" }, onClick: addCrewMember }, "+ ADD CREW MEMBER"))),
+        
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, "⏱️ Timer"),
+          React.createElement("div", { style: styles.sectionBody },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }},
+              React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }},
+                React.createElement("input", { type: "checkbox", checked: opsTimerEnabled, onChange: (e) => { setOpsTimerEnabled(e.target.checked); if (e.target.checked && !opsTimerLastReset) { setOpsTimerLastReset(Date.now()); setOpsTimerRemaining(opsTimerMinutes * 60); } }, style: { width: "20px", height: "20px" } }),
+                React.createElement("span", { style: { color: "#e2e8f0", fontSize: "14px" }}, "Enable Timer")),
+              React.createElement("select", { style: { ...styles.input, width: "100px" }, value: opsTimerMinutes, onChange: (e) => { setOpsTimerMinutes(parseInt(e.target.value)); if (opsTimerEnabled) { setOpsTimerLastReset(Date.now()); setOpsTimerRemaining(parseInt(e.target.value) * 60); } } },
+                React.createElement("option", { value: "15" }, "15 min"),
+                React.createElement("option", { value: "30" }, "30 min"),
+                React.createElement("option", { value: "45" }, "45 min"),
+                React.createElement("option", { value: "60" }, "60 min"))),
+            opsTimerEnabled && React.createElement("div", { style: { background: opsTimerRemaining <= 0 ? "rgba(229,62,62,0.2)" : opsTimerRemaining <= 120 ? "rgba(221,107,32,0.2)" : "rgba(56,161,105,0.1)", padding: "12px", borderRadius: "8px", textAlign: "center" }},
+              React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "4px" }}, "TIME REMAINING"),
+              React.createElement("div", { style: { fontSize: "32px", fontWeight: "700", color: opsTimerRemaining <= 0 ? "#fc8181" : opsTimerRemaining <= 120 ? "#fbd38d" : "#68d391" }}, opsTimerRemaining !== null ? Math.floor(opsTimerRemaining / 60) + ":" + (opsTimerRemaining % 60).toString().padStart(2, "0") : "--:--"),
+              React.createElement("button", { style: { ...styles.button, marginTop: "8px" }, onClick: () => { setOpsTimerLastReset(Date.now()); setOpsTimerRemaining(opsTimerMinutes * 60); } }, "🔄 RESET TIMER")),
+            React.createElement("div", { style: { fontSize: "10px", color: "#718096", marginTop: "8px" }}, "Timer appears in header. Click RESET when needed."))),
+        
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, "📝 Notes & Instructions"),
+          React.createElement("div", { style: styles.sectionBody },
+            React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "8px" }},
+              React.createElement("button", { style: { ...styles.button, flex: 1, background: isRecording ? "linear-gradient(135deg, #e53e3e, #c53030)" : "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: () => isRecording ? stopVoiceRecording() : startVoiceRecording("notes") }, isRecording ? "🔴 STOP RECORDING" : "🎤 VOICE NOTE")),
+            isRecording && React.createElement("div", { style: { background: "rgba(229,62,62,0.2)", padding: "8px", borderRadius: "6px", marginBottom: "8px", textAlign: "center", fontSize: "12px", color: "#fc8181" }}, "🎙️ Listening... Speak your notes"),
+            React.createElement("textarea", { style: { ...styles.input, ...styles.textarea }, value: notes, onChange: (e) => setNotes(e.target.value), placeholder: "Notes, radio channels, ATIS..." }))));
+    };
+    const renderTimesTab = () => {
+      return React.createElement("div", null, 
+        React.createElement("div", { style: styles.section }, 
+          React.createElement("div", { style: styles.sectionHeader }, "⏱️ Tach & Hobbs"), 
+          React.createElement("div", { style: styles.sectionBody }, 
+            React.createElement("div", { style: { ...styles.grid2, marginBottom: "16px" } }, 
+              React.createElement("div", { style: { textAlign: "center", fontWeight: "600", color: "#f6e05e" } }, "TACH"), 
+              React.createElement("div", { style: { textAlign: "center", fontWeight: "600", color: "#f6e05e" } }, "HOBBS")), 
+            React.createElement("div", { style: styles.fieldGroup }, 
+              React.createElement("div", null, 
+                React.createElement("div", { style: { ...styles.label, marginBottom: "8px" } }, "Engine Start"), 
+                React.createElement("div", { style: styles.grid2 }, 
+                  React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.tachStart, onChange: (e) => setTimes({ ...times, tachStart: e.target.value }), placeholder: "Tach" }), 
+                  React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.hobbsStart, onChange: (e) => setTimes({ ...times, hobbsStart: e.target.value }), placeholder: "Hobbs" }))), 
+              React.createElement("div", null, 
+                React.createElement("div", { style: { ...styles.label, marginBottom: "8px" } }, "Shutdown"), 
+                React.createElement("div", { style: styles.grid2 }, 
+                  React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.tachShutdown, onChange: (e) => setTimes({ ...times, tachShutdown: e.target.value }), placeholder: "Tach" }), 
+                  React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: times.hobbsShutdown, onChange: (e) => setTimes({ ...times, hobbsShutdown: e.target.value }), placeholder: "Hobbs" }))), 
+              React.createElement("div", { style: styles.calculated }, 
+                React.createElement("div", { style: { ...styles.label, marginBottom: "8px", color: "#68d391" } }, "Elapsed (Auto)"), 
+                React.createElement("div", { style: styles.grid2 }, 
+                  React.createElement("div", { style: { textAlign: "center", fontSize: "18px", fontWeight: "700" } }, calculated.tachElapsed || "—"), 
+                  React.createElement("div", { style: { textAlign: "center", fontSize: "18px", fontWeight: "700" } }, calculated.hobbsElapsed || "—")))))), 
+        React.createElement("div", { style: styles.section }, 
+          React.createElement("div", { style: styles.sectionHeader }, "🛫 Flight Times (UTC)"), 
+          React.createElement("div", { style: styles.sectionBody }, 
+            React.createElement("div", { style: styles.fieldGroup }, 
+              [{ key: "takeoffTime", label: "★ Takeoff" }, { key: "enteredSearchArea", label: "★▼ Entered Search" }, { key: "departedSearchArea", label: "★▼ Departed Search" }, { key: "landingTime", label: "★ Landing" }].map(({ key, label }) => 
+                React.createElement("div", { key, style: styles.field }, 
+                  React.createElement("label", { style: styles.label }, label), 
+                  React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, 
+                    React.createElement("input", { style: { ...styles.input, flex: 1, fontFamily: "monospace" }, type: "text", placeholder: "DDMMMYYYY HHMMZ", value: times[key], onChange: (e) => setTimes({ ...times, [key]: e.target.value.toUpperCase() }) }), 
+                    React.createElement("button", { style: styles.timeButton, onClick: () => setTimes({ ...times, [key]: getZuluDateTime() }) }, "NOW")))),
+              React.createElement("div", { style: styles.calculated }, 
+                React.createElement("div", { style: styles.grid2 }, 
+                  React.createElement("div", null, 
+                    React.createElement("div", { style: { ...styles.label, color: "#68d391" } }, "Search Time"), 
+                    React.createElement("div", { style: { fontSize: "18px", fontWeight: "700" } }, calculated.searchTime ? calculated.searchTime + " hrs" : "—")), 
+                  React.createElement("div", null, 
+                    React.createElement("div", { style: { ...styles.label, color: "#68d391" } }, "Enroute"), 
+                    React.createElement("div", { style: { fontSize: "18px", fontWeight: "700" } }, calculated.enrouteTime ? calculated.enrouteTime + " hrs" : "—"))))))), 
+        React.createElement("div", { style: styles.section }, 
+          React.createElement("div", { style: styles.sectionHeader }, "⛽ Fuel & Oil"), 
+          React.createElement("div", { style: styles.sectionBody }, 
+            React.createElement("div", { style: styles.grid3 }, 
+              React.createElement("div", { style: styles.field }, 
+                React.createElement("label", { style: styles.label }, "Fuel (gal)"), 
+                React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.fuelGallons, onChange: (e) => setFuelOil({ ...fuelOil, fuelGallons: e.target.value }) })), 
+              React.createElement("div", { style: styles.field }, 
+                React.createElement("label", { style: styles.label }, "Cost ($)"), 
+                React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.fuelCost, onChange: (e) => setFuelOil({ ...fuelOil, fuelCost: e.target.value }) })), 
+              React.createElement("div", { style: styles.field }, 
+                React.createElement("label", { style: styles.label }, "Oil (qt)"), 
+                React.createElement("input", { style: styles.input, type: "text", inputMode: "decimal", value: fuelOil.oilQt, onChange: (e) => setFuelOil({ ...fuelOil, oilQt: e.target.value }) }))))));
+    };
     const renderEventsTab = () => {
       const primaryEventTypes = [
         { value: "Engine Start", label: "🔑 ENG START", color: "#38a169" },
@@ -5643,15 +6150,47 @@ React.createElement(
                     React.createElement("div", { style: { color: "#ed8936", fontWeight: "700" }}, eltResult.area90SizeNm2, " NM²")
                   )
                 ),
-                React.createElement("div", { style: { marginTop: "12px", display: "flex", gap: "8px" }},
+                React.createElement("div", { style: { marginTop: "12px", display: "flex", gap: "8px", flexWrap: "wrap" }},
                   React.createElement("button", {
-                    style: { ...styles.button, flex: 1 },
+                    style: { ...styles.button, flex: 1, minWidth: "140px" },
                     onClick: logSolutionToEvents
                   }, "📋 LOG TO EVENTS"),
                   React.createElement("button", {
-                    style: { ...styles.button, flex: 1, background: "linear-gradient(135deg, #38a169, #2f855a)" },
+                    style: { ...styles.button, flex: 1, minWidth: "140px", background: "linear-gradient(135deg, #38a169, #2f855a)" },
                     onClick: () => window.open(`https://www.openstreetmap.org/?mlat=${eltResult.centroid.lat}&mlon=${eltResult.centroid.lon}&zoom=14`, '_blank')
                   }, "🗺️ VIEW MAP")
+                ),
+                React.createElement("div", { style: { marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }},
+                  React.createElement("button", {
+                    style: { ...styles.button, flex: 1, minWidth: "140px", background: "linear-gradient(135deg, #805ad5, #6b46c1)" },
+                    onClick: () => {
+                      const coordStr = eltResult.centroid.lat.toFixed(6) + ", " + eltResult.centroid.lon.toFixed(6);
+                      const parsed = spParseCoordinate(coordStr);
+                      setSpState(s => ({ 
+                        ...s, 
+                        poiInput: coordStr, 
+                        poi: parsed, 
+                        detectedGrid: parsed ? spDetectCapGrid(parsed.latDD, parsed.lonDD) : null,
+                        patternType: 'expandingSquare'
+                      }));
+                      setActiveTab("searchPlanner");
+                    }
+                  }, "🌀 EXPANDING SQ"),
+                  React.createElement("button", {
+                    style: { ...styles.button, flex: 1, minWidth: "140px", background: "linear-gradient(135deg, #d69e2e, #b7791f)" },
+                    onClick: () => {
+                      const coordStr = eltResult.centroid.lat.toFixed(6) + ", " + eltResult.centroid.lon.toFixed(6);
+                      const parsed = spParseCoordinate(coordStr);
+                      setSpState(s => ({ 
+                        ...s, 
+                        poiInput: coordStr, 
+                        poi: parsed, 
+                        detectedGrid: parsed ? spDetectCapGrid(parsed.latDD, parsed.lonDD) : null,
+                        patternType: 'poiCenteredParallel'
+                      }));
+                      setActiveTab("searchPlanner");
+                    }
+                  }, "🎯 POI PARALLEL")
                 )
               ),
               // Warning
@@ -6447,7 +6986,7 @@ React.createElement(
       const handlePoiChange = (v) => { const p = spParseCoordinate(v); setSpState(s => ({ ...s, poiInput: v, poi: p, detectedGrid: p ? spDetectCapGrid(p.latDD, p.lonDD) : null })); };
       
       const generate = () => {
-        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide } = spState;
+        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading } = spState;
         if (!poi) { alert('Enter valid POI'); return; }
         let plan;
         if (spState.patternType === 'gridParallelTrack') {
@@ -6456,6 +6995,8 @@ React.createElement(
         } else if (spState.patternType === 'creepingLine') {
           if (!detectedGrid) { alert('Could not detect CAP grid for this location'); return; }
           plan = spGenCreepingLine({ poi, gridInfo: detectedGrid, spacing, direction: clDirection, startSide: clStartSide, groundspeed });
+        } else if (spState.patternType === 'poiCenteredParallel') {
+          plan = spGenPoiCenteredParallel({ poi, spacing, numTracks: poiNumTracks, trackLength: poiTrackLength, heading: poiHeading, groundspeed });
         } else {
           plan = spGenExpandingSquare({ poi, spacing, initialHeading, turnDirection, numLegs, groundspeed });
         }
@@ -6473,7 +7014,7 @@ React.createElement(
       const setClDir = (d) => setSpState(s => ({ ...s, clDirection: d }));
       const setClSide = (side) => setSpState(s => ({ ...s, clStartSide: side }));
       
-      const { poi, detectedGrid, lastPlan, patternType, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, showMap: sm } = spState;
+      const { poi, detectedGrid, lastPlan, patternType, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, showMap: sm } = spState;
       const dims = detectedGrid ? spCalcGridDims(detectedGrid.corners) : null;
       
       const patternBtnStyle = (active) => ({ 
@@ -6508,7 +7049,29 @@ React.createElement(
         // POI Input
         React.createElement("div", { style: styles.formGroup }, 
           React.createElement("label", { style: styles.label }, "Point of Interest (POI)"), 
-          React.createElement("input", { type: "text", style: styles.input, placeholder: "39.873417, -104.936859", value: spState.poiInput, onChange: e => handlePoiChange(e.target.value) }), 
+          React.createElement("div", { style: { display: "flex", gap: "8px" } },
+            React.createElement("input", { type: "text", style: { ...styles.input, flex: 1 }, placeholder: "39.873417, -104.936859", value: spState.poiInput, onChange: e => handlePoiChange(e.target.value) }),
+            React.createElement("button", { 
+              style: { ...styles.button, padding: "12px 16px", minWidth: "50px", background: "linear-gradient(135deg, #38a169, #2f855a)" }, 
+              onClick: () => {
+                if (navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                      const lat = position.coords.latitude.toFixed(6);
+                      const lon = position.coords.longitude.toFixed(6);
+                      handlePoiChange(lat + ", " + lon);
+                    },
+                    (error) => {
+                      alert("GPS Error: " + error.message);
+                    },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                  );
+                } else {
+                  alert("GPS not available on this device");
+                }
+              }
+            }, "📍")
+          ),
           poi && React.createElement("div", { style: { color: "#68d391", fontSize: "0.85em", marginTop: "5px" } }, "✓ " + spFormatCoordDDM(poi.latDD, poi.lonDD))
         ),
         
@@ -6525,10 +7088,11 @@ React.createElement(
         // Pattern Type Buttons
         React.createElement("div", { style: { marginBottom: "15px" } },
           React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Search Pattern Type"),
-          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" } },
-            React.createElement("button", { style: patternBtnStyle(patternType === 'gridParallelTrack'), onClick: () => setPattern('gridParallelTrack') }, "⬛ Parallel Track", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Quarter Grid")),
-            React.createElement("button", { style: patternBtnStyle(patternType === 'creepingLine'), onClick: () => setPattern('creepingLine') }, "〰️ Creeping Line", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Route/Corridor")),
-            React.createElement("button", { style: patternBtnStyle(patternType === 'expandingSquare'), onClick: () => setPattern('expandingSquare') }, "🌀 Expanding Sq", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Point Source"))
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" } },
+            React.createElement("button", { style: patternBtnStyle(patternType === 'gridParallelTrack'), onClick: () => setPattern('gridParallelTrack') }, "⬛ Grid Parallel", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Quarter Grid")),
+            React.createElement("button", { style: patternBtnStyle(patternType === 'poiCenteredParallel'), onClick: () => setPattern('poiCenteredParallel') }, "🎯 POI Parallel", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Centered on POI")),
+            React.createElement("button", { style: patternBtnStyle(patternType === 'expandingSquare'), onClick: () => setPattern('expandingSquare') }, "🌀 Expanding Sq", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Point Source")),
+            React.createElement("button", { style: patternBtnStyle(patternType === 'creepingLine'), onClick: () => setPattern('creepingLine') }, "〰️ Creeping Line", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Route/Corridor"))
           )
         ),
         
@@ -6541,6 +7105,27 @@ React.createElement(
           React.createElement("div", { style: styles.formGroup }, 
             React.createElement("label", { style: styles.label }, "Groundspeed (kts)"), 
             React.createElement("input", { type: "number", style: styles.input, value: groundspeed, min: "60", step: "5", onChange: e => setSpState(s => ({ ...s, groundspeed: parseInt(e.target.value) || 120 })) })
+          )
+        ),
+        
+        // POI-Centered Parallel Options
+        patternType === 'poiCenteredParallel' && React.createElement("div", { style: { marginBottom: "15px" } },
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "10px" } },
+            React.createElement("div", { style: styles.formGroup },
+              React.createElement("label", { style: styles.label }, "# Tracks"),
+              React.createElement("input", { type: "number", style: styles.input, value: poiNumTracks, min: "2", max: "20", onChange: e => setSpState(s => ({ ...s, poiNumTracks: parseInt(e.target.value) || 6 })) })
+            ),
+            React.createElement("div", { style: styles.formGroup },
+              React.createElement("label", { style: styles.label }, "Track Len (NM)"),
+              React.createElement("input", { type: "number", style: styles.input, value: poiTrackLength, min: "0.5", step: "0.5", onChange: e => setSpState(s => ({ ...s, poiTrackLength: parseFloat(e.target.value) || 3 })) })
+            ),
+            React.createElement("div", { style: styles.formGroup },
+              React.createElement("label", { style: styles.label }, "Heading (°)"),
+              React.createElement("input", { type: "number", style: styles.input, value: poiHeading, min: "0", max: "359", onChange: e => setSpState(s => ({ ...s, poiHeading: parseInt(e.target.value) || 0 })) })
+            )
+          ),
+          React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", background: "rgba(0,0,0,0.2)", padding: "8px", borderRadius: "6px" } },
+            "Creates parallel tracks centered on POI. Coverage: ~", (poiNumTracks && spacing ? (poiNumTracks * spacing).toFixed(1) : "?"), " × ", poiTrackLength || "?", " NM"
           )
         ),
         
@@ -6599,7 +7184,7 @@ React.createElement(
               React.createElement("div", null, "Tracks: ", React.createElement("strong", null, lastPlan.summary.numTracks || lastPlan.summary.numLegs)), 
               React.createElement("div", null, "Dist: ", React.createElement("strong", null, lastPlan.summary.totalDistance.toFixed(1) + " NM")), 
               React.createElement("div", null, "Time: ", React.createElement("strong", null, lastPlan.summary.timeMinutes.toFixed(0) + " min")), 
-              lastPlan.coverage && React.createElement("div", null, "Eff: ", React.createElement("strong", null, lastPlan.coverage.efficiency.toFixed(1) + "%"))
+              lastPlan.coverage && lastPlan.coverage.efficiency !== undefined && React.createElement("div", null, "Eff: ", React.createElement("strong", null, lastPlan.coverage.efficiency.toFixed(1) + "%"))
             )
           ), 
           
@@ -6794,7 +7379,7 @@ const tabs = [
       tab.icon,
       " ",
       tab.label
-    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear All"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #38a169, #2f855a)" }, onClick: copyLogToClipboard }, "\u{1F4CB} Copy"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")));
+    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: () => setShowShareModal(true) }, "\u{1F4E4} Share"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")), renderShareModal());
   };
   ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(CAPObserverLog, null));
 })();
