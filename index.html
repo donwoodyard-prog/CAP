@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0c1929">
-  <meta name="description" content="CAP Mission Observer Log - Civil Air Patrol flight logging tool">
+  <meta name="description" content="Mission Aircrew Toolkit (MAT) - Civil Air Patrol flight operations tool">
   <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiQ0FQIE9ic2VydmVyIExvZyIsInNob3J0X25hbWUiOiJDQVAgTG9nIiwic3RhcnRfdXJsIjoiLiIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiMwYzE5MjkiLCJ0aGVtZV9jb2xvciI6IiMwYzE5MjkiLCJpY29ucyI6W3sic3JjIjoiZGF0YTppbWFnZS9zdmcreG1sLDxzdmcgeG1sbnM9J2h0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJyB2aWV3Qm94PScwIDAgMTAwIDEwMCc+PGNpcmNsZSBjeD0nNTAnIGN5PSc1MCcgcj0nNDUnIGZpbGw9JyVjNTMwMzAnLz48dGV4dCB4PSc1MCcgeT0nNjUnIGZvbnQtc2l6ZT0nMzAnIHRleHQtYW5jaG9yPSdtaWRkbGUnIGZpbGw9J3doaXRlJz5DQVA8L3RleHQ+PC9zdmc+Iiwic2l6ZXMiOiI5Nng5NiIsInR5cGUiOiJpbWFnZS9zdmcreG1sIn1dfQ==">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23c53030'/><text x='50' y='65' font-size='30' text-anchor='middle' fill='white'>CAP</text></svg>">
-  <title>CAP Observer Log</title>
+  <title>Mission Aircrew Toolkit</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
@@ -2716,6 +2716,25 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     const [eltDiagramZoom, setEltDiagramZoom] = useState(1.0); // Zoom level for diagram (1.0 = fit all, higher = zoom in)
     const [showG1000Instructions, setShowG1000Instructions] = useState(false); // G1000 SAR programming guide
     const eltMapRef = React.useRef(null);
+    
+    // Search Probability Model state
+    const [adsbTrack, setAdsbTrack] = useState(null); // ADS-B flight track data
+    const [sarsatPings, setSarsatPings] = useState([]); // SARSAT ping locations with error radii
+    const [searchProbModel, setSearchProbModel] = useState(null); // Computed probability zones
+    const [probModelSettings, setProbModelSettings] = useState({
+      maxGlideRatio: 12,        // Best glide ratio (typical light aircraft 8-12)
+      maxFlightTime: 15,        // Max minutes after last contact
+      avgGroundspeed: 100,      // Average groundspeed in knots
+      altitudeAGL: 1000,        // Assumed AGL for glide calculations
+      terrainBuffer: 500,       // Terrain clearance buffer in feet
+      pingWeightRecent: 1.0,    // Weight for recent pings
+      pingWeightOld: 0.5,       // Weight for older pings
+      showHighProb: true,
+      showMedProb: true,
+      showLowProb: true
+    });
+    const [showProbModel, setShowProbModel] = useState(false);
+    
     const [eltSettings, setEltSettings] = useState({
       r10: 0.5,           // NM at strength 10
       k: 2,               // range growth factor
@@ -4517,7 +4536,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
       const escHtml = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
 const escNl = (s) => escHtml(s).replace(/\n/g,"<br>");
 printWindow.document.write(`
-          <!DOCTYPE html><html><head><title>MISSION Observer Log - ${missionInfo.missionNumber || "Mission"}</title>
+          <!DOCTYPE html><html><head><title>Mission Aircrew Toolkit - ${missionInfo.missionNumber || "Mission"}</title>
           <style>
             @page { size: letter landscape; margin: 0.5in; }
             body { font-family: 'Courier New', monospace; font-size: 10pt; color: #000; background: #fff; }
@@ -4546,7 +4565,7 @@ printWindow.document.write(`
     .sp-coverage { background: rgba(56,161,105,0.15); border: 1px solid rgba(56,161,105,0.4); border-radius: 8px; padding: 12px; margin: 10px 0; }
   </style>
 </head><body>
-            <div class="header"><div class="cap-logo">CAP</div><div><div class="title">MISSION Observer Log</div><div>Civil Air Patrol - U.S. Air Force Auxiliary</div></div></div>
+            <div class="header"><img src="https://www.gocivilairpatrol.com/local/public/shared/assets/images/websites/CAP-2017-logo-horizontal-optimized-d73f31575f10142a77f0888cdfb36256.png" alt="CAP" style="height: 50px; margin-right: 15px;"><div><div class="title">Mission Aircrew Toolkit</div><div>Civil Air Patrol - U.S. Air Force Auxiliary</div></div></div>
             <div class="two-column"><div>
               <div class="section"><div class="section-title">Mission Information</div><div class="grid grid-2">
                 <div class="field"><span class="label">Mission #:</span> <span class="value">${missionInfo.missionNumber}</span></div>
@@ -4613,7 +4632,7 @@ ${events.map((e) => `
   </tr>
 `).join("")}
 </table></div>
-            <div style="margin-top: 20px; font-size: 8pt; text-align: center; color: #666;">Generated: ${(/* @__PURE__ */ new Date()).toISOString()} | MISSION Observer Log</div>
+            <div style="margin-top: 20px; font-size: 8pt; text-align: center; color: #666;">Generated: ${(/* @__PURE__ */ new Date()).toISOString()} | Mission Aircrew Toolkit (MAT)</div>
           </body></html>`);
       printWindow.document.close();
       printWindow.focus();
@@ -5293,9 +5312,14 @@ Events: ${events.length}`;
       };
       
       return React.createElement("div", { style: homeStyles.container },
-        // Welcome header
+        // Welcome header with CAP logo
         React.createElement("div", { style: homeStyles.welcome },
-          React.createElement("div", { style: homeStyles.welcomeTitle }, "CAP Observer Log"),
+          React.createElement("img", { 
+            src: "https://www.gocivilairpatrol.com/local/public/shared/assets/images/websites/CAP-2017-logo-horizontal-optimized-d73f31575f10142a77f0888cdfb36256.png", 
+            alt: "Civil Air Patrol",
+            style: { height: "50px", marginBottom: "12px", objectFit: "contain" }
+          }),
+          React.createElement("div", { style: homeStyles.welcomeTitle }, "Mission Aircrew Toolkit"),
           React.createElement("div", { style: homeStyles.welcomeSub }, 
             "Mission: ", missionInfo.missionNumber || "Not Set", " • ", zuluClock, "Z"
           )
@@ -5353,7 +5377,7 @@ Events: ${events.length}`;
         
         // Version info
         React.createElement("div", { style: { textAlign: "center", marginTop: "24px", fontSize: ts("10"), color: "#718096" }},
-          "CAP Observer Log v3.0 • Civil Air Patrol"
+          "Mission Aircrew Toolkit (MAT) v3.0 • Civil Air Patrol"
         )
       );
     };
@@ -6509,13 +6533,122 @@ React.createElement(
         }
       };
       
-      // File input handler
-      const handleFileImport = (e) => {
+      // Import ADS-B track from FlightAware KML
+      const importAdsbTrack = async (file) => {
+        try {
+          const kmlText = await file.text();
+          const parser = new DOMParser();
+          const kml = parser.parseFromString(kmlText, 'text/xml');
+          
+          // Find gx:Track element
+          const track = kml.querySelector('Track') || kml.getElementsByTagName('gx:Track')[0];
+          if (!track) {
+            alert('No flight track found in KML file');
+            return;
+          }
+          
+          // Extract timestamps
+          const whenElements = track.querySelectorAll('when') || track.getElementsByTagName('when');
+          const times = Array.from(whenElements).map(w => w.textContent.trim());
+          
+          // Extract coordinates (gx:coord format: lon lat alt)
+          const coordElements = track.querySelectorAll('coord') || track.getElementsByTagName('gx:coord');
+          const coords = Array.from(coordElements).map(c => {
+            const parts = c.textContent.trim().split(/\s+/);
+            return {
+              lon: parseFloat(parts[0]),
+              lat: parseFloat(parts[1]),
+              alt: parseFloat(parts[2]) || 0
+            };
+          });
+          
+          if (coords.length === 0) {
+            alert('No track coordinates found in file');
+            return;
+          }
+          
+          // Get aircraft ID from Placemark name
+          const placemarkName = kml.querySelector('Placemark n, Placemark name');
+          const aircraftId = placemarkName ? placemarkName.textContent.trim() : 'Unknown';
+          
+          // Get departure airport
+          const depPlacemark = Array.from(kml.querySelectorAll('Placemark')).find(p => {
+            const name = p.querySelector('n, name');
+            return name && name.textContent.includes('Airport') && !name.textContent.includes('INVALID');
+          });
+          const departureAirport = depPlacemark ? depPlacemark.querySelector('n, name').textContent.replace(' Airport', '') : '';
+          
+          // Build track data
+          const trackData = {
+            aircraftId,
+            departureAirport,
+            importTime: new Date().toISOString(),
+            points: coords.map((c, i) => ({
+              time: times[i] || '',
+              lat: c.lat,
+              lon: c.lon,
+              altM: c.alt,
+              altFt: Math.round(c.alt * 3.28084)
+            }))
+          };
+          
+          // Calculate last known heading and speed
+          if (trackData.points.length >= 2) {
+            const p1 = trackData.points[trackData.points.length - 2];
+            const p2 = trackData.points[trackData.points.length - 1];
+            
+            // Calculate bearing
+            const lat1 = p1.lat * Math.PI / 180;
+            const lat2 = p2.lat * Math.PI / 180;
+            const dLon = (p2.lon - p1.lon) * Math.PI / 180;
+            const y = Math.sin(dLon) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+            trackData.lastHeading = ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+            
+            // Calculate groundspeed
+            if (p1.time && p2.time) {
+              const t1 = new Date(p1.time);
+              const t2 = new Date(p2.time);
+              const dtHours = (t2 - t1) / 3600000;
+              
+              // Haversine distance
+              const R = 3440.065; // NM
+              const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+              const a = Math.sin(dLat/2)**2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2)**2;
+              const dist = 2 * R * Math.asin(Math.sqrt(a));
+              
+              trackData.lastGroundspeed = dtHours > 0 ? Math.round(dist / dtHours) : 0;
+            }
+            
+            trackData.lastPosition = p2;
+            trackData.lastTime = p2.time;
+          }
+          
+          setAdsbTrack(trackData);
+          alert(`Imported ADS-B track: ${aircraftId}\n${trackData.points.length} position reports\nLast position: ${trackData.lastPosition?.lat.toFixed(4)}°N, ${Math.abs(trackData.lastPosition?.lon).toFixed(4)}°W\nLast heading: ${trackData.lastHeading?.toFixed(0)}°\nGroundspeed: ${trackData.lastGroundspeed} kts`);
+          
+        } catch (err) {
+          console.error('ADS-B import error:', err);
+          alert('Error importing ADS-B file: ' + err.message);
+        }
+      };
+      
+      // Specific handler for SARSAT files
+      const handleSarsatImport = (e) => {
         const file = e.target.files[0];
         if (file) {
           importKmlKmz(file);
         }
-        e.target.value = ''; // Reset for re-import
+        e.target.value = '';
+      };
+      
+      // Specific handler for ADS-B files
+      const handleAdsbImport = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          importAdsbTrack(file);
+        }
+        e.target.value = '';
       };
       
       // Helper to create observation
@@ -6987,8 +7120,13 @@ React.createElement(
       // Compute probable area
       const computeProbableArea = () => {
         const activeObs = eltObservations.filter(o => o.useInCalc);
-        if (activeObs.length < 2) {
-          alert('Need at least 2 observations to compute probable area');
+        
+        // Check if we have ANY data to work with
+        const hasAdsb = adsbTrack && adsbTrack.lastPosition;
+        const hasObs = activeObs.length > 0;
+        
+        if (!hasAdsb && activeObs.length < 2) {
+          alert('Need at least 2 observations OR ADS-B track data to compute probable area');
           return;
         }
 
@@ -7006,6 +7144,45 @@ React.createElement(
         }));
         
         // ========================================
+        // ADS-B TRACK INTEGRATION
+        // ========================================
+        // If we have ADS-B data, use it to constrain the search area
+        let adsbConstraint = null;
+        if (hasAdsb) {
+          const lastPos = adsbTrack.lastPosition;
+          const lastHdg = adsbTrack.lastHeading || 0;
+          const lastSpd = adsbTrack.lastGroundspeed || probModelSettings.avgGroundspeed || 100;
+          const lastAlt = lastPos.altFt || 7000;
+          
+          // Calculate maximum possible range from last known position
+          // Based on: max flight time at last speed + glide range from altitude
+          const maxFlightTimeMin = probModelSettings.maxFlightTime || 15;
+          const glideRatio = probModelSettings.maxGlideRatio || 12;
+          
+          const poweredRangeNm = lastSpd * (maxFlightTimeMin / 60);
+          const glideRangeNm = (lastAlt / 6076) * glideRatio; // ft to NM * glide ratio
+          const maxRangeNm = Math.max(poweredRangeNm, glideRangeNm);
+          
+          // Project probable center along last heading (50% of max range)
+          const projDistNm = poweredRangeNm * 0.3;
+          const projLat = lastPos.lat + (projDistNm / 60) * Math.cos(lastHdg * Math.PI / 180);
+          const projLon = lastPos.lon + (projDistNm / 60) * Math.sin(lastHdg * Math.PI / 180) / Math.cos(lastPos.lat * Math.PI / 180);
+          
+          adsbConstraint = {
+            lastLat: lastPos.lat,
+            lastLon: lastPos.lon,
+            lastAlt: lastAlt,
+            lastHdg: lastHdg,
+            lastSpd: lastSpd,
+            maxRangeNm: maxRangeNm,
+            projLat: projLat,
+            projLon: projLon,
+            poweredRangeNm: poweredRangeNm,
+            glideRangeNm: glideRangeNm
+          };
+        }
+        
+        // ========================================
         // SARSAT-SPECIFIC WEIGHTING (1/error²)
         // ========================================
         // For SARSAT data, use inverse square of error radius for weighting
@@ -7014,7 +7191,7 @@ React.createElement(
         
         let sarsatWeightedCentroid = null;
         if (hasSarsatData) {
-          const sarsatObs = obsData.filter(o => o.source === 'sarsat' && o.directRange !== null && o.directRange <= 10);
+          const sarsatObs = obsData.filter(o => o.source === 'sarsat' && o.directRange !== null && o.directRange <= 15);
           if (sarsatObs.length >= 2) {
             let totalWeight = 0;
             let wLat = 0, wLon = 0;
@@ -7027,7 +7204,8 @@ React.createElement(
             sarsatWeightedCentroid = {
               lat: wLat / totalWeight,
               lon: wLon / totalWeight,
-              obsCount: sarsatObs.length
+              obsCount: sarsatObs.length,
+              minError: Math.min(...sarsatObs.map(o => o.directRange))
             };
           }
         }
@@ -7039,20 +7217,39 @@ React.createElement(
         const obsCount = obsData.length;
         const dfCount = obsData.filter(o => o.bearing !== null).length;
         const directRangeCount = obsData.filter(o => o.directRange !== null).length;
-        const dfRatio = dfCount / obsCount;
+        const dfRatio = obsCount > 0 ? dfCount / obsCount : 0;
         
         // Calculate geographic spread of observations (are they well distributed?)
-        const lats = obsData.map(o => o.lat);
-        const lons = obsData.map(o => o.lon);
-        const latSpread = (Math.max(...lats) - Math.min(...lats)) * 60; // NM
-        const lonSpread = (Math.max(...lons) - Math.min(...lons)) * 60 * Math.cos((Math.min(...lats) + Math.max(...lats)) / 2 * Math.PI / 180);
+        let lats = obsData.map(o => o.lat);
+        let lons = obsData.map(o => o.lon);
+        
+        // Include ADS-B and SARSAT centroid in bounds calculation
+        if (adsbConstraint) {
+          lats.push(adsbConstraint.lastLat, adsbConstraint.projLat);
+          lons.push(adsbConstraint.lastLon, adsbConstraint.projLon);
+        }
+        if (sarsatWeightedCentroid) {
+          lats.push(sarsatWeightedCentroid.lat);
+          lons.push(sarsatWeightedCentroid.lon);
+        }
+        
+        // Handle case where we only have ADS-B data
+        if (lats.length === 0 && adsbConstraint) {
+          lats = [adsbConstraint.lastLat, adsbConstraint.projLat];
+          lons = [adsbConstraint.lastLon, adsbConstraint.projLon];
+        }
+        
+        const latSpread = lats.length > 1 ? (Math.max(...lats) - Math.min(...lats)) * 60 : 10; // NM
+        const lonSpread = lons.length > 1 ? (Math.max(...lons) - Math.min(...lons)) * 60 * Math.cos((Math.min(...lats) + Math.max(...lats)) / 2 * Math.PI / 180) : 10;
         const geoSpread = Math.sqrt(latSpread * latSpread + lonSpread * lonSpread);
         
-        // Data quality score (0-100)
+        // Data quality score (0-100) - enhanced for multi-source
         let qualityScore = 0;
-        qualityScore += Math.min(obsCount * 10, 40);  // Up to 40 pts for observation count (4+ obs)
-        qualityScore += dfRatio * 40;                  // Up to 40 pts for DF bearing coverage
-        qualityScore += Math.min(geoSpread / 10 * 20, 20); // Up to 20 pts for geographic spread
+        qualityScore += Math.min(obsCount * 8, 30);  // Up to 30 pts for observation count
+        qualityScore += dfRatio * 25;                 // Up to 25 pts for DF bearing coverage
+        qualityScore += Math.min(geoSpread / 10 * 15, 15); // Up to 15 pts for geographic spread
+        qualityScore += hasAdsb ? 15 : 0;             // 15 pts for ADS-B data
+        qualityScore += hasSarsatData ? 15 : 0;       // 15 pts for SARSAT data
         
         // Determine uncertainty multiplier based on mode
         let uncertaintyPct, uncertaintyMin;
@@ -7101,7 +7298,7 @@ React.createElement(
           o.directRange !== null ? o.directRange :
           eltSettings.r10 * Math.pow(2, (10 - o.strength) / eltSettings.k)
         );
-        const maxR0 = Math.max(...expectedRanges);
+        const maxR0 = expectedRanges.length > 0 ? Math.max(...expectedRanges) : (adsbConstraint ? adsbConstraint.maxRangeNm : 15);
 
         // ========================================
         // OUTLIER-ROBUST BOUNDS CALCULATION
@@ -7172,6 +7369,50 @@ React.createElement(
           for (let lon = bounds.minLon; lon <= bounds.maxLon; lon += lonStep) {
             let logL = 0;
             
+            // ========================================
+            // ADS-B CONSTRAINT LIKELIHOOD
+            // ========================================
+            if (adsbConstraint) {
+              // Calculate distance from last known ADS-B position
+              const dLatAdsb = (lat - adsbConstraint.lastLat) * 60;
+              const dLonAdsb = (lon - adsbConstraint.lastLon) * 60 * Math.cos(adsbConstraint.lastLat * Math.PI / 180);
+              const distFromAdsb = Math.sqrt(dLatAdsb * dLatAdsb + dLonAdsb * dLonAdsb);
+              
+              // Hard constraint: must be within max range
+              if (distFromAdsb > adsbConstraint.maxRangeNm * 1.2) {
+                logL = -1000; // Effectively zero probability
+              } else {
+                // Soft constraint: favor locations along projected heading
+                const bearingFromAdsb = Math.atan2(dLonAdsb, dLatAdsb) * 180 / Math.PI;
+                const normBearing = ((bearingFromAdsb % 360) + 360) % 360;
+                let dHeading = normBearing - adsbConstraint.lastHdg;
+                if (dHeading > 180) dHeading -= 360;
+                if (dHeading < -180) dHeading += 360;
+                
+                // Likelihood based on heading deviation (wider cone = more uncertainty)
+                // Allow for turns up to 90 degrees with decreasing probability
+                const headingSigma = 45; // degrees - allows for reasonable turns
+                const lHeading = -0.5 * Math.pow(dHeading / headingSigma, 2);
+                
+                // Likelihood based on distance (favor mid-range, not too close or too far)
+                const expectedDist = adsbConstraint.poweredRangeNm * 0.4; // Expected ~40% of max range
+                const distSigma = adsbConstraint.poweredRangeNm * 0.4;
+                const lDist = -0.5 * Math.pow((distFromAdsb - expectedDist) / distSigma, 2);
+                
+                // Weight ADS-B constraint (strong but not overwhelming)
+                logL += (lHeading + lDist) * 0.5;
+              }
+            }
+            
+            // Skip if already ruled out by ADS-B
+            if (logL < -500) {
+              grid.push({ lat, lon, logL });
+              continue;
+            }
+            
+            // ========================================
+            // OBSERVATION-BASED LIKELIHOOD
+            // ========================================
             for (const obs of obsData) {
               const dLat = (lat - obs.lat) * 60;
               const dLon = (lon - obs.lon) * 60 * Math.cos(obs.lat * Math.PI / 180);
@@ -7280,6 +7521,17 @@ React.createElement(
             lonDeg: centLonDdm.deg,
             lonMin: centLonDdm.min.toFixed(3)
           },
+          // ADS-B constraint data (if available)
+          adsbData: adsbConstraint ? {
+            aircraftId: adsbTrack.aircraftId,
+            lastLat: adsbConstraint.lastLat,
+            lastLon: adsbConstraint.lastLon,
+            lastAlt: adsbConstraint.lastAlt,
+            lastHdg: adsbConstraint.lastHdg,
+            lastSpd: adsbConstraint.lastSpd,
+            maxRangeNm: adsbConstraint.maxRangeNm,
+            lastTime: adsbTrack.lastTime
+          } : null,
           // SARSAT-specific weighted centroid (if available)
           sarsatCentroid: sarsatWeightedCentroid ? {
             lat: sarsatWeightedCentroid.lat,
@@ -7288,7 +7540,8 @@ React.createElement(
             latMin: gpsUtils.ddToDdm(sarsatWeightedCentroid.lat).min.toFixed(3),
             lonDeg: gpsUtils.ddToDdm(Math.abs(sarsatWeightedCentroid.lon)).deg,
             lonMin: gpsUtils.ddToDdm(Math.abs(sarsatWeightedCentroid.lon)).min.toFixed(3),
-            obsCount: sarsatWeightedCentroid.obsCount
+            obsCount: sarsatWeightedCentroid.obsCount,
+            minError: sarsatWeightedCentroid.minError
           } : null,
           capGrid: capGrid.full,
           area50: area50,
@@ -7309,6 +7562,7 @@ React.createElement(
           observations: obsData,
           // Data source breakdown
           sourceBreakdown: {
+            adsb: adsbConstraint ? 1 : 0,
             sarsat: obsData.filter(o => o.source === 'sarsat').length,
             audio: obsData.filter(o => o.source === 'audio').length,
             df: obsData.filter(o => o.source === 'df').length,
@@ -7537,42 +7791,136 @@ React.createElement(
             }},
               React.createElement("p", { style: { margin: 0, fontSize: "12px", color: "#fbd38d", lineHeight: "1.5" }},
                 React.createElement("strong", null, "How to use: "),
-                "Add multiple observations (position + signal strength and/or DF bearing) while tracking the ELT. ",
-                "The tool calculates the most probable location. At least 2 observations required."
+                "Import available data sources (ADS-B track, SARSAT pings) and/or add manual observations. ",
+                "The Search Probability Model combines all available data to identify likely search areas."
               )
             ),
-            // Import KML/KMZ Section
+            
+            // DATA SOURCES PANEL
             React.createElement("div", { style: {
-              background: "rgba(99,179,237,0.1)",
+              background: "rgba(128,90,213,0.1)",
+              padding: "14px",
+              borderRadius: "10px",
+              marginBottom: "16px",
+              border: "2px solid rgba(128,90,213,0.4)"
+            }},
+              React.createElement("div", { style: { fontSize: "13px", color: "#b794f4", marginBottom: "12px", fontWeight: "700" }}, 
+                "🎯 SEARCH PROBABILITY MODEL - Data Sources"
+              ),
+              
+              // Data source status indicators
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }},
+                // ADS-B Status
+                React.createElement("div", { style: {
+                  padding: "10px",
+                  borderRadius: "8px",
+                  background: adsbTrack ? "rgba(56,161,105,0.2)" : "rgba(0,0,0,0.2)",
+                  border: adsbTrack ? "1px solid rgba(56,161,105,0.5)" : "1px solid rgba(255,255,255,0.1)"
+                }},
+                  React.createElement("div", { style: { fontSize: "10px", color: adsbTrack ? "#68d391" : "#718096", fontWeight: "600" }}, 
+                    adsbTrack ? "✓ ADS-B LOADED" : "○ ADS-B TRACK"
+                  ),
+                  adsbTrack && React.createElement("div", { style: { fontSize: "9px", color: "#a0aec0", marginTop: "4px" }},
+                    `${adsbTrack.aircraftId} • ${adsbTrack.points?.length || 0} pts`
+                  )
+                ),
+                // SARSAT Status
+                React.createElement("div", { style: {
+                  padding: "10px",
+                  borderRadius: "8px",
+                  background: eltObservations.some(o => o.source === 'sarsat') ? "rgba(56,161,105,0.2)" : "rgba(0,0,0,0.2)",
+                  border: eltObservations.some(o => o.source === 'sarsat') ? "1px solid rgba(56,161,105,0.5)" : "1px solid rgba(255,255,255,0.1)"
+                }},
+                  React.createElement("div", { style: { fontSize: "10px", color: eltObservations.some(o => o.source === 'sarsat') ? "#68d391" : "#718096", fontWeight: "600" }}, 
+                    eltObservations.some(o => o.source === 'sarsat') ? "✓ SARSAT LOADED" : "○ SARSAT PINGS"
+                  ),
+                  eltObservations.some(o => o.source === 'sarsat') && React.createElement("div", { style: { fontSize: "9px", color: "#a0aec0", marginTop: "4px" }},
+                    `${eltObservations.filter(o => o.source === 'sarsat').length} ping(s)`
+                  )
+                )
+              ),
+              
+              // Import buttons row
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }},
+                // ADS-B Import
+                React.createElement("div", null,
+                  React.createElement("input", {
+                    type: "file",
+                    accept: ".kml,.kmz",
+                    onChange: handleAdsbImport,
+                    style: { display: "none" },
+                    id: "adsb-import-input"
+                  }),
+                  React.createElement("label", {
+                    htmlFor: "adsb-import-input",
+                    style: {
+                      ...styles.button,
+                      display: "block",
+                      textAlign: "center",
+                      cursor: "pointer",
+                      background: "linear-gradient(135deg, #4299e1, #3182ce)",
+                      fontSize: "11px",
+                      padding: "10px"
+                    }
+                  }, "✈️ Import ADS-B Track")
+                ),
+                // SARSAT Import
+                React.createElement("div", null,
+                  React.createElement("input", {
+                    type: "file",
+                    accept: ".kml,.kmz",
+                    onChange: handleSarsatImport,
+                    style: { display: "none" },
+                    id: "sarsat-import-input"
+                  }),
+                  React.createElement("label", {
+                    htmlFor: "sarsat-import-input",
+                    style: {
+                      ...styles.button,
+                      display: "block",
+                      textAlign: "center",
+                      cursor: "pointer",
+                      background: "linear-gradient(135deg, #ed8936, #dd6b20)",
+                      fontSize: "11px",
+                      padding: "10px"
+                    }
+                  }, "📡 Import SARSAT Pings")
+                )
+              ),
+              
+              // Help text
+              React.createElement("div", { style: { fontSize: "9px", color: "#a0aec0", marginTop: "8px", textAlign: "center" }},
+                "Import ADS-B from FlightAware/ADS-B Exchange • SARSAT from USMCC KMZ"
+              )
+            ),
+            
+            // ADS-B Track Details (if loaded)
+            adsbTrack && React.createElement("div", { style: {
+              background: "rgba(66,153,225,0.1)",
               padding: "12px",
               borderRadius: "8px",
               marginBottom: "16px",
-              border: "1px solid rgba(99,179,237,0.3)"
+              border: "1px solid rgba(66,153,225,0.3)"
             }},
-              React.createElement("div", { style: { fontSize: "11px", color: "#63b3ed", marginBottom: "8px", fontWeight: "600" }}, 
-                "📥 IMPORT SARSAT/ATC DATA"
+              React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }},
+                React.createElement("div", { style: { fontSize: "12px", color: "#63b3ed", fontWeight: "600" }}, 
+                  `✈️ ADS-B: ${adsbTrack.aircraftId}`
+                ),
+                React.createElement("button", {
+                  style: { ...styles.button, padding: "4px 10px", fontSize: "10px", background: "rgba(255,100,100,0.3)" },
+                  onClick: () => setAdsbTrack(null)
+                }, "✕ Clear")
               ),
-              React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "10px" }},
-                "Import KML or KMZ file with ELT ping data from ATC or SARSAT"
-              ),
-              React.createElement("input", {
-                type: "file",
-                accept: ".kml,.kmz,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/xml,text/xml,*/*",
-                onChange: handleFileImport,
-                style: { display: "none" },
-                id: "kml-import-input"
-              }),
-              React.createElement("label", {
-                htmlFor: "kml-import-input",
-                style: {
-                  ...styles.button,
-                  display: "block",
-                  textAlign: "center",
-                  cursor: "pointer",
-                  background: "linear-gradient(135deg, #3182ce, #2b6cb0)"
-                }
-              }, "📂 SELECT KML/KMZ FILE")
+              React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0" }},
+                adsbTrack.departureAirport && `From: ${adsbTrack.departureAirport} • `,
+                `${adsbTrack.points?.length} position reports`,
+                React.createElement("br", null),
+                `Last: ${adsbTrack.lastPosition?.lat.toFixed(4)}°N, ${Math.abs(adsbTrack.lastPosition?.lon).toFixed(4)}°W @ ${adsbTrack.lastPosition?.altFt?.toLocaleString()} ft`,
+                React.createElement("br", null),
+                `Hdg: ${adsbTrack.lastHeading?.toFixed(0)}° • GS: ${adsbTrack.lastGroundspeed} kts • Time: ${adsbTrack.lastTime?.split('T')[1]?.replace('Z','')}`
+              )
             ),
+            
             // Add Observation Form
             React.createElement("div", { style: { 
               background: "rgba(0,0,0,0.2)", 
@@ -8193,8 +8541,58 @@ React.createElement(
                 React.createElement("div", { style: { fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "8px" }},
                   `N ${eltResult.centroid.latDeg}° ${eltResult.centroid.latMin}' W ${eltResult.centroid.lonDeg}° ${eltResult.centroid.lonMin}'`
                 ),
-                React.createElement("div", { style: { fontSize: "14px", color: "#fbd38d", marginBottom: "12px" }},
+                React.createElement("div", { style: { fontSize: "14px", color: "#fbd38d", marginBottom: "8px" }},
                   "CAP Grid: ", eltResult.capGrid
+                ),
+                // Data Sources Summary
+                React.createElement("div", { style: { 
+                  background: "rgba(128,90,213,0.2)", 
+                  padding: "8px 12px", 
+                  borderRadius: "6px", 
+                  marginBottom: "12px",
+                  fontSize: "11px",
+                  border: "1px solid rgba(128,90,213,0.4)"
+                }},
+                  React.createElement("span", { style: { color: "#b794f4", fontWeight: "600" }}, "Data Sources: "),
+                  React.createElement("span", { style: { color: "#e2e8f0" }},
+                    [
+                      eltResult.adsbData && `✈️ ADS-B (${eltResult.adsbData.aircraftId})`,
+                      eltResult.sourceBreakdown?.sarsat > 0 && `📡 SARSAT (${eltResult.sourceBreakdown.sarsat} pings)`,
+                      eltResult.sourceBreakdown?.audio > 0 && `🔊 Audio (${eltResult.sourceBreakdown.audio})`,
+                      eltResult.sourceBreakdown?.df > 0 && `🧭 DF (${eltResult.sourceBreakdown.df})`
+                    ].filter(Boolean).join(" • ") || "Manual observations only"
+                  )
+                ),
+                // ADS-B Last Known (if available)
+                eltResult.adsbData && React.createElement("div", { style: { 
+                  background: "rgba(66,153,225,0.15)", 
+                  padding: "8px 12px", 
+                  borderRadius: "6px", 
+                  marginBottom: "12px",
+                  fontSize: "10px",
+                  border: "1px solid rgba(66,153,225,0.3)"
+                }},
+                  React.createElement("div", { style: { color: "#63b3ed", fontWeight: "600", marginBottom: "4px" }}, "✈️ Last ADS-B Position"),
+                  React.createElement("div", { style: { color: "#a0aec0" }},
+                    `${eltResult.adsbData.lastLat?.toFixed(4)}°N, ${Math.abs(eltResult.adsbData.lastLon)?.toFixed(4)}°W @ ${eltResult.adsbData.lastAlt?.toLocaleString()} ft`,
+                    React.createElement("br", null),
+                    `Hdg: ${eltResult.adsbData.lastHdg?.toFixed(0)}° • GS: ${eltResult.adsbData.lastSpd} kts • Max Range: ${eltResult.adsbData.maxRangeNm?.toFixed(1)} NM`
+                  )
+                ),
+                // SARSAT Weighted Centroid (if available)
+                eltResult.sarsatCentroid && React.createElement("div", { style: { 
+                  background: "rgba(237,137,54,0.15)", 
+                  padding: "8px 12px", 
+                  borderRadius: "6px", 
+                  marginBottom: "12px",
+                  fontSize: "10px",
+                  border: "1px solid rgba(237,137,54,0.3)"
+                }},
+                  React.createElement("div", { style: { color: "#ed8936", fontWeight: "600", marginBottom: "4px" }}, "📡 SARSAT Weighted Center"),
+                  React.createElement("div", { style: { color: "#a0aec0" }},
+                    `N ${eltResult.sarsatCentroid.latDeg}° ${eltResult.sarsatCentroid.latMin}' W ${eltResult.sarsatCentroid.lonDeg}° ${eltResult.sarsatCentroid.lonMin}'`,
+                    ` (${eltResult.sarsatCentroid.obsCount} pings, min error: ${eltResult.sarsatCentroid.minError?.toFixed(1)} NM)`
+                  )
                 ),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "12px" }},
                   React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", padding: "8px", borderRadius: "6px" }},
@@ -10227,9 +10625,15 @@ const tabs = [
             title: "Go to Home Screen"
           }, "🏠"),
           /* @__PURE__ */ React.createElement("div", { style: { ...styles.logo, cursor: "pointer" }, onClick: () => setActiveTab("home") }, 
-            /* @__PURE__ */ React.createElement("div", { style: styles.logoCircle }, "CAP"), 
+            /* @__PURE__ */ React.createElement("img", { 
+              src: "https://www.gocivilairpatrol.com/local/public/shared/assets/images/websites/CAP-2017-logo-horizontal-optimized-d73f31575f10142a77f0888cdfb36256.png", 
+              alt: "Civil Air Patrol",
+              style: { height: "40px", maxWidth: "120px", objectFit: "contain" },
+              onError: (e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }
+            }),
+            /* @__PURE__ */ React.createElement("div", { style: { ...styles.logoCircle, display: "none" } }, "CAP"), 
             /* @__PURE__ */ React.createElement("div", null, 
-              /* @__PURE__ */ React.createElement("div", { style: styles.title }, "CAP Observer Log"), 
+              /* @__PURE__ */ React.createElement("div", { style: styles.title }, "Mission Aircrew Toolkit"), 
               /* @__PURE__ */ React.createElement("div", { style: styles.subtitle }, "CIVIL AIR PATROL")
             )
           )
