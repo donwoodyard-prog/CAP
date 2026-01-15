@@ -3597,20 +3597,40 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         setWeatherSource(null);
         
         try {
-          // Use AWC Text Data Server to find stations near the location
-          // First, get list of nearby METAR stations
-          const radius = 50; // Search within 50 nautical miles
+          // AWC API supports location-based queries
+          // Format: @lat,lon searches for stations near that point
+          const radius = 100; // Search within 100 statute miles
+          
+          // The AWC API endpoint for METAR data
           const metarUrl = `https://aviationweather.gov/api/data/metar?ids=@${lat.toFixed(4)},${lon.toFixed(4)}&distance=${radius}&format=json`;
           
-          const response = await fetch(metarUrl);
+          console.log('Fetching weather from:', metarUrl);
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+          
+          const response = await fetch(metarUrl, {
+            method: 'GET',
+            signal: controller.signal,
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'CAP-Observer-Log/1.0'
+            }
+          });
+          
+          clearTimeout(timeoutId);
+          
           if (!response.ok) {
-            throw new Error('Weather service unavailable');
+            const errorText = await response.text().catch(() => 'Unknown error');
+            throw new Error(`Weather API error (${response.status}): ${errorText}`);
           }
           
           const data = await response.json();
           
-          if (!data || data.length === 0) {
-            throw new Error('No weather stations found nearby');
+          console.log('Weather data received:', data);
+          
+          if (!data || !Array.isArray(data) || data.length === 0) {
+            throw new Error('No weather stations found within ' + radius + ' miles. Try a different location or enter data manually.');
           }
           
           // Find the closest station with valid data
@@ -3618,7 +3638,8 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
           let closestDistance = Infinity;
           
           for (const station of data) {
-            if (station.lat && station.lon && station.rawOb) {
+            // Check for required fields
+            if (station.lat !== undefined && station.lon !== undefined && station.rawOb) {
               const dist = calcDistance(lat, lon, station.lat, station.lon);
               if (dist < closestDistance) {
                 closestDistance = dist;
@@ -3628,16 +3649,38 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
           }
           
           if (!closestStation) {
-            throw new Error('No valid weather data found');
+            throw new Error('Weather stations found but none have complete data. Try entering values manually.');
           }
+          
+          console.log('Closest station:', closestStation);
           
           // Parse the METAR data
           const metar = closestStation.rawOb;
-          const altimeter = parseMetarAltimeter(metar);
-          const tempCelsius = parseMetarTemp(metar);
-          const stationElev = closestStation.elev ? Math.round(closestStation.elev * 3.28084) : null; // Convert meters to feet
           
-          // Update fields with weather data
+          // Get temperature - prefer API field, fallback to parsing METAR
+          let tempCelsius = null;
+          if (closestStation.temp !== undefined && closestStation.temp !== null) {
+            tempCelsius = closestStation.temp;
+          } else {
+            tempCelsius = parseMetarTemp(metar);
+          }
+          
+          // Get altimeter - prefer API field, fallback to parsing METAR
+          let altimeter = null;
+          if (closestStation.altim !== undefined && closestStation.altim !== null) {
+            // API returns altimeter in hPa/mb, convert to inHg
+            altimeter = (closestStation.altim / 33.8639).toFixed(2);
+          } else {
+            altimeter = parseMetarAltimeter(metar);
+          }
+          
+          // Station elevation - API returns in meters, convert to feet
+          let stationElev = null;
+          if (closestStation.elev !== undefined && closestStation.elev !== null) {
+            stationElev = Math.round(closestStation.elev * 3.28084);
+          }
+          
+          // Update form fields with weather data
           if (stationElev !== null) {
             setFieldElevation(stationElev.toString());
           }
@@ -3645,23 +3688,52 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
             setAltimeterSetting(altimeter);
           }
           if (tempCelsius !== null) {
-            setTempC(tempCelsius.toString());
-            setTempF(convertTemp(tempCelsius.toString(), "C"));
+            const tempCStr = tempCelsius.toString();
+            setTempC(tempCStr);
+            setTempF(convertTemp(tempCStr, "C"));
           }
           
-          // Set weather source info
+          // Format observation time
+          let obsTimeStr = 'Unknown';
+          if (closestStation.obsTime) {
+            // obsTime may be epoch seconds
+            const obsDate = typeof closestStation.obsTime === 'number' 
+              ? new Date(closestStation.obsTime * 1000)
+              : new Date(closestStation.obsTime);
+            obsTimeStr = obsDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' Z';
+          }
+          
+          // Set weather source info for display
           setWeatherSource({
-            station: closestStation.icaoId || closestStation.stationId,
-            name: closestStation.name || closestStation.icaoId,
+            station: closestStation.icaoId || closestStation.stationId || 'Unknown',
+            name: closestStation.name || closestStation.icaoId || 'Weather Station',
             distance: closestDistance.toFixed(1),
             metar: metar,
-            time: closestStation.obsTime || new Date().toISOString(),
+            time: obsTimeStr,
             elevation: stationElev
           });
           
+          // Auto-calculate after fetching
+          setTimeout(() => {
+            calculateDensityAltitude();
+          }, 100);
+          
         } catch (error) {
           console.error('Weather fetch error:', error);
-          alert('Could not fetch weather: ' + error.message + '\n\nYou can still enter values manually.');
+          
+          let userMessage = 'Could not fetch weather data.\n\n';
+          
+          if (error.name === 'AbortError') {
+            userMessage += 'Request timed out. The weather service may be slow or unavailable.';
+          } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            userMessage += 'Network error. Please check your internet connection.\n\nNote: Some networks may block access to weather services.';
+          } else {
+            userMessage += error.message;
+          }
+          
+          userMessage += '\n\nYou can still enter field elevation, altimeter, and temperature manually.';
+          
+          alert(userMessage);
         } finally {
           setIsLoadingWeather(false);
         }
