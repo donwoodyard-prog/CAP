@@ -398,35 +398,45 @@ function spDetectCapGrid(lat, lon) {
   const absLon = Math.abs(lon);
   const absLat = Math.abs(lat);
   
-  // Define sectionals (same as capSectionals in gpsUtils)
+  // Define sectionals (MUST match capSectionals in gpsUtils exactly)
   const sectionals = [
-    { id: "DEN", name: "Denver", north: 40, south: 36, west: 109, east: 102 },
-    { id: "SEA", name: "Seattle", north: 48, south: 44, west: 124, east: 117 },
-    { id: "GFL", name: "Great Falls", north: 48, south: 44, west: 117, east: 109 },
-    { id: "BIL", name: "Billings", north: 48, south: 44, west: 109, east: 102 },
-    { id: "MSP", name: "Twin Cities", north: 48, south: 44, west: 102, east: 95 },
-    { id: "GRB", name: "Green Bay", north: 48, south: 44, west: 95, east: 88 },
-    { id: "SFO", name: "San Francisco", north: 40, south: 36, west: 124, east: 117 },
-    { id: "LKH", name: "Klamath Falls", north: 44, south: 40, west: 124, east: 117 },
-    { id: "LAS", name: "Las Vegas", north: 36, south: 32, west: 119, east: 113 },
-    { id: "LAX", name: "Los Angeles", north: 36, south: 32, west: 121, east: 115 },
-    { id: "PHX", name: "Phoenix", north: 36, south: 32, west: 115, east: 108 },
+    { id: "SEA", name: "Seattle", north: 49, south: 44.5, west: 125, east: 117 },
+    { id: "GTF", name: "Great Falls", north: 49, south: 44.5, west: 117, east: 109 },
+    { id: "BIL", name: "Billings", north: 49, south: 44.5, west: 109, east: 101 },
+    { id: "MSP", name: "Twin Cities", north: 49, south: 44.5, west: 101, east: 93 },
+    { id: "GRB", name: "Green Bay", north: 48.25, south: 44, west: 93, east: 85 },
+    { id: "LHN", name: "Lake Huron", north: 48, south: 44, west: 85, east: 77 },
+    { id: "MON", name: "Montreal", north: 48, south: 44, west: 77, east: 69 },
+    { id: "HFX", name: "Halifax", north: 48, south: 44, west: 69, east: 61 },
+    { id: "LMT", name: "Klamath Falls", north: 44.5, south: 40, west: 125, east: 117 },
+    { id: "SLC", name: "Salt Lake City", north: 44.5, south: 40, west: 117, east: 109 },
+    { id: "CYS", name: "Cheyenne", north: 44.5, south: 40, west: 109, east: 101 },
+    { id: "OMA", name: "Omaha", north: 44.5, south: 40, west: 101, east: 93 },
+    { id: "ORD", name: "Chicago", north: 44, south: 40, west: 93, east: 85 },
+    { id: "DET", name: "Detroit", north: 44, south: 40, west: 85, east: 77 },
+    { id: "NYC", name: "New York", north: 44, south: 40, west: 77, east: 69 },
+    { id: "SFO", name: "San Francisco", north: 40, south: 36, west: 125, east: 118 },
+    { id: "LAS", name: "Las Vegas", north: 40, south: 35.75, west: 118, east: 111 },
+    { id: "DEN", name: "Denver", north: 40, south: 35.75, west: 111, east: 104 },
+    { id: "ICT", name: "Wichita", north: 40, south: 36, west: 104, east: 97 },
+    { id: "MKC", name: "Kansas City", north: 40, south: 36, west: 97, east: 90 },
+    { id: "STL", name: "St Louis", north: 40, south: 36, west: 91, east: 84 },
+    { id: "LUK", name: "Cincinnati", north: 40, south: 36, west: 85, east: 78 },
+    { id: "DCA", name: "Washington", north: 40, south: 36, west: 79, east: 72 },
+    { id: "LAX", name: "Los Angeles", north: 36, south: 32, west: 121.5, east: 115 },
+    { id: "PHX", name: "Phoenix", north: 35.75, south: 31.25, west: 116, east: 109 },
     { id: "ABQ", name: "Albuquerque", north: 36, south: 32, west: 109, east: 102 },
-    { id: "OKC", name: "Oklahoma City", north: 40, south: 36, west: 102, east: 95 },
-    { id: "ORD", name: "Chicago", north: 44, south: 40, west: 95, east: 88 },
-    { id: "DET", name: "Detroit", north: 44, south: 40, west: 88, east: 81 },
-    { id: "STL", name: "St Louis", north: 40, south: 36, west: 95, east: 88 },
-    { id: "CIN", name: "Cincinnati", north: 40, south: 36, west: 88, east: 81 },
-    { id: "WAS", name: "Washington", north: 40, south: 36, west: 81, east: 75 },
-    { id: "NYC", name: "New York", north: 44, south: 40, west: 81, east: 73 },
     { id: "DFW", name: "Dallas-Ft Worth", north: 36, south: 32, west: 102, east: 95 },
     { id: "MEM", name: "Memphis", north: 36, south: 32, west: 95, east: 88 },
     { id: "ATL", name: "Atlanta", north: 36, south: 32, west: 88, east: 81 },
     { id: "CLT", name: "Charlotte", north: 36, south: 32, west: 81, east: 75 },
+    { id: "ELP", name: "El Paso", north: 32, south: 28, west: 109, east: 103 },
     { id: "SAT", name: "San Antonio", north: 32, south: 28, west: 103, east: 97 },
     { id: "HOU", name: "Houston", north: 32, south: 28, west: 97, east: 91 },
     { id: "MSY", name: "New Orleans", north: 32, south: 28, west: 91, east: 85 },
-    { id: "JAX", name: "Jacksonville", north: 32, south: 28, west: 85, east: 79 }
+    { id: "JAX", name: "Jacksonville", north: 32, south: 28, west: 85, east: 79 },
+    { id: "BRO", name: "Brownsville", north: 28, south: 24, west: 103, east: 97 },
+    { id: "MIA", name: "Miami", north: 28, south: 24, west: 83, east: 77 }
   ];
   
   // Find matching sectional
@@ -2370,6 +2380,7 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
     const [events, setEvents] = useState([createEmptyEvent(1)]);
     const [showMoreEventTypes, setShowMoreEventTypes] = useState({});
     const [pirepModal, setPirepModal] = useState({ open: false, eventId: null });
+    const [pirepRadioCall, setPirepRadioCall] = useState({ open: false, eventId: null });
     const [pirepData, setPirepData] = useState({
       aircraft: "",
       altitude: "",
@@ -2392,9 +2403,6 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
     const [opsTimerMinutes, setOpsTimerMinutes] = useState(30);
     const [opsTimerRemaining, setOpsTimerRemaining] = useState(null);
     const [opsTimerLastReset, setOpsTimerLastReset] = useState(null);
-    // Voice recording state
-    const [isRecording, setIsRecording] = useState(false);
-    const speechRecognitionRef = React.useRef(null);
 const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedAircraft, setSelectedAircraft] = useState("C182T");
@@ -2422,6 +2430,8 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     // ELT Assist state
     const [eltObservations, setEltObservations] = useState([]);
     const [eltResult, setEltResult] = useState(null);
+    const [eltShowMap, setEltShowMap] = useState(false);
+    const eltMapRef = React.useRef(null);
     const [eltSettings, setEltSettings] = useState({
       r10: 0.5,           // NM at strength 10
       k: 2,               // range growth factor
@@ -2582,7 +2592,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         };
       }
     };
-    const PirepModal = ({ isOpen, onClose, onSave, data, setData }) => {
+    const PirepModal = ({ isOpen, onClose, onSave, onRadioCall, data, setData }) => {
       if (!isOpen) return null;
       const buildPirepString = () => {
         let parts = [];
@@ -2797,7 +2807,8 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
           color: "#68d391",
           lineHeight: "1.5",
           fontWeight: "600"
-        } }, buildPirepString())), /* @__PURE__ */ React.createElement(
+        } }, buildPirepString())), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "12px" } },
+          /* @__PURE__ */ React.createElement(
           "button",
           {
             onClick: () => {
@@ -2805,7 +2816,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
               onClose();
             },
             style: {
-              width: "100%",
+              flex: 1,
               minHeight: "64px",
               padding: "18px",
               fontSize: "18px",
@@ -2819,8 +2830,311 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
               boxShadow: "0 4px 12px rgba(56,161,105,0.4)"
             }
           },
-          "\u2713 SAVE PIREP"
-        )))
+          "\u2713 SAVE"
+        ), /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => {
+              onSave(buildPirepString());
+              onRadioCall();
+            },
+            style: {
+              flex: 1,
+              minHeight: "64px",
+              padding: "18px",
+              fontSize: "18px",
+              fontWeight: "700",
+              background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
+              border: "3px solid #4299e1",
+              borderRadius: "12px",
+              color: "#fff",
+              cursor: "pointer",
+              touchAction: "manipulation",
+              boxShadow: "0 4px 12px rgba(49,130,206,0.4)"
+            }
+          },
+          "\u{1F4FB} RADIO CALL"
+        ))))
+      );
+    };
+    const PirepRadioCallOverlay = ({ isOpen, onClose, pirepData, event, missionInfo }) => {
+      if (!isOpen) return null;
+      
+      // Determine report type based on severity
+      const isUrgent = pirepData.turbulence === "SVR" || pirepData.turbulence === "EXTRM" || 
+                       pirepData.turbulence === "MOD-SVR" || pirepData.icing === "SVR" ||
+                       pirepData.icing === "MOD";
+      const reportType = isUrgent ? "URGENT PIREP" : "Routine PIREP";
+      
+      // Format location from event data
+      const formatLocation = () => {
+        if (event?.capGrid) return event.capGrid;
+        if (event?.latDeg && event?.latMin && event?.longDeg && event?.longMin) {
+          return `N${event.latDeg}° ${event.latMin}' W${event.longDeg}° ${event.longMin}'`;
+        }
+        return "";
+      };
+      
+      // Format time
+      const formatTime = () => {
+        if (event?.timeZ) return event.timeZ + " Zulu";
+        const now = new Date();
+        return now.getUTCHours().toString().padStart(2, '0') + 
+               now.getUTCMinutes().toString().padStart(2, '0') + " Zulu";
+      };
+      
+      // Format altitude
+      const formatAltitude = () => {
+        if (pirepData.altitude) {
+          const alt = parseInt(pirepData.altitude);
+          if (alt >= 18000) return "Flight Level " + Math.round(alt / 100);
+          return alt.toLocaleString() + " feet MSL";
+        }
+        if (event?.altMSL) return parseInt(event.altMSL).toLocaleString() + " feet MSL";
+        return "";
+      };
+      
+      // Format aircraft type
+      const formatAircraft = () => {
+        const ac = pirepData.aircraft || missionInfo?.aircraftTailN || "";
+        const acNames = {
+          "C172": "Cessna 172",
+          "C182": "Cessna 182",
+          "C206": "Cessna 206",
+          "C210": "Cessna 210",
+          "GA8": "GippsAero GA8 Airvan"
+        };
+        return acNames[ac] || ac;
+      };
+      
+      // Format sky condition
+      const formatSky = () => {
+        const skyNames = {
+          "CLR": "Clear",
+          "FEW": "Few clouds",
+          "SCT": "Scattered clouds",
+          "BKN": "Broken clouds",
+          "OVC": "Overcast",
+          "IMC": "IMC conditions"
+        };
+        return skyNames[pirepData.clouds] || pirepData.clouds || "";
+      };
+      
+      // Format visibility
+      const formatVisibility = () => {
+        if (!pirepData.visibility) return "";
+        const visNames = {
+          "10+": "Greater than 10 miles",
+          "5-10": "5 to 10 miles",
+          "3-5": "3 to 5 miles",
+          "1-3": "1 to 3 miles",
+          "<1": "Less than 1 mile"
+        };
+        return visNames[pirepData.visibility] || pirepData.visibility;
+      };
+      
+      // Format turbulence
+      const formatTurbulence = () => {
+        const tbNames = {
+          "NEG": "Negative",
+          "SMTH": "Smooth",
+          "LGT": "Light turbulence",
+          "LGT-MOD": "Light to moderate turbulence",
+          "MOD": "Moderate turbulence",
+          "MOD-SVR": "Moderate to severe turbulence",
+          "SVR": "Severe turbulence",
+          "EXTRM": "Extreme turbulence"
+        };
+        return tbNames[pirepData.turbulence] || pirepData.turbulence || "";
+      };
+      
+      // Format icing
+      const formatIcing = () => {
+        const icNames = {
+          "NEG": "Negative",
+          "TRC": "Trace icing",
+          "LGT": "Light icing",
+          "LGT-MOD": "Light to moderate icing",
+          "MOD": "Moderate icing",
+          "SVR": "Severe icing"
+        };
+        return icNames[pirepData.icing] || pirepData.icing || "";
+      };
+      
+      // Build the report lines
+      const reportLines = [
+        { label: "Report Type", value: reportType, highlight: isUrgent },
+        { label: "Location", value: formatLocation() },
+        { label: "Time", value: formatTime() },
+        { label: "Altitude", value: formatAltitude() },
+        { label: "Aircraft", value: formatAircraft() },
+        { label: "Sky Condition", value: formatSky() },
+        { label: "Visibility", value: formatVisibility() },
+        { label: "Temperature", value: "" },
+        { label: "Winds", value: "" },
+        { label: "Turbulence", value: formatTurbulence() },
+        { label: "Icing", value: formatIcing() },
+        { label: "Remarks", value: pirepData.remarks || "" }
+      ];
+      
+      const lineStyle = {
+        display: "flex",
+        padding: "14px 16px",
+        borderBottom: "1px solid rgba(255,255,255,0.1)",
+        alignItems: "center"
+      };
+      
+      const labelStyle = {
+        width: "110px",
+        fontSize: "13px",
+        fontWeight: "600",
+        color: "#a0aec0"
+      };
+      
+      const valueStyle = {
+        flex: 1,
+        fontSize: "17px",
+        fontWeight: "600",
+        color: "#fff"
+      };
+      
+      return React.createElement("div", {
+        style: {
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.95)",
+          zIndex: 1001,
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch"
+        },
+        onClick: (e) => { if (e.target === e.currentTarget) onClose(); }
+      },
+        React.createElement("div", {
+          style: {
+            background: "linear-gradient(135deg, #1a365d 0%, #0c1929 100%)",
+            borderRadius: "16px",
+            border: "2px solid rgba(99,179,237,0.3)",
+            margin: "20px auto",
+            width: "calc(100% - 40px)",
+            maxWidth: "500px"
+          }
+        },
+          // Header
+          React.createElement("div", {
+            style: {
+              background: isUrgent 
+                ? "linear-gradient(90deg, rgba(229,62,62,0.4) 0%, transparent 100%)"
+                : "linear-gradient(90deg, rgba(49,130,206,0.4) 0%, transparent 100%)",
+              padding: "16px 20px",
+              borderBottom: "1px solid rgba(255,255,255,0.1)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }
+          },
+            React.createElement("div", null,
+              React.createElement("span", { 
+                style: { 
+                  fontSize: "18px", 
+                  fontWeight: "700", 
+                  color: isUrgent ? "#fc8181" : "#63b3ed" 
+                } 
+              }, "📻 PIREP Radio Call"),
+              React.createElement("div", {
+                style: { fontSize: "11px", color: "#a0aec0", marginTop: "4px" }
+              }, "Read to Flight Service")
+            ),
+            React.createElement("button", {
+              onClick: onClose,
+              style: {
+                background: "rgba(255,255,255,0.1)",
+                border: "none",
+                borderRadius: "8px",
+                padding: "12px 20px",
+                color: "#fff",
+                fontSize: "14px",
+                fontWeight: "700",
+                cursor: "pointer",
+                minHeight: "48px"
+              }
+            }, "✕ CLOSE")
+          ),
+          
+          // Urgent Warning
+          isUrgent && React.createElement("div", {
+            style: {
+              background: "rgba(229,62,62,0.2)",
+              padding: "12px 20px",
+              borderBottom: "1px solid rgba(229,62,62,0.3)",
+              textAlign: "center"
+            }
+          },
+            React.createElement("span", {
+              style: { color: "#fc8181", fontWeight: "700", fontSize: "14px" }
+            }, "⚠️ URGENT PIREP - Report Immediately")
+          ),
+          
+          // Instructions
+          React.createElement("div", {
+            style: {
+              background: "rgba(246,224,94,0.1)",
+              padding: "12px 20px",
+              borderBottom: "1px solid rgba(246,224,94,0.2)"
+            }
+          },
+            React.createElement("div", {
+              style: { fontSize: "12px", color: "#f6e05e", lineHeight: "1.5" }
+            }, 
+              React.createElement("strong", null, "Call: "), 
+              "Flight Service (122.2) or EFAS Flight Watch (122.0)",
+              React.createElement("br", null),
+              React.createElement("strong", null, "Say: "), 
+              "\"[Callsign], PIREP\" then read each item below"
+            )
+          ),
+          
+          // Report Lines
+          React.createElement("div", { style: { padding: "8px 0" } },
+            reportLines.map((line, idx) => 
+              React.createElement("div", {
+                key: idx,
+                style: {
+                  ...lineStyle,
+                  background: line.highlight ? "rgba(229,62,62,0.15)" : 
+                              (line.value ? "transparent" : "rgba(0,0,0,0.2)")
+                }
+              },
+                React.createElement("span", { style: labelStyle }, line.label),
+                React.createElement("span", { 
+                  style: { 
+                    ...valueStyle, 
+                    color: line.highlight ? "#fc8181" : (line.value ? "#fff" : "#4a5568")
+                  } 
+                }, line.value || "—")
+              )
+            )
+          ),
+          
+          // Footer
+          React.createElement("div", {
+            style: {
+              padding: "16px 20px",
+              borderTop: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(0,0,0,0.2)"
+            }
+          },
+            React.createElement("div", {
+              style: { fontSize: "11px", color: "#718096", lineHeight: "1.6", textAlign: "center" }
+            },
+              "Skip items marked with \"—\" • Emphasize non-standard conditions",
+              React.createElement("br", null),
+              "FSS will read back for confirmation"
+            )
+          )
+        )
       );
     };
     const GpsToolsModal = ({ isOpen, onClose, onApply, initialLat, initialLon, eventId }) => {
@@ -3557,50 +3871,6 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         document.body.classList.remove('night-mode');
       }
     }, [nightMode]);
-    
-    // Voice-to-text helper
-    const startVoiceRecording = (targetField) => {
-      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        alert('Voice recognition not supported in this browser. Try Chrome or Safari.');
-        return;
-      }
-      
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-      
-      recognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        if (targetField === 'notes') {
-          setNotes(prev => prev + (prev ? ' ' : '') + transcript);
-        }
-      };
-      
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsRecording(false);
-      };
-      
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
-      
-      speechRecognitionRef.current = recognition;
-      recognition.start();
-      setIsRecording(true);
-    };
-    
-    const stopVoiceRecording = () => {
-      if (speechRecognitionRef.current) {
-        speechRecognitionRef.current.stop();
-        setIsRecording(false);
-      }
-    };
     
     // Coordinate validation helper
     const validateCoordinate = (value, type) => {
@@ -4397,9 +4667,6 @@ Events: ${events.length}`;
         React.createElement("div", { style: styles.section },
           React.createElement("div", { style: styles.sectionHeader }, "📝 Notes & Instructions"),
           React.createElement("div", { style: styles.sectionBody },
-            React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "8px" }},
-              React.createElement("button", { style: { ...styles.button, flex: 1, background: isRecording ? "linear-gradient(135deg, #e53e3e, #c53030)" : "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: () => isRecording ? stopVoiceRecording() : startVoiceRecording("notes") }, isRecording ? "🔴 STOP RECORDING" : "🎤 VOICE NOTE")),
-            isRecording && React.createElement("div", { style: { background: "rgba(229,62,62,0.2)", padding: "8px", borderRadius: "6px", marginBottom: "8px", textAlign: "center", fontSize: "12px", color: "#fc8181" }}, "🎙️ Listening... Speak your notes"),
             React.createElement("textarea", { style: { ...styles.input, ...styles.textarea }, value: notes, onChange: (e) => setNotes(e.target.value), placeholder: "Notes, radio channels, ATIS..." }))));
     };
     const renderTimesTab = () => {
@@ -4851,7 +5118,20 @@ Events: ${events.length}`;
               const newNote = event.notes ? event.notes + "\n" + timestamp + " - " + pirepString : timestamp + " - " + pirepString;
               updateEvent(eventId, "notes", newNote);
             }
-          }
+          },
+          onRadioCall: () => setPirepRadioCall({ open: true, eventId: pirepModal.eventId })
+        }
+      ), /* @__PURE__ */ React.createElement(
+        PirepRadioCallOverlay,
+        {
+          isOpen: pirepRadioCall.open,
+          onClose: () => {
+            setPirepRadioCall({ open: false, eventId: null });
+            setPirepModal({ open: false, eventId: null });
+          },
+          pirepData: pirepData,
+          event: events.find((e) => e.id === pirepRadioCall.eventId),
+          missionInfo: missionInfo
         }
       ));
     };
@@ -6260,8 +6540,137 @@ React.createElement(
                   )
                 )
               ),
-              // Visualization
-              React.createElement("div", { style: { marginBottom: "16px" }}, renderVisualization()),
+              // Map/SVG Toggle and Visualization
+              React.createElement("div", { style: { marginBottom: "16px" }},
+                React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "12px", justifyContent: "center" }},
+                  React.createElement("button", {
+                    style: {
+                      ...styles.button,
+                      ...styles.buttonSmall,
+                      background: !eltShowMap ? "linear-gradient(135deg, #805ad5, #6b46c1)" : "rgba(0,0,0,0.3)",
+                      border: !eltShowMap ? "2px solid #805ad5" : "1px solid rgba(255,255,255,0.2)"
+                    },
+                    onClick: () => setEltShowMap(false)
+                  }, "📊 Diagram"),
+                  React.createElement("button", {
+                    style: {
+                      ...styles.button,
+                      ...styles.buttonSmall,
+                      background: eltShowMap ? "linear-gradient(135deg, #38a169, #2f855a)" : "rgba(0,0,0,0.3)",
+                      border: eltShowMap ? "2px solid #38a169" : "1px solid rgba(255,255,255,0.2)"
+                    },
+                    onClick: () => {
+                      setEltShowMap(true);
+                      // Initialize map after state update
+                      setTimeout(() => {
+                        if (eltMapRef.current) {
+                          eltMapRef.current.remove();
+                          eltMapRef.current = null;
+                        }
+                        const el = document.getElementById('eltMapDiv');
+                        if (!el || !eltResult) return;
+                        try {
+                          const map = L.map('eltMapDiv').setView([eltResult.centroid.lat, eltResult.centroid.lon], 12);
+                          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '© OpenStreetMap'
+                          }).addTo(map);
+                          
+                          // Add 90% confidence area (orange)
+                          if (eltResult.area90 && eltResult.area90.length > 0) {
+                            eltResult.area90.forEach(g => {
+                              L.circleMarker([g.lat, g.lon], {
+                                radius: 4,
+                                fillColor: '#ed8936',
+                                color: '#ed8936',
+                                weight: 1,
+                                fillOpacity: 0.4
+                              }).addTo(map);
+                            });
+                          }
+                          
+                          // Add 50% confidence area (yellow)
+                          if (eltResult.area50 && eltResult.area50.length > 0) {
+                            eltResult.area50.forEach(g => {
+                              L.circleMarker([g.lat, g.lon], {
+                                radius: 5,
+                                fillColor: '#fcd34d',
+                                color: '#fcd34d',
+                                weight: 1,
+                                fillOpacity: 0.6
+                              }).addTo(map);
+                            });
+                          }
+                          
+                          // Add observation points (blue)
+                          eltResult.observations.forEach((obs, i) => {
+                            L.circleMarker([obs.lat, obs.lon], {
+                              radius: 8,
+                              fillColor: '#3182ce',
+                              color: '#fff',
+                              weight: 2,
+                              fillOpacity: 0.9
+                            }).addTo(map).bindPopup('Obs #' + (i+1) + '<br>Strength: ' + (obs.strength || 'N/A'));
+                            
+                            // Add bearing lines if present
+                            if (obs.bearing !== null && obs.bearing !== undefined) {
+                              const len = 0.05; // degrees
+                              const rad = (90 - obs.bearing) * Math.PI / 180;
+                              const endLat = obs.lat + Math.sin(rad) * len;
+                              const endLon = obs.lon + Math.cos(rad) * len;
+                              L.polyline([[obs.lat, obs.lon], [endLat, endLon]], {
+                                color: '#63b3ed',
+                                weight: 2,
+                                dashArray: '5,5',
+                                opacity: 0.8
+                              }).addTo(map);
+                            }
+                          });
+                          
+                          // Add centroid marker (red) - most important
+                          L.circleMarker([eltResult.centroid.lat, eltResult.centroid.lon], {
+                            radius: 12,
+                            fillColor: '#e53e3e',
+                            color: '#fff',
+                            weight: 3,
+                            fillOpacity: 0.9
+                          }).addTo(map).bindPopup(
+                            '<strong>Estimated ELT Location</strong><br>' +
+                            'N ' + eltResult.centroid.latDeg + '° ' + eltResult.centroid.latMin + "'<br>" +
+                            'W ' + eltResult.centroid.lonDeg + '° ' + eltResult.centroid.lonMin + "'<br>" +
+                            'Grid: ' + eltResult.capGrid
+                          ).openPopup();
+                          
+                          // Fit bounds to show all points
+                          const allPoints = [
+                            [eltResult.centroid.lat, eltResult.centroid.lon],
+                            ...eltResult.observations.map(o => [o.lat, o.lon])
+                          ];
+                          if (allPoints.length > 1) {
+                            map.fitBounds(allPoints, { padding: [30, 30] });
+                          }
+                          
+                          eltMapRef.current = map;
+                        } catch (e) {
+                          console.error('Map error:', e);
+                          setEltShowMap(false);
+                          alert('Could not load map. Check internet connection.');
+                        }
+                      }, 100);
+                    }
+                  }, "🗺️ Map")
+                ),
+                // Show either SVG or Map
+                !eltShowMap ? renderVisualization() : 
+                  React.createElement("div", {
+                    id: "eltMapDiv",
+                    style: {
+                      width: "100%",
+                      height: "300px",
+                      borderRadius: "8px",
+                      overflow: "hidden"
+                    }
+                  })
+              ),
               // Legend
               React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: "16px", marginBottom: "12px", fontSize: "10px" }},
                 React.createElement("span", null, React.createElement("span", { style: { display: "inline-block", width: "12px", height: "12px", background: "#3182ce", borderRadius: "50%", marginRight: "4px" }}), "Observation"),
