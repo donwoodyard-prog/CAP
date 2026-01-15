@@ -902,6 +902,50 @@ function spGenKML(plan) {
   return kml;
 }
 
+// Generate ForeFlight/Garmin FPL file format
+function spGenFPL(plan) {
+  if (!plan || !plan.waypoints || plan.waypoints.length === 0) return '';
+  
+  const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').substring(0, 14);
+  const routeName = 'CAP_SAR_' + timestamp;
+  
+  let fpl = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  fpl += '<flight-plan xmlns="http://www8.garmin.com/xmlschemas/FlightPlan/v1">\n';
+  fpl += '  <created>' + new Date().toISOString() + '</created>\n';
+  
+  // Waypoint table - defines all waypoints used
+  fpl += '  <waypoint-table>\n';
+  plan.waypoints.forEach((wp, i) => {
+    const wpId = 'SAR' + String(wp.number).padStart(2, '0');
+    fpl += '    <waypoint>\n';
+    fpl += '      <identifier>' + wpId + '</identifier>\n';
+    fpl += '      <type>USER WAYPOINT</type>\n';
+    fpl += '      <country-code></country-code>\n';
+    fpl += '      <lat>' + wp.lat.toFixed(6) + '</lat>\n';
+    fpl += '      <lon>' + wp.lon.toFixed(6) + '</lon>\n';
+    fpl += '      <comment>' + (wp.note || 'SAR WP ' + wp.number) + '</comment>\n';
+    fpl += '    </waypoint>\n';
+  });
+  fpl += '  </waypoint-table>\n';
+  
+  // Route definition - the ordered sequence of waypoints
+  fpl += '  <route>\n';
+  fpl += '    <route-name>' + routeName + '</route-name>\n';
+  fpl += '    <flight-plan-index>1</flight-plan-index>\n';
+  plan.waypoints.forEach((wp, i) => {
+    const wpId = 'SAR' + String(wp.number).padStart(2, '0');
+    fpl += '    <route-point>\n';
+    fpl += '      <waypoint-identifier>' + wpId + '</waypoint-identifier>\n';
+    fpl += '      <waypoint-type>USER WAYPOINT</waypoint-type>\n';
+    fpl += '      <waypoint-country-code></waypoint-country-code>\n';
+    fpl += '    </route-point>\n';
+  });
+  fpl += '  </route>\n';
+  
+  fpl += '</flight-plan>\n';
+  return fpl;
+}
+
 var spMap = null;
 
 
@@ -2646,7 +2690,8 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
       poiTrackLength: 3, 
       poiHeading: 0, 
       lastPlan: null, 
-      showMap: false 
+      showMap: false,
+      showG1000Guide: false  // G1000 SAR programming guide modal
     });
     const [selectedState, setSelectedState] = useState("CO");
     const [selectedCommsCategory, setSelectedCommsCategory] = useState("channels");
@@ -2669,6 +2714,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     const [eltResult, setEltResult] = useState(null);
     const [eltShowMap, setEltShowMap] = useState(false);
     const [eltDiagramZoom, setEltDiagramZoom] = useState(1.0); // Zoom level for diagram (1.0 = fit all, higher = zoom in)
+    const [showG1000Instructions, setShowG1000Instructions] = useState(false); // G1000 SAR programming guide
     const eltMapRef = React.useRef(null);
     const [eltSettings, setEltSettings] = useState({
       r10: 0.5,           // NM at strength 10
@@ -5265,7 +5311,19 @@ Events: ${events.length}`;
                 borderColor: `${item.color}60`,
                 background: `linear-gradient(135deg, ${item.color}20, ${item.color}10)`
               },
-              onClick: () => setActiveTab(item.id)
+              onClick: () => {
+                // Check if CO Comms requires passcode
+                if (item.id === "coComms" && !commsUnlocked) {
+                  const code = prompt("Enter passcode to view Communications");
+                  if (code === null) return;
+                  if (String(code).trim() !== "1942") {
+                    alert("Incorrect passcode.");
+                    return;
+                  }
+                  setCommsUnlocked(true);
+                }
+                setActiveTab(item.id);
+              }
             },
               React.createElement("div", { style: homeStyles.menuIcon }, item.icon),
               React.createElement("div", { style: { ...homeStyles.menuLabel, color: item.color === "#c53030" ? "#fc8181" : "#fff" }}, item.label),
@@ -6589,6 +6647,342 @@ React.createElement(
           pct: Math.round(pctOfHorizon * 100)
         };
       };
+      
+      // Generate G1000 SAR Programming Instructions
+      // Based on Garmin G1000 Search and Rescue Pilot's Guide
+      const generateG1000Instructions = (result) => {
+        if (!result || !result.centroid) return null;
+        
+        // Format coordinates for G1000 entry (DDM format)
+        const lat = `N ${result.centroid.latDeg}° ${result.centroid.latMin}'`;
+        const lon = `W ${result.centroid.lonDeg}° ${result.centroid.lonMin}'`;
+        
+        // Calculate recommended search pattern parameters
+        // Based on 50% probability area size
+        const area50Nm2 = parseFloat(result.area50SizeNm2) || 25;
+        const searchRadiusNm = Math.sqrt(area50Nm2 / Math.PI);
+        
+        // Recommend pattern based on area size and shape
+        let recommendedPattern = 'PARALLEL';
+        let legLength = Math.max(5, Math.min(20, searchRadiusNm * 2.5)).toFixed(1);
+        let spacing = '1.0';
+        let numLegs = 10;
+        
+        if (area50Nm2 < 10) {
+          // Small area - use Expanding Square
+          recommendedPattern = 'EXP SQR';
+          spacing = Math.max(0.5, searchRadiusNm / 3).toFixed(1);
+          numLegs = Math.min(20, Math.ceil(searchRadiusNm * 4));
+        } else if (area50Nm2 < 50) {
+          // Medium area - use Sector
+          recommendedPattern = 'SECTOR';
+          legLength = Math.max(3, searchRadiusNm * 1.5).toFixed(1);
+        } else {
+          // Large area - use Parallel Track
+          spacing = Math.max(1.0, Math.min(3.0, searchRadiusNm / 5)).toFixed(1);
+          numLegs = Math.min(40, Math.ceil((searchRadiusNm * 2) / parseFloat(spacing)));
+        }
+        
+        return {
+          waypoint: {
+            name: 'USR' + (result.solutionNum || '01'),
+            lat: lat,
+            lon: lon,
+            latDeg: result.centroid.latDeg,
+            latMin: result.centroid.latMin,
+            lonDeg: result.centroid.lonDeg,
+            lonMin: result.centroid.lonMin
+          },
+          pattern: recommendedPattern,
+          legLength: legLength,
+          spacing: spacing,
+          numLegs: numLegs,
+          initialTrack: '360',
+          initialTurn: 'RIGHT',
+          area50: area50Nm2.toFixed(1),
+          searchRadius: searchRadiusNm.toFixed(1)
+        };
+      };
+      
+      // Render G1000 Instructions Modal
+      const renderG1000Modal = () => {
+        if (!showG1000Instructions || !eltResult) return null;
+        
+        const g1000 = generateG1000Instructions(eltResult);
+        if (!g1000) return null;
+        
+        const stepStyle = {
+          padding: '12px',
+          marginBottom: '8px',
+          background: 'rgba(0,0,0,0.3)',
+          borderRadius: '8px',
+          borderLeft: '3px solid #63b3ed'
+        };
+        
+        const knobStyle = {
+          display: 'inline-block',
+          padding: '2px 8px',
+          background: 'rgba(99,179,237,0.3)',
+          borderRadius: '4px',
+          fontFamily: 'monospace',
+          fontWeight: '700',
+          color: '#63b3ed',
+          margin: '0 2px'
+        };
+        
+        const keyStyle = {
+          display: 'inline-block',
+          padding: '4px 10px',
+          background: 'linear-gradient(180deg, #4a5568, #2d3748)',
+          borderRadius: '4px',
+          fontFamily: 'monospace',
+          fontWeight: '700',
+          color: '#f6e05e',
+          border: '1px solid #718096',
+          margin: '0 3px',
+          fontSize: '11px'
+        };
+        
+        const valueStyle = {
+          fontFamily: 'monospace',
+          fontWeight: '700',
+          color: '#68d391',
+          fontSize: '14px'
+        };
+        
+        const noteStyle = {
+          fontSize: '10px',
+          color: '#a0aec0',
+          fontStyle: 'italic',
+          marginTop: '6px'
+        };
+        
+        return React.createElement("div", {
+          style: {
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.9)",
+            zIndex: 10000,
+            overflow: "auto",
+            padding: "20px"
+          }
+        },
+          React.createElement("div", {
+            style: {
+              maxWidth: "600px",
+              margin: "0 auto",
+              background: "linear-gradient(180deg, #1a365d, #0c1929)",
+              borderRadius: "12px",
+              border: "1px solid rgba(99,179,237,0.3)"
+            }
+          },
+            // Header
+            React.createElement("div", {
+              style: {
+                padding: "16px 20px",
+                borderBottom: "1px solid rgba(255,255,255,0.1)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }
+            },
+              React.createElement("div", null,
+                React.createElement("div", { style: { fontSize: "18px", fontWeight: "700", color: "#63b3ed" }}, 
+                  "🛩️ G1000 SAR Programming Guide"
+                ),
+                React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginTop: "4px" }},
+                  "Step-by-step instructions for Solution #", eltResult.solutionNum
+                )
+              ),
+              React.createElement("button", {
+                style: {
+                  background: "rgba(229,62,62,0.2)",
+                  border: "1px solid rgba(229,62,62,0.5)",
+                  borderRadius: "8px",
+                  padding: "8px 16px",
+                  color: "#fc8181",
+                  cursor: "pointer",
+                  fontSize: "14px"
+                },
+                onClick: () => setShowG1000Instructions(false)
+              }, "✕ Close")
+            ),
+            
+            // Summary Card
+            React.createElement("div", {
+              style: {
+                margin: "16px",
+                padding: "16px",
+                background: "rgba(246,224,94,0.1)",
+                borderRadius: "8px",
+                border: "1px solid rgba(246,224,94,0.3)"
+              }
+            },
+              React.createElement("div", { style: { fontSize: "12px", color: "#f6e05e", fontWeight: "600", marginBottom: "12px" }},
+                "📍 TARGET COORDINATES"
+              ),
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }},
+                React.createElement("div", null,
+                  React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0" }}, "LATITUDE"),
+                  React.createElement("div", { style: valueStyle }, g1000.waypoint.lat)
+                ),
+                React.createElement("div", null,
+                  React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0" }}, "LONGITUDE"),
+                  React.createElement("div", { style: valueStyle }, g1000.waypoint.lon)
+                )
+              ),
+              React.createElement("div", { style: { marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(255,255,255,0.1)", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", textAlign: "center" }},
+                React.createElement("div", null,
+                  React.createElement("div", { style: { fontSize: "9px", color: "#a0aec0" }}, "PATTERN"),
+                  React.createElement("div", { style: { ...valueStyle, fontSize: "12px" }}, g1000.pattern)
+                ),
+                React.createElement("div", null,
+                  React.createElement("div", { style: { fontSize: "9px", color: "#a0aec0" }}, "50% AREA"),
+                  React.createElement("div", { style: { ...valueStyle, fontSize: "12px" }}, g1000.area50, " NM²")
+                ),
+                React.createElement("div", null,
+                  React.createElement("div", { style: { fontSize: "9px", color: "#a0aec0" }}, "SEARCH RADIUS"),
+                  React.createElement("div", { style: { ...valueStyle, fontSize: "12px" }}, "~", g1000.searchRadius, " NM")
+                )
+              )
+            ),
+            
+            // Instructions
+            React.createElement("div", { style: { padding: "0 16px 16px" }},
+              React.createElement("div", { style: { fontSize: "14px", fontWeight: "700", color: "#e2e8f0", marginBottom: "12px" }},
+                "STEP-BY-STEP INSTRUCTIONS"
+              ),
+              
+              // Step 1: Create User Waypoint
+              React.createElement("div", { style: stepStyle },
+                React.createElement("div", { style: { fontSize: "12px", fontWeight: "700", color: "#63b3ed", marginBottom: "8px" }},
+                  "STEP 1: Create User Waypoint"
+                ),
+                React.createElement("div", { style: { fontSize: "11px", color: "#e2e8f0", lineHeight: "1.8" }},
+                  "1. Press ", React.createElement("span", { style: keyStyle }, "FPL"), " to open Flight Plan page", React.createElement("br"),
+                  "2. Press ", React.createElement("span", { style: keyStyle }, "MENU"), " key", React.createElement("br"),
+                  "3. Turn ", React.createElement("span", { style: knobStyle }, "FMS"), " knob to select 'Create New User Waypoint'", React.createElement("br"),
+                  "4. Press ", React.createElement("span", { style: keyStyle }, "ENT")
+                ),
+                React.createElement("div", { style: noteStyle },
+                  "This creates a waypoint at the computed ELT location"
+                )
+              ),
+              
+              // Step 2: Enter Coordinates
+              React.createElement("div", { style: stepStyle },
+                React.createElement("div", { style: { fontSize: "12px", fontWeight: "700", color: "#63b3ed", marginBottom: "8px" }},
+                  "STEP 2: Enter Coordinates"
+                ),
+                React.createElement("div", { style: { fontSize: "11px", color: "#e2e8f0", lineHeight: "1.8" }},
+                  "Enter LATITUDE:", React.createElement("br"),
+                  "• Turn ", React.createElement("span", { style: knobStyle }, "small FMS"), " to select 'N'", React.createElement("br"),
+                  "• Turn ", React.createElement("span", { style: knobStyle }, "large FMS"), " to move cursor right", React.createElement("br"),
+                  "• Enter degrees: ", React.createElement("span", { style: valueStyle }, g1000.waypoint.latDeg, "°"), React.createElement("br"),
+                  "• Enter minutes: ", React.createElement("span", { style: valueStyle }, g1000.waypoint.latMin, "'"), React.createElement("br"),
+                  React.createElement("br"),
+                  "Enter LONGITUDE:", React.createElement("br"),
+                  "• Turn ", React.createElement("span", { style: knobStyle }, "small FMS"), " to select 'W'", React.createElement("br"),
+                  "• Enter degrees: ", React.createElement("span", { style: valueStyle }, g1000.waypoint.lonDeg, "°"), React.createElement("br"),
+                  "• Enter minutes: ", React.createElement("span", { style: valueStyle }, g1000.waypoint.lonMin, "'"), React.createElement("br"),
+                  React.createElement("br"),
+                  "Press ", React.createElement("span", { style: keyStyle }, "ENT"), " to confirm"
+                )
+              ),
+              
+              // Step 3: Access SAR Menu
+              React.createElement("div", { style: stepStyle },
+                React.createElement("div", { style: { fontSize: "12px", fontWeight: "700", color: "#63b3ed", marginBottom: "8px" }},
+                  "STEP 3: Access Search and Rescue Menu"
+                ),
+                React.createElement("div", { style: { fontSize: "11px", color: "#e2e8f0", lineHeight: "1.8" }},
+                  "1. Press ", React.createElement("span", { style: keyStyle }, "FPL"), " to display Active Flight Plan", React.createElement("br"),
+                  "2. Press ", React.createElement("span", { style: keyStyle }, "MENU"), " key", React.createElement("br"),
+                  "3. Turn ", React.createElement("span", { style: knobStyle }, "FMS"), " to highlight ", React.createElement("span", { style: { color: "#68d391" }}, "'Search and Rescue'"), React.createElement("br"),
+                  "4. Press ", React.createElement("span", { style: keyStyle }, "ENT")
+                ),
+                React.createElement("div", { style: noteStyle },
+                  "Note: SAR feature requires unlock card in MFD SD slot"
+                )
+              ),
+              
+              // Step 4: Configure Search Pattern
+              React.createElement("div", { style: stepStyle },
+                React.createElement("div", { style: { fontSize: "12px", fontWeight: "700", color: "#63b3ed", marginBottom: "8px" }},
+                  "STEP 4: Configure Search Pattern"
+                ),
+                React.createElement("div", { style: { fontSize: "11px", color: "#e2e8f0", lineHeight: "1.8" }},
+                  "Configure these recommended parameters:", React.createElement("br"), React.createElement("br"),
+                  React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }},
+                    React.createElement("div", null, "WAYPOINT:"),
+                    React.createElement("div", { style: valueStyle }, "Your user waypoint"),
+                    React.createElement("div", null, "PATTERN:"),
+                    React.createElement("div", { style: valueStyle }, g1000.pattern),
+                    React.createElement("div", null, "INITIAL DTK:"),
+                    React.createElement("div", { style: valueStyle }, g1000.initialTrack, "°"),
+                    React.createElement("div", null, "INITIAL TURN:"),
+                    React.createElement("div", { style: valueStyle }, g1000.initialTurn),
+                    g1000.pattern !== 'SECTOR' && React.createElement(React.Fragment, null,
+                      React.createElement("div", null, "SPACING:"),
+                      React.createElement("div", { style: valueStyle }, g1000.spacing, " NM")
+                    ),
+                    g1000.pattern !== 'EXP SQR' && React.createElement(React.Fragment, null,
+                      React.createElement("div", null, "LEG LENGTH:"),
+                      React.createElement("div", { style: valueStyle }, g1000.legLength, " NM")
+                    ),
+                    g1000.pattern !== 'SECTOR' && React.createElement(React.Fragment, null,
+                      React.createElement("div", null, "NUMBER OF LEGS:"),
+                      React.createElement("div", { style: valueStyle }, g1000.numLegs)
+                    )
+                  )
+                ),
+                React.createElement("div", { style: noteStyle },
+                  "Turn small FMS knob to change values, press ENT to advance"
+                )
+              ),
+              
+              // Step 5: Activate
+              React.createElement("div", { style: stepStyle },
+                React.createElement("div", { style: { fontSize: "12px", fontWeight: "700", color: "#63b3ed", marginBottom: "8px" }},
+                  "STEP 5: Activate Search Pattern"
+                ),
+                React.createElement("div", { style: { fontSize: "11px", color: "#e2e8f0", lineHeight: "1.8" }},
+                  "1. Turn ", React.createElement("span", { style: knobStyle }, "FMS"), " to highlight ", React.createElement("span", { style: { color: "#68d391" }}, "'ACTIVATE SAR?'"), React.createElement("br"),
+                  "2. Press ", React.createElement("span", { style: keyStyle }, "ENT"), " to activate", React.createElement("br"),
+                  "3. Pattern appears on Navigation Map", React.createElement("br"),
+                  "4. Fly the numbered waypoints (SAR-01, SAR-02, etc.)"
+                ),
+                React.createElement("div", { style: noteStyle },
+                  "Dashed turn leader lines show path at corners based on groundspeed"
+                )
+              ),
+              
+              // Pattern Info
+              React.createElement("div", { 
+                style: { 
+                  marginTop: "16px",
+                  padding: "12px",
+                  background: "rgba(99,179,237,0.1)",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(99,179,237,0.2)"
+                }
+              },
+                React.createElement("div", { style: { fontSize: "11px", fontWeight: "600", color: "#63b3ed", marginBottom: "8px" }},
+                  "📋 PATTERN REFERENCE"
+                ),
+                React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", lineHeight: "1.6" }},
+                  React.createElement("strong", null, "PARALLEL:"), " Rectangular pattern, best for large areas. Adjustable leg length, spacing, number of legs.", React.createElement("br"),
+                  React.createElement("strong", null, "SECTOR:"), " Triangular pattern (3 sectors of 3 legs). Best for medium areas with known center point.", React.createElement("br"),
+                  React.createElement("strong", null, "EXP SQR:"), " Expanding square from center. Best for small areas with high confidence location."
+                )
+              )
+            )
+          )
+        );
+      };
 
       // Compute probable area
       const computeProbableArea = () => {
@@ -7128,6 +7522,8 @@ React.createElement(
       };
 
       return React.createElement("div", null,
+        // G1000 Instructions Modal
+        renderG1000Modal(),
         // Instructions
         React.createElement("div", { style: styles.section },
           React.createElement("div", { style: styles.sectionHeader }, "📡 ELT Triangulation Assistant"),
@@ -7528,6 +7924,41 @@ React.createElement(
             
             // Results
             eltResult && React.createElement("div", { style: { marginTop: "16px" }},
+              // G1000 SAR Programming Guide - TOP OF RESULTS
+              React.createElement("div", { 
+                style: { 
+                  marginBottom: "16px",
+                  padding: "16px",
+                  background: "linear-gradient(135deg, #744210, #5c3d0e)",
+                  borderRadius: "12px",
+                  border: "3px solid #d69e2e",
+                  textAlign: "center",
+                  boxShadow: "0 4px 20px rgba(214,158,46,0.5)"
+                }
+              },
+                React.createElement("div", { style: { fontSize: "11px", color: "#fbd38d", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "1px" }}, 
+                  "Program this solution into your aircraft"
+                ),
+                React.createElement("button", {
+                  style: { 
+                    background: "linear-gradient(135deg, #d69e2e, #b7791f)",
+                    border: "2px solid #ecc94b",
+                    borderRadius: "8px",
+                    padding: "14px 32px",
+                    color: "#fff",
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    margin: "0 auto"
+                  },
+                  onClick: () => setShowG1000Instructions(true)
+                }, "🛩️ G1000 SAR Programming Guide")
+              ),
               // Quality Assessment
               React.createElement("div", { style: { 
                 display: "flex", 
@@ -7784,6 +8215,20 @@ React.createElement(
                     style: { ...styles.button, flex: 1, minWidth: "140px", background: "linear-gradient(135deg, #38a169, #2f855a)" },
                     onClick: () => window.open(`https://www.openstreetmap.org/?mlat=${eltResult.centroid.lat}&mlon=${eltResult.centroid.lon}&zoom=14`, '_blank')
                   }, "🗺️ VIEW MAP")
+                ),
+                // G1000 SAR Programming Guide Button
+                React.createElement("div", { style: { marginTop: "8px" }},
+                  React.createElement("button", {
+                    style: { 
+                      ...styles.button, 
+                      width: "100%",
+                      background: "linear-gradient(135deg, #d69e2e, #b7791f)",
+                      border: "2px solid #d69e2e",
+                      fontSize: "13px",
+                      padding: "12px"
+                    },
+                    onClick: () => setShowG1000Instructions(true)
+                  }, "🛩️ G1000 SAR PROGRAMMING GUIDE")
                 ),
                 React.createElement("div", { style: { marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }},
                   React.createElement("button", {
@@ -8653,6 +9098,7 @@ React.createElement(
       
       const copyFF = () => { if (!spState.lastPlan) return; navigator.clipboard.writeText(spState.lastPlan.waypoints.map(w => w.foreflight).join(' ')); alert('ForeFlight route copied!'); };
       const exportKML = () => { if (!spState.lastPlan) return; const b = new Blob([spGenKML(spState.lastPlan)], { type: 'application/vnd.google-earth.kml+xml' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'CAP_Search_' + (spState.lastPlan.gridInfo?.gridId?.replace(/\s+/g,'_') || 'Pattern') + '.kml'; a.click(); };
+      const exportFPL = () => { if (!spState.lastPlan) return; const b = new Blob([spGenFPL(spState.lastPlan)], { type: 'application/xml' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'CAP_SAR_' + new Date().toISOString().replace(/[^0-9]/g,'').substring(0,14) + '.fpl'; a.click(); alert('FPL file downloaded! Import via AirDrop, email, or iTunes to ForeFlight.'); };
       const openMap = () => { 
         if (!spState.lastPlan) { alert('No search plan to display. Generate a pattern first.'); return; }
         if (typeof L === 'undefined') { alert('Map library not loaded. Please refresh the page.'); return; }
@@ -9157,11 +9603,46 @@ React.createElement(
             )
           ), 
           
-          // Export buttons
+          // Export buttons - row 1
           React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "15px" } }, 
             React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary, padding: "12px" }, onClick: openMap }, "🗺️ Map"), 
             React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #ed8936, #dd6b20)", padding: "12px" }, onClick: exportKML }, "🌍 KML"), 
-            React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)", padding: "12px" }, onClick: copyFF }, "✈️ ForeFlight")
+            React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)", padding: "12px" }, onClick: copyFF }, "✈️ Copy WPs")
+          ),
+          
+          // Export buttons - row 2 (ForeFlight specific)
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "10px" } }, 
+            React.createElement("button", { 
+              style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)", padding: "14px", fontSize: "14px" }, 
+              onClick: exportFPL 
+            }, "📱 ForeFlight FPL"),
+            React.createElement("button", { 
+              style: { ...styles.button, background: "linear-gradient(135deg, #38a169, #2f855a)", padding: "14px", fontSize: "14px" }, 
+              onClick: () => { if (!spState.lastPlan) return; const wps = spState.lastPlan.waypoints.map(w => w.ddm).join('\\n'); navigator.clipboard.writeText(wps); alert('DDM coordinates copied!'); }
+            }, "📋 Copy DDM")
+          ), 
+          
+          // G1000 SAR Programming Guide Button
+          React.createElement("div", { style: { marginTop: "12px" } },
+            React.createElement("button", { 
+              style: { 
+                width: "100%",
+                padding: "14px 20px",
+                background: "linear-gradient(135deg, #d69e2e, #b7791f)",
+                border: "2px solid #ecc94b",
+                borderRadius: "8px",
+                color: "#fff",
+                fontSize: "15px",
+                fontWeight: "700",
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(214,158,46,0.4)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "10px"
+              }, 
+              onClick: () => setSpState(s => ({ ...s, showG1000Guide: true }))
+            }, "🛩️ G1000 SAR Programming Guide")
           ), 
           
           // Waypoints table
@@ -9195,6 +9676,505 @@ React.createElement(
               React.createElement("button", { style: { background: "rgba(229,62,62,0.3)", border: "none", color: "#fc8181", padding: "8px 12px", borderRadius: "4px", cursor: "pointer", fontSize: "1em" }, onClick: () => setSpState(s => ({ ...s, showMap: false })) }, "✕ Close")
             ), 
             React.createElement("div", { id: "spMapDiv", style: { height: "400px", borderRadius: "8px" } })
+          )
+        ),
+        
+        // G1000 SAR Programming Guide Modal
+        spState.showG1000Guide && lastPlan && React.createElement("div", { 
+          style: { 
+            position: "fixed", 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            background: "rgba(0,0,0,0.95)", 
+            zIndex: 10000, 
+            overflow: "auto", 
+            padding: "12px" 
+          }
+        },
+          React.createElement("div", {
+            style: {
+              maxWidth: "700px",
+              margin: "0 auto",
+              background: "linear-gradient(180deg, #1a365d, #0c1929)",
+              borderRadius: "12px",
+              border: "2px solid rgba(99,179,237,0.4)"
+            }
+          },
+            // Header with Text Size Controls
+            React.createElement("div", {
+              style: {
+                padding: "12px 16px",
+                borderBottom: "2px solid rgba(255,255,255,0.15)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "10px",
+                background: "rgba(0,0,0,0.3)",
+                borderRadius: "10px 10px 0 0"
+              }
+            },
+              React.createElement("div", null,
+                React.createElement("div", { style: { fontSize: "20px", fontWeight: "700", color: "#63b3ed" }}, 
+                  "🛩️ G1000 SAR Programming"
+                ),
+                React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginTop: "2px" }},
+                  lastPlan.patternType, " • ", lastPlan.waypoints.length, " waypoints"
+                )
+              ),
+              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px" }},
+                // Text Size Controls
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px", background: "rgba(0,0,0,0.3)", padding: "4px 8px", borderRadius: "6px" }},
+                  React.createElement("span", { style: { fontSize: "10px", color: "#a0aec0", marginRight: "4px" }}, "TEXT"),
+                  React.createElement("button", {
+                    style: {
+                      width: "32px",
+                      height: "32px",
+                      background: (spState.g1000TextSize || 1) === 0.85 ? "rgba(99,179,237,0.3)" : "rgba(255,255,255,0.1)",
+                      border: (spState.g1000TextSize || 1) === 0.85 ? "2px solid #63b3ed" : "1px solid rgba(255,255,255,0.2)",
+                      borderRadius: "4px",
+                      color: "#fff",
+                      fontSize: "12px",
+                      fontWeight: "700",
+                      cursor: "pointer"
+                    },
+                    onClick: () => setSpState(s => ({ ...s, g1000TextSize: 0.85 })),
+                    title: "Small text"
+                  }, "A"),
+                  React.createElement("button", {
+                    style: {
+                      width: "32px",
+                      height: "32px",
+                      background: (spState.g1000TextSize || 1) === 1 ? "rgba(99,179,237,0.3)" : "rgba(255,255,255,0.1)",
+                      border: (spState.g1000TextSize || 1) === 1 ? "2px solid #63b3ed" : "1px solid rgba(255,255,255,0.2)",
+                      borderRadius: "4px",
+                      color: "#fff",
+                      fontSize: "14px",
+                      fontWeight: "700",
+                      cursor: "pointer"
+                    },
+                    onClick: () => setSpState(s => ({ ...s, g1000TextSize: 1 })),
+                    title: "Normal text"
+                  }, "A"),
+                  React.createElement("button", {
+                    style: {
+                      width: "32px",
+                      height: "32px",
+                      background: (spState.g1000TextSize || 1) === 1.2 ? "rgba(99,179,237,0.3)" : "rgba(255,255,255,0.1)",
+                      border: (spState.g1000TextSize || 1) === 1.2 ? "2px solid #63b3ed" : "1px solid rgba(255,255,255,0.2)",
+                      borderRadius: "4px",
+                      color: "#fff",
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      cursor: "pointer"
+                    },
+                    onClick: () => setSpState(s => ({ ...s, g1000TextSize: 1.2 })),
+                    title: "Large text"
+                  }, "A"),
+                  React.createElement("button", {
+                    style: {
+                      width: "32px",
+                      height: "32px",
+                      background: (spState.g1000TextSize || 1) === 1.4 ? "rgba(99,179,237,0.3)" : "rgba(255,255,255,0.1)",
+                      border: (spState.g1000TextSize || 1) === 1.4 ? "2px solid #63b3ed" : "1px solid rgba(255,255,255,0.2)",
+                      borderRadius: "4px",
+                      color: "#fff",
+                      fontSize: "18px",
+                      fontWeight: "700",
+                      cursor: "pointer"
+                    },
+                    onClick: () => setSpState(s => ({ ...s, g1000TextSize: 1.4 })),
+                    title: "Extra large text"
+                  }, "A")
+                ),
+                React.createElement("button", {
+                  style: {
+                    background: "rgba(229,62,62,0.2)",
+                    border: "2px solid rgba(229,62,62,0.5)",
+                    borderRadius: "8px",
+                    padding: "8px 16px",
+                    color: "#fc8181",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "600"
+                  },
+                  onClick: () => setSpState(s => ({ ...s, showG1000Guide: false }))
+                }, "✕ Close")
+              )
+            ),
+            
+            // Scrollable Content Area with dynamic text size
+            React.createElement("div", {
+              style: {
+                fontSize: `${14 * (spState.g1000TextSize || 1)}px`,
+                lineHeight: "1.6"
+              }
+            },
+            
+            // Important Note about SAR Card
+            React.createElement("div", {
+              style: {
+                margin: "16px",
+                padding: `${14 * (spState.g1000TextSize || 1)}px`,
+                background: "rgba(229,62,62,0.15)",
+                borderRadius: "8px",
+                border: "2px solid rgba(229,62,62,0.4)"
+              }
+            },
+              React.createElement("div", { style: { fontSize: `${13 * (spState.g1000TextSize || 1)}px`, color: "#fc8181", fontWeight: "600", lineHeight: "1.5" }},
+                "⚠️ IMPORTANT: The G1000 SAR feature requires a Garmin SAR unlock card inserted in the TOP SD card slot on the MFD. Without this card, the 'Search and Rescue' menu option will not appear."
+              )
+            ),
+            
+            // Pattern Summary Card
+            React.createElement("div", {
+              style: {
+                margin: "0 16px 16px",
+                padding: `${16 * (spState.g1000TextSize || 1)}px`,
+                background: "rgba(246,224,94,0.1)",
+                borderRadius: "8px",
+                border: "2px solid rgba(246,224,94,0.4)"
+              }
+            },
+              React.createElement("div", { style: { fontSize: `${13 * (spState.g1000TextSize || 1)}px`, color: "#f6e05e", fontWeight: "700", marginBottom: `${14 * (spState.g1000TextSize || 1)}px`, letterSpacing: "0.5px" }},
+                "📍 YOUR SEARCH PATTERN PARAMETERS"
+              ),
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: `${12 * (spState.g1000TextSize || 1)}px`, fontSize: `${14 * (spState.g1000TextSize || 1)}px` }},
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px", background: "rgba(0,0,0,0.2)", borderRadius: "4px" }},
+                  React.createElement("span", { style: { color: "#a0aec0" }}, "Pattern:"),
+                  React.createElement("span", { style: { color: "#68d391", fontWeight: "700" }}, 
+                    lastPlan.patternType.includes("Creeping") ? "PARALLEL" : 
+                    lastPlan.patternType.includes("Expanding") ? "EXP SQR" : "PARALLEL"
+                  )
+                ),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px", background: "rgba(0,0,0,0.2)", borderRadius: "4px" }},
+                  React.createElement("span", { style: { color: "#a0aec0" }}, "Legs:"),
+                  React.createElement("span", { style: { color: "#68d391", fontWeight: "700" }}, 
+                    lastPlan.summary.numTracks || lastPlan.summary.numLegs
+                  )
+                ),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px", background: "rgba(0,0,0,0.2)", borderRadius: "4px" }},
+                  React.createElement("span", { style: { color: "#a0aec0" }}, "Spacing:"),
+                  React.createElement("span", { style: { color: "#68d391", fontWeight: "700" }}, lastPlan.summary.spacing, " NM")
+                ),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "8px", background: "rgba(0,0,0,0.2)", borderRadius: "4px" }},
+                  React.createElement("span", { style: { color: "#a0aec0" }}, "Initial Hdg:"),
+                  React.createElement("span", { style: { color: "#68d391", fontWeight: "700" }}, 
+                    (lastPlan.waypoints[0]?.heading || lastPlan.summary.initialHeading || lastPlan.summary.heading || 360), "°"
+                  )
+                )
+              ),
+              React.createElement("div", { style: { marginTop: `${14 * (spState.g1000TextSize || 1)}px`, paddingTop: `${14 * (spState.g1000TextSize || 1)}px`, borderTop: "2px solid rgba(255,255,255,0.15)" }},
+                React.createElement("div", { style: { fontSize: `${12 * (spState.g1000TextSize || 1)}px`, color: "#a0aec0", marginBottom: "6px" }}, "ENTRY POINT (First Waypoint)"),
+                React.createElement("div", { style: { fontFamily: "monospace", fontWeight: "700", color: "#fbd38d", fontSize: `${18 * (spState.g1000TextSize || 1)}px`, letterSpacing: "0.5px" }}, 
+                  lastPlan.waypoints[0]?.ddm || "N/A"
+                )
+              )
+            ),
+            
+            // FMS Knob Explanation
+            React.createElement("div", {
+              style: {
+                margin: "0 16px 16px",
+                padding: `${14 * (spState.g1000TextSize || 1)}px`,
+                background: "rgba(99,179,237,0.1)",
+                borderRadius: "8px",
+                border: "2px solid rgba(99,179,237,0.3)"
+              }
+            },
+              React.createElement("div", { style: { fontSize: `${13 * (spState.g1000TextSize || 1)}px`, fontWeight: "700", color: "#63b3ed", marginBottom: `${10 * (spState.g1000TextSize || 1)}px` }},
+                "🎛️ G1000 FMS KNOB"
+              ),
+              React.createElement("div", { style: { fontSize: `${13 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0", lineHeight: "1.6" }},
+                "The FMS knob is located on the lower right of the MFD. It has two parts:",
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "auto 1fr", gap: `${10 * (spState.g1000TextSize || 1)}px`, marginTop: `${12 * (spState.g1000TextSize || 1)}px`, fontSize: `${14 * (spState.g1000TextSize || 1)}px` }},
+                  React.createElement("span", { style: { padding: `${6 * (spState.g1000TextSize || 1)}px ${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(104,211,145,0.2)", borderRadius: "4px", color: "#68d391", fontWeight: "700" }}, "LARGE"),
+                  React.createElement("span", null, "Outer knob – Moves cursor between fields"),
+                  React.createElement("span", { style: { padding: `${6 * (spState.g1000TextSize || 1)}px ${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(246,224,94,0.2)", borderRadius: "4px", color: "#f6e05e", fontWeight: "700" }}, "SMALL"),
+                  React.createElement("span", null, "Inner knob – Changes value at cursor")
+                ),
+                React.createElement("div", { style: { marginTop: `${12 * (spState.g1000TextSize || 1)}px`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: `${10 * (spState.g1000TextSize || 1)}px` }},
+                  React.createElement("div", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, background: "rgba(99,179,237,0.15)", borderRadius: "6px", textAlign: "center", border: "1px solid rgba(99,179,237,0.3)" }},
+                    React.createElement("div", { style: { fontSize: `${12 * (spState.g1000TextSize || 1)}px`, color: "#63b3ed", fontWeight: "700" }}, "→ RIGHT"),
+                    React.createElement("div", { style: { fontSize: `${11 * (spState.g1000TextSize || 1)}px`, color: "#a0aec0", marginTop: "2px" }}, "Clockwise")
+                  ),
+                  React.createElement("div", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, background: "rgba(252,129,129,0.15)", borderRadius: "6px", textAlign: "center", border: "1px solid rgba(252,129,129,0.3)" }},
+                    React.createElement("div", { style: { fontSize: `${12 * (spState.g1000TextSize || 1)}px`, color: "#fc8181", fontWeight: "700" }}, "← LEFT"),
+                    React.createElement("div", { style: { fontSize: `${11 * (spState.g1000TextSize || 1)}px`, color: "#a0aec0", marginTop: "2px" }}, "Counter-clockwise")
+                  )
+                ),
+                React.createElement("div", { style: { marginTop: `${10 * (spState.g1000TextSize || 1)}px`, padding: `${10 * (spState.g1000TextSize || 1)}px`, background: "rgba(246,224,94,0.1)", borderRadius: "4px", fontSize: `${12 * (spState.g1000TextSize || 1)}px`, color: "#fbd38d" }},
+                  "💡 Tip: Push the SMALL knob (click it in) to toggle cursor on/off"
+                )
+              )
+            ),
+            
+            // Instructions Container
+            React.createElement("div", { style: { padding: "0 16px 16px" }},
+              React.createElement("div", { style: { fontSize: `${16 * (spState.g1000TextSize || 1)}px`, fontWeight: "700", color: "#e2e8f0", marginBottom: `${14 * (spState.g1000TextSize || 1)}px` }},
+                "STEP-BY-STEP INSTRUCTIONS"
+              ),
+              
+              // Step 1
+              React.createElement("div", { style: { padding: `${14 * (spState.g1000TextSize || 1)}px`, marginBottom: `${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(0,0,0,0.3)", borderRadius: "8px", borderLeft: "5px solid #63b3ed" }},
+                React.createElement("div", { style: { fontSize: `${15 * (spState.g1000TextSize || 1)}px`, fontWeight: "700", color: "#63b3ed", marginBottom: `${12 * (spState.g1000TextSize || 1)}px` }},
+                  "STEP 1: Open the Search and Rescue Menu"
+                ),
+                React.createElement("div", { style: { fontSize: `${14 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0", lineHeight: "2.2" }},
+                  React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: "6px" }},
+                    React.createElement("span", { style: { color: "#a0aec0", width: `${28 * (spState.g1000TextSize || 1)}px`, fontWeight: "600" }}, "1."),
+                    "Press ", React.createElement("span", { style: { display: "inline-block", padding: `${4 * (spState.g1000TextSize || 1)}px ${12 * (spState.g1000TextSize || 1)}px`, background: "linear-gradient(180deg, #4a5568, #2d3748)", borderRadius: "4px", fontFamily: "monospace", fontWeight: "700", color: "#f6e05e", border: "1px solid #718096", margin: "0 4px", fontSize: `${13 * (spState.g1000TextSize || 1)}px` }}, "FPL"), " button"
+                  ),
+                  React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: "6px" }},
+                    React.createElement("span", { style: { color: "#a0aec0", width: `${28 * (spState.g1000TextSize || 1)}px`, fontWeight: "600" }}, "2."),
+                    "Press ", React.createElement("span", { style: { display: "inline-block", padding: `${4 * (spState.g1000TextSize || 1)}px ${12 * (spState.g1000TextSize || 1)}px`, background: "linear-gradient(180deg, #4a5568, #2d3748)", borderRadius: "4px", fontFamily: "monospace", fontWeight: "700", color: "#f6e05e", border: "1px solid #718096", margin: "0 4px", fontSize: `${13 * (spState.g1000TextSize || 1)}px` }}, "MENU"), " button"
+                  ),
+                  React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: "6px" }},
+                    React.createElement("span", { style: { color: "#a0aec0", width: `${28 * (spState.g1000TextSize || 1)}px`, fontWeight: "600" }}, "3."),
+                    "Turn ", React.createElement("span", { style: { color: "#68d391", fontWeight: "700" }}, "LARGE"), " knob ", React.createElement("span", { style: { color: "#63b3ed", fontWeight: "700" }}, "→ RIGHT"), " to scroll to ", React.createElement("span", { style: { color: "#68d391", fontWeight: "700" }}, "\"Search and Rescue\"")
+                  ),
+                  React.createElement("div", { style: { display: "flex", alignItems: "center" }},
+                    React.createElement("span", { style: { color: "#a0aec0", width: `${28 * (spState.g1000TextSize || 1)}px`, fontWeight: "600" }}, "4."),
+                    "Press ", React.createElement("span", { style: { display: "inline-block", padding: `${4 * (spState.g1000TextSize || 1)}px ${12 * (spState.g1000TextSize || 1)}px`, background: "linear-gradient(180deg, #4a5568, #2d3748)", borderRadius: "4px", fontFamily: "monospace", fontWeight: "700", color: "#f6e05e", border: "1px solid #718096", margin: "0 4px", fontSize: `${13 * (spState.g1000TextSize || 1)}px` }}, "ENTER"), " to open SAR menu"
+                  )
+                )
+              ),
+              
+              // Step 2
+              React.createElement("div", { style: { padding: `${14 * (spState.g1000TextSize || 1)}px`, marginBottom: `${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(0,0,0,0.3)", borderRadius: "8px", borderLeft: "5px solid #63b3ed" }},
+                React.createElement("div", { style: { fontSize: `${15 * (spState.g1000TextSize || 1)}px`, fontWeight: "700", color: "#63b3ed", marginBottom: `${12 * (spState.g1000TextSize || 1)}px` }},
+                  "STEP 2: Enter the Starting Waypoint"
+                ),
+                React.createElement("div", { style: { fontSize: `${14 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0", lineHeight: "1.8" }},
+                  "The ", React.createElement("strong", null, "WAYPOINT"), " field will be highlighted. Choose one method:",
+                  
+                  // Option A - Direct coordinate entry
+                  React.createElement("div", { style: { marginTop: `${12 * (spState.g1000TextSize || 1)}px`, marginBottom: `${10 * (spState.g1000TextSize || 1)}px`, padding: `${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(0,0,0,0.25)", borderRadius: "6px", border: "1px solid rgba(246,224,94,0.3)" }},
+                    React.createElement("div", { style: { color: "#f6e05e", fontWeight: "700", marginBottom: `${8 * (spState.g1000TextSize || 1)}px`, fontSize: `${14 * (spState.g1000TextSize || 1)}px` }}, "Option A: Enter coordinates directly"),
+                    React.createElement("div", { style: { fontSize: `${13 * (spState.g1000TextSize || 1)}px`, lineHeight: "2.0" }},
+                      "• Turn ", React.createElement("span", { style: { color: "#f6e05e", fontWeight: "700" }}, "SMALL"), " knob ", React.createElement("span", { style: { color: "#63b3ed", fontWeight: "700" }}, "→ RIGHT"), " to select each character", React.createElement("br"),
+                      "• Turn ", React.createElement("span", { style: { color: "#68d391", fontWeight: "700" }}, "LARGE"), " knob ", React.createElement("span", { style: { color: "#63b3ed", fontWeight: "700" }}, "→ RIGHT"), " to move to next position", React.createElement("br"),
+                      "• Enter: ", React.createElement("span", { style: { fontFamily: "monospace", color: "#fbd38d", fontWeight: "700", fontSize: `${15 * (spState.g1000TextSize || 1)}px` }}, lastPlan.waypoints[0]?.ddm || "N/A"), React.createElement("br"),
+                      "• Press ", React.createElement("span", { style: { display: "inline-block", padding: `${3 * (spState.g1000TextSize || 1)}px ${10 * (spState.g1000TextSize || 1)}px`, background: "linear-gradient(180deg, #4a5568, #2d3748)", borderRadius: "4px", fontFamily: "monospace", fontWeight: "700", color: "#f6e05e", border: "1px solid #718096", fontSize: `${12 * (spState.g1000TextSize || 1)}px` }}, "ENTER"), " to accept"
+                    )
+                  ),
+                  
+                  // Option B - Use existing waypoint
+                  React.createElement("div", { style: { marginBottom: `${10 * (spState.g1000TextSize || 1)}px`, padding: `${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(0,0,0,0.25)", borderRadius: "6px", border: "1px solid rgba(104,211,145,0.3)" }},
+                    React.createElement("div", { style: { color: "#68d391", fontWeight: "700", marginBottom: `${8 * (spState.g1000TextSize || 1)}px`, fontSize: `${14 * (spState.g1000TextSize || 1)}px` }}, "Option B: Use existing waypoint or navaid"),
+                    React.createElement("div", { style: { fontSize: `${13 * (spState.g1000TextSize || 1)}px`, lineHeight: "1.8" }},
+                      "• Type identifier (airport, VOR, intersection, or User WPT)", React.createElement("br"),
+                      "• Or turn ", React.createElement("span", { style: { color: "#f6e05e", fontWeight: "700" }}, "SMALL"), " knob ", React.createElement("span", { style: { color: "#fc8181", fontWeight: "700" }}, "← LEFT"), " for NEAREST/RECENT lists"
+                    )
+                  ),
+                  
+                  // Option C - Mark current position
+                  React.createElement("div", { style: { padding: `${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(0,0,0,0.25)", borderRadius: "6px", border: "1px solid rgba(183,148,244,0.3)" }},
+                    React.createElement("div", { style: { color: "#b794f4", fontWeight: "700", marginBottom: `${8 * (spState.g1000TextSize || 1)}px`, fontSize: `${14 * (spState.g1000TextSize || 1)}px` }}, "Option C: Create waypoint at map position"),
+                    React.createElement("div", { style: { fontSize: `${13 * (spState.g1000TextSize || 1)}px`, lineHeight: "2.0" }},
+                      "1. Press ", React.createElement("span", { style: { color: "#63b3ed", fontWeight: "700" }}, "SMALL Range knob"), " (on MFD)", React.createElement("br"),
+                      "2. Move pointer using joystick-like motion", React.createElement("br"),
+                      "3. Press ", React.createElement("span", { style: { display: "inline-block", padding: `${2 * (spState.g1000TextSize || 1)}px ${8 * (spState.g1000TextSize || 1)}px`, background: "linear-gradient(180deg, #4a5568, #2d3748)", borderRadius: "3px", fontFamily: "monospace", fontWeight: "700", color: "#f6e05e", border: "1px solid #718096", fontSize: `${11 * (spState.g1000TextSize || 1)}px` }}, "ENTER"), " → \"Create User WPT\"", React.createElement("br"),
+                      "4. Name it → ", React.createElement("span", { style: { display: "inline-block", padding: `${2 * (spState.g1000TextSize || 1)}px ${8 * (spState.g1000TextSize || 1)}px`, background: "linear-gradient(180deg, #4a5568, #2d3748)", borderRadius: "3px", fontFamily: "monospace", fontWeight: "700", color: "#f6e05e", border: "1px solid #718096", fontSize: `${11 * (spState.g1000TextSize || 1)}px` }}, "ENTER")
+                    )
+                  )
+                )
+              ),
+              
+              // Step 3
+              React.createElement("div", { style: { padding: `${14 * (spState.g1000TextSize || 1)}px`, marginBottom: `${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(0,0,0,0.3)", borderRadius: "8px", borderLeft: "5px solid #63b3ed" }},
+                React.createElement("div", { style: { fontSize: `${15 * (spState.g1000TextSize || 1)}px`, fontWeight: "700", color: "#63b3ed", marginBottom: `${12 * (spState.g1000TextSize || 1)}px` }},
+                  "STEP 3: Select the Pattern Type"
+                ),
+                React.createElement("div", { style: { fontSize: `${14 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0", lineHeight: "2.0" }},
+                  React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: "6px" }},
+                    React.createElement("span", { style: { color: "#a0aec0", width: `${28 * (spState.g1000TextSize || 1)}px`, fontWeight: "600" }}, "1."),
+                    "After ENTER, cursor moves to ", React.createElement("strong", null, "PATTERN"), " field"
+                  ),
+                  React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: "6px", flexWrap: "wrap", gap: "4px" }},
+                    React.createElement("span", { style: { color: "#a0aec0", width: `${28 * (spState.g1000TextSize || 1)}px`, fontWeight: "600" }}, "2."),
+                    "Turn ", React.createElement("span", { style: { color: "#f6e05e", fontWeight: "700" }}, "SMALL"), " knob ", 
+                    React.createElement("span", { style: { color: "#63b3ed", fontWeight: "700" }}, "→ RIGHT"), " or ",
+                    React.createElement("span", { style: { color: "#fc8181", fontWeight: "700" }}, "← LEFT"), " to: ",
+                    React.createElement("span", { style: { color: "#68d391", fontWeight: "700", fontSize: `${15 * (spState.g1000TextSize || 1)}px` }}, 
+                      lastPlan.patternType.includes("Creeping") ? "PARALLEL" : 
+                      lastPlan.patternType.includes("Expanding") ? "EXP SQR" : "PARALLEL"
+                    )
+                  ),
+                  React.createElement("div", { style: { display: "flex", alignItems: "center" }},
+                    React.createElement("span", { style: { color: "#a0aec0", width: `${28 * (spState.g1000TextSize || 1)}px`, fontWeight: "600" }}, "3."),
+                    "Press ", React.createElement("span", { style: { display: "inline-block", padding: `${3 * (spState.g1000TextSize || 1)}px ${10 * (spState.g1000TextSize || 1)}px`, background: "linear-gradient(180deg, #4a5568, #2d3748)", borderRadius: "4px", fontFamily: "monospace", fontWeight: "700", color: "#f6e05e", border: "1px solid #718096", fontSize: `${12 * (spState.g1000TextSize || 1)}px` }}, "ENTER"), " to confirm"
+                  )
+                ),
+                React.createElement("div", { style: { fontSize: `${12 * (spState.g1000TextSize || 1)}px`, color: "#a0aec0", marginTop: `${10 * (spState.g1000TextSize || 1)}px`, padding: `${10 * (spState.g1000TextSize || 1)}px`, background: "rgba(0,0,0,0.2)", borderRadius: "4px", lineHeight: "1.8" }},
+                  React.createElement("strong", null, "Pattern options:"), React.createElement("br"),
+                  "• PARALLEL – Rectangle grid (most common)", React.createElement("br"),
+                  "• SECTOR – Triangle pattern, 3 sectors", React.createElement("br"),
+                  "• EXP SQR – Expanding square from center"
+                )
+              ),
+              
+              // Step 4
+              React.createElement("div", { style: { padding: `${14 * (spState.g1000TextSize || 1)}px`, marginBottom: `${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(0,0,0,0.3)", borderRadius: "8px", borderLeft: "5px solid #63b3ed" }},
+                React.createElement("div", { style: { fontSize: `${15 * (spState.g1000TextSize || 1)}px`, fontWeight: "700", color: "#63b3ed", marginBottom: `${12 * (spState.g1000TextSize || 1)}px` }},
+                  "STEP 4: Set Pattern Parameters"
+                ),
+                React.createElement("div", { style: { fontSize: `${14 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0", marginBottom: `${12 * (spState.g1000TextSize || 1)}px` }},
+                  "For each field: Turn ", React.createElement("span", { style: { color: "#f6e05e", fontWeight: "700" }}, "SMALL"), " knob to change → Press ", React.createElement("span", { style: { display: "inline-block", padding: `${3 * (spState.g1000TextSize || 1)}px ${10 * (spState.g1000TextSize || 1)}px`, background: "linear-gradient(180deg, #4a5568, #2d3748)", borderRadius: "4px", fontFamily: "monospace", fontWeight: "700", color: "#f6e05e", border: "1px solid #718096", fontSize: `${12 * (spState.g1000TextSize || 1)}px` }}, "ENTER"), " to advance"
+                ),
+                React.createElement("div", { style: { background: "rgba(0,0,0,0.3)", borderRadius: "6px", overflow: "hidden" }},
+                  React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: `${14 * (spState.g1000TextSize || 1)}px` }},
+                    React.createElement("thead", null,
+                      React.createElement("tr", { style: { background: "rgba(99,179,237,0.2)" }},
+                        React.createElement("th", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "left", color: "#63b3ed", fontWeight: "700" }}, "Field"),
+                        React.createElement("th", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#63b3ed", fontWeight: "700" }}, "Set To"),
+                        React.createElement("th", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#a0aec0", fontWeight: "400", fontSize: `${11 * (spState.g1000TextSize || 1)}px` }}, "Range")
+                      )
+                    ),
+                    React.createElement("tbody", null,
+                      React.createElement("tr", { style: { borderTop: "1px solid rgba(255,255,255,0.1)" }},
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0" }}, "INITIAL DTK"),
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#68d391", fontWeight: "700", fontFamily: "monospace", fontSize: `${15 * (spState.g1000TextSize || 1)}px` }}, 
+                          (lastPlan.waypoints[0]?.heading || lastPlan.summary.initialHeading || lastPlan.summary.heading || 360), "°"
+                        ),
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#a0aec0", fontSize: `${11 * (spState.g1000TextSize || 1)}px` }}, "1-360°")
+                      ),
+                      React.createElement("tr", { style: { borderTop: "1px solid rgba(255,255,255,0.1)" }},
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0" }}, "INITIAL TURN"),
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#68d391", fontWeight: "700", fontFamily: "monospace", fontSize: `${15 * (spState.g1000TextSize || 1)}px` }}, 
+                          // Derive turn direction based on pattern type
+                          lastPlan.summary.turnDirection || 
+                          (lastPlan.summary.startSide === 'Left' ? 'RIGHT' : lastPlan.summary.startSide === 'Right' ? 'LEFT' : null) ||
+                          (lastPlan.summary.entryCorner?.includes('W') ? 'RIGHT' : lastPlan.summary.entryCorner?.includes('E') ? 'LEFT' : null) ||
+                          "RIGHT"
+                        ),
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#a0aec0", fontSize: `${11 * (spState.g1000TextSize || 1)}px` }}, "Left/Right")
+                      ),
+                      !lastPlan.patternType.includes("Expanding") && React.createElement("tr", { style: { borderTop: "1px solid rgba(255,255,255,0.1)" }},
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0" }}, 
+                          "LEG LENGTH",
+                          React.createElement("span", { style: { color: "#fc8181", fontSize: `${10 * (spState.g1000TextSize || 1)}px`, marginLeft: "4px" }}, "★")
+                        ),
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#68d391", fontWeight: "700", fontFamily: "monospace", fontSize: `${15 * (spState.g1000TextSize || 1)}px` }}, 
+                          (lastPlan.summary.legLength || lastPlan.summary.trackLength || lastPlan.dimensions?.corridorLength || lastPlan.dimensions?.actualHeight || 15.0).toFixed ? (lastPlan.summary.legLength || lastPlan.summary.trackLength || lastPlan.dimensions?.corridorLength || lastPlan.dimensions?.actualHeight || 15.0).toFixed(1) : (lastPlan.summary.legLength || lastPlan.summary.trackLength || lastPlan.dimensions?.corridorLength || lastPlan.dimensions?.actualHeight || 15.0), " NM"
+                        ),
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#a0aec0", fontSize: `${11 * (spState.g1000TextSize || 1)}px` }}, 
+                          lastPlan.patternType.includes("Sector") ? "0.5-10 NM" : "1-99.9 NM"
+                        )
+                      ),
+                      React.createElement("tr", { style: { borderTop: "1px solid rgba(255,255,255,0.1)" }},
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0" }}, "SPACING"),
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#68d391", fontWeight: "700", fontFamily: "monospace", fontSize: `${15 * (spState.g1000TextSize || 1)}px` }}, 
+                          lastPlan.summary.spacing, " NM"
+                        ),
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#a0aec0", fontSize: `${11 * (spState.g1000TextSize || 1)}px` }}, "0.5-9.9 NM")
+                      ),
+                      !lastPlan.patternType.includes("Sector") && React.createElement("tr", { style: { borderTop: "1px solid rgba(255,255,255,0.1)" }},
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0" }}, "NUMBER OF LEGS"),
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#68d391", fontWeight: "700", fontFamily: "monospace", fontSize: `${15 * (spState.g1000TextSize || 1)}px` }}, 
+                          lastPlan.summary.numTracks || lastPlan.summary.numLegs
+                        ),
+                        React.createElement("td", { style: { padding: `${10 * (spState.g1000TextSize || 1)}px`, textAlign: "right", color: "#a0aec0", fontSize: `${11 * (spState.g1000TextSize || 1)}px` }}, 
+                          lastPlan.patternType.includes("Expanding") ? "1-60" : "1-40"
+                        )
+                      )
+                    )
+                  )
+                ),
+                // Important note about leg length
+                !lastPlan.patternType.includes("Expanding") && React.createElement("div", { style: { marginTop: `${10 * (spState.g1000TextSize || 1)}px`, padding: `${10 * (spState.g1000TextSize || 1)}px`, background: "rgba(252,129,129,0.15)", borderRadius: "4px", border: "2px solid rgba(252,129,129,0.4)" }},
+                  React.createElement("div", { style: { fontSize: `${12 * (spState.g1000TextSize || 1)}px`, color: "#fc8181", fontWeight: "600" }},
+                    "★ IMPORTANT: Leg Length is the FULL length of each leg, not half!"
+                  )
+                )
+              ),
+              
+              // Step 5
+              React.createElement("div", { style: { padding: `${14 * (spState.g1000TextSize || 1)}px`, marginBottom: `${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(0,0,0,0.3)", borderRadius: "8px", borderLeft: "5px solid #68d391" }},
+                React.createElement("div", { style: { fontSize: `${15 * (spState.g1000TextSize || 1)}px`, fontWeight: "700", color: "#68d391", marginBottom: `${12 * (spState.g1000TextSize || 1)}px` }},
+                  "STEP 5: Activate the Search Pattern"
+                ),
+                React.createElement("div", { style: { fontSize: `${14 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0", lineHeight: "2.2" }},
+                  React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: "6px" }},
+                    React.createElement("span", { style: { color: "#a0aec0", width: `${28 * (spState.g1000TextSize || 1)}px`, fontWeight: "600" }}, "1."),
+                    "After parameters, cursor is on ", React.createElement("strong", { style: { color: "#68d391" }}, "\"ACTIVATE SAR?\"")
+                  ),
+                  React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: "6px" }},
+                    React.createElement("span", { style: { color: "#a0aec0", width: `${28 * (spState.g1000TextSize || 1)}px`, fontWeight: "600" }}, "2."),
+                    "Press ", React.createElement("span", { style: { display: "inline-block", padding: `${4 * (spState.g1000TextSize || 1)}px ${12 * (spState.g1000TextSize || 1)}px`, background: "linear-gradient(180deg, #4a5568, #2d3748)", borderRadius: "4px", fontFamily: "monospace", fontWeight: "700", color: "#f6e05e", border: "1px solid #718096", margin: "0 4px", fontSize: `${13 * (spState.g1000TextSize || 1)}px` }}, "ENTER"), " to activate"
+                  ),
+                  React.createElement("div", { style: { display: "flex", alignItems: "center" }},
+                    React.createElement("span", { style: { color: "#a0aec0", width: `${28 * (spState.g1000TextSize || 1)}px`, fontWeight: "600" }}, "3."),
+                    "SAR Flight Plan is now created and active!"
+                  )
+                ),
+                React.createElement("div", { style: { marginTop: `${12 * (spState.g1000TextSize || 1)}px`, padding: `${10 * (spState.g1000TextSize || 1)}px`, background: "rgba(104,211,145,0.15)", borderRadius: "4px", border: "2px solid rgba(104,211,145,0.4)" }},
+                  React.createElement("div", { style: { fontSize: `${12 * (spState.g1000TextSize || 1)}px`, color: "#68d391", lineHeight: "1.8" }},
+                    "✓ Pattern appears on Navigation Map page", React.createElement("br"),
+                    "✓ Press ", React.createElement("span", { style: { display: "inline-block", padding: `${2 * (spState.g1000TextSize || 1)}px ${8 * (spState.g1000TextSize || 1)}px`, background: "linear-gradient(180deg, #4a5568, #2d3748)", borderRadius: "3px", fontFamily: "monospace", fontWeight: "700", color: "#f6e05e", border: "1px solid #718096", fontSize: `${10 * (spState.g1000TextSize || 1)}px` }}, "CLR"), " for 2 seconds to return to map"
+                  )
+                )
+              ),
+              
+              // Step 6 - Flying the Pattern
+              React.createElement("div", { style: { padding: `${14 * (spState.g1000TextSize || 1)}px`, marginBottom: `${12 * (spState.g1000TextSize || 1)}px`, background: "rgba(0,0,0,0.3)", borderRadius: "8px", borderLeft: "5px solid #805ad5" }},
+                React.createElement("div", { style: { fontSize: `${15 * (spState.g1000TextSize || 1)}px`, fontWeight: "700", color: "#b794f4", marginBottom: `${12 * (spState.g1000TextSize || 1)}px` }},
+                  "STEP 6: Flying the Search Pattern"
+                ),
+                React.createElement("div", { style: { fontSize: `${14 * (spState.g1000TextSize || 1)}px`, color: "#e2e8f0", lineHeight: "2.0" }},
+                  React.createElement("div", { style: { marginBottom: "8px" }}, 
+                    "• Waypoints appear as ", React.createElement("strong", { style: { color: "#fbd38d" }}, "SAR-01, SAR-02, SAR-03"), ", etc."
+                  ),
+                  React.createElement("div", { style: { marginBottom: "8px" }}, 
+                    "• Fly to each numbered waypoint in sequence"
+                  ),
+                  React.createElement("div", { style: { marginBottom: "8px" }}, 
+                    "• ", React.createElement("strong", null, "Dashed turn leader lines"), " show your turn path at corners"
+                  ),
+                  React.createElement("div", null, 
+                    "• Pattern can be hand-flown or coupled to GFC 700 autopilot"
+                  )
+                )
+              ),
+              
+              // All Waypoints Reference
+              React.createElement("div", { 
+                style: { 
+                  marginTop: `${10 * (spState.g1000TextSize || 1)}px`,
+                  padding: `${14 * (spState.g1000TextSize || 1)}px`,
+                  background: "rgba(0,0,0,0.25)",
+                  borderRadius: "8px",
+                  border: "2px solid rgba(255,255,255,0.15)"
+                }
+              },
+                React.createElement("div", { style: { fontSize: `${13 * (spState.g1000TextSize || 1)}px`, fontWeight: "700", color: "#f6e05e", marginBottom: `${10 * (spState.g1000TextSize || 1)}px`, display: "flex", justifyContent: "space-between", alignItems: "center" }},
+                  React.createElement("span", null, "📍 ALL WAYPOINTS (G1000 DDM Format)"),
+                  React.createElement("span", { style: { color: "#a0aec0", fontWeight: "400" }}, lastPlan.waypoints.length, " total")
+                ),
+                React.createElement("div", { style: { maxHeight: "200px", overflowY: "auto", fontSize: `${13 * (spState.g1000TextSize || 1)}px`, fontFamily: "monospace" }},
+                  lastPlan.waypoints.map((wp, i) => 
+                    React.createElement("div", { 
+                      key: i, 
+                      style: { 
+                        padding: `${8 * (spState.g1000TextSize || 1)}px ${10 * (spState.g1000TextSize || 1)}px`, 
+                        background: i % 2 === 0 ? "rgba(0,0,0,0.25)" : "transparent",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        borderRadius: "4px"
+                      }
+                    },
+                      React.createElement("span", { style: { color: "#63b3ed", fontWeight: "700" }}, "WP", String(wp.number).padStart(2, '0')),
+                      React.createElement("span", { style: { color: "#68d391", fontSize: `${14 * (spState.g1000TextSize || 1)}px` }}, wp.ddm),
+                      React.createElement("span", { style: { color: "#fbd38d", minWidth: "50px", textAlign: "right" }}, wp.heading !== null ? wp.heading + "°" : "-")
+                    )
+                  )
+                )
+              )
+            )
+            ) // Close content wrapper
           )
         )
       );
