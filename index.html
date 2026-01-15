@@ -3204,13 +3204,34 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
           (position) => {
             const lat = position.coords.latitude;
             const lon = Math.abs(position.coords.longitude);
-            setDdLat(lat.toFixed(6));
-            setDdLon(lon.toFixed(6));
-            syncFromDd(lat.toFixed(6), lon.toFixed(6));
+            const latStr = lat.toFixed(6);
+            const lonStr = lon.toFixed(6);
+            
+            // Calculate all conversions
+            const latDms = gpsUtils.ddToDms(lat);
+            const lonDms = gpsUtils.ddToDms(lon);
+            const latDdm = gpsUtils.ddToDdm(lat);
+            const lonDdm = gpsUtils.ddToDdm(lon);
+            const grid = gpsUtils.calculateCapGrid(lat, -lon);
+            
+            // Set all state at once to prevent reset issues on iPad
+            setDdLat(latStr);
+            setDdLon(lonStr);
+            setDmsLatDeg(latDms.deg.toString());
+            setDmsLatMin(latDms.min.toString());
+            setDmsLatSec(latDms.sec.toString());
+            setDmsLonDeg(lonDms.deg.toString());
+            setDmsLonMin(lonDms.min.toString());
+            setDmsLonSec(lonDms.sec.toString());
+            setDdmLatDeg(latDdm.deg.toString());
+            setDdmLatMin(latDdm.min.toFixed(3));
+            setDdmLonDeg(lonDdm.deg.toString());
+            setDdmLonMin(lonDdm.min.toFixed(3));
+            setCapGrid(grid);
             setGpsStatus(`\u2713 Location acquired (\xB1${Math.round(position.coords.accuracy)}m)`);
           },
           (error) => setGpsStatus(`Error: ${error.message}`),
-          { enableHighAccuracy: true, timeout: 1e4 }
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       };
       const clearAll = () => {
@@ -4448,10 +4469,10 @@ Events: ${events.length}`;
       )), /* @__PURE__ */ React.createElement("div", { style: styles.grid2 }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Lat N (deg\xB0 min')"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, width: "60px", textAlign: "center" }, type: "text", inputMode: "numeric", placeholder: "DD", value: event.latDeg, onChange: (e) => updateEvent(event.id, "latDeg", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "\xB0"), /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", inputMode: "decimal", placeholder: "MM.MMM", value: event.latMin, onChange: (e) => updateEvent(event.id, "latMin", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "'"))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Long W (deg\xB0 min')"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, width: "60px", textAlign: "center" }, type: "text", inputMode: "numeric", placeholder: "DDD", value: event.longDeg, onChange: (e) => updateEvent(event.id, "longDeg", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "\xB0"), /* @__PURE__ */ React.createElement("input", { style: { ...styles.input, flex: 1 }, type: "text", inputMode: "decimal", placeholder: "MM.MMM", value: event.longMin, onChange: (e) => updateEvent(event.id, "longMin", e.target.value) }), /* @__PURE__ */ React.createElement("span", { style: { color: "#a0aec0" } }, "'")))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", marginTop: "10px" } }, /* @__PURE__ */ React.createElement(
         "button",
         {
-          style: { ...styles.button, ...styles.buttonSmall, flex: 1, background: "rgba(56,161,105,0.2)", border: "1px solid rgba(56,161,105,0.4)", color: "#68d391" },
+          style: { ...styles.button, ...styles.buttonSmall, flex: 1, background: "linear-gradient(135deg, #38a169, #2f855a)", padding: "10px" },
           onClick: () => {
             if (!navigator.geolocation) {
-              alert("GPS not supported");
+              alert("GPS not available");
               return;
             }
             navigator.geolocation.getCurrentPosition(
@@ -4471,11 +4492,11 @@ Events: ${events.length}`;
                 } : e));
               },
               (err) => alert("GPS Error: " + err.message),
-              { enableHighAccuracy: true, timeout: 1e4 }
+              { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
           }
         },
-        "\u{1F4CD} Current Loc"
+        "\u{1F4CD} GET GPS"
       ), /* @__PURE__ */ React.createElement(
         "button",
         {
