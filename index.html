@@ -6519,18 +6519,75 @@ React.createElement(
             const lon = pos.coords.longitude;
             const latDdm = gpsUtils.ddToDdm(lat);
             const lonDdm = gpsUtils.ddToDdm(Math.abs(lon));
+            
+            // Get altitude if available (in meters, convert to feet)
+            // Note: altitude from GPS is MSL, we estimate AGL
+            let altMSL = '';
+            let altAGL = '';
+            if (pos.coords.altitude !== null) {
+              const altFt = Math.round(pos.coords.altitude * 3.28084);
+              altMSL = altFt.toString();
+              // Rough AGL estimate (user should verify/adjust)
+              // Default to MSL - 5000 ft as rough terrain estimate for Colorado
+              altAGL = Math.max(500, altFt - 5000).toString();
+            }
+            
             setNewEltObs({
               ...newEltObs,
               latDeg: latDdm.deg.toString(),
               latMin: latDdm.min.toFixed(3),
               lonDeg: lonDdm.deg.toString(),
               lonMin: lonDdm.min.toFixed(3),
+              altMSL: altMSL || newEltObs.altMSL,
+              altAGL: altAGL || newEltObs.altAGL,
               timeZ: getZuluTimeOnly()
             });
+            
+            // Show altitude info to user
+            if (pos.coords.altitude !== null) {
+              const altFt = Math.round(pos.coords.altitude * 3.28084);
+              const horizonNm = (1.06 * (Math.sqrt(altFt) + Math.sqrt(3))).toFixed(1);
+              alert(`Position captured!\nAltitude: ${altFt} ft MSL\nRadio Horizon: ~${horizonNm} NM\n\nVerify/adjust AGL altitude for your terrain.`);
+            }
           },
           (err) => alert('GPS error: ' + err.message),
           { enableHighAccuracy: true, timeout: 10000 }
         );
+      };
+      
+      // Calculate radio horizon from altitude (NM)
+      // Formula: d_LOS(nm) ≈ 1.06 × (√h_aircraft + √h_elt)
+      // Assumes ELT antenna at ~3 ft
+      const calcRadioHorizon = (altAglFt) => {
+        if (!altAglFt || altAglFt <= 0) return null;
+        const h1 = parseFloat(altAglFt);
+        const h2 = 3; // ELT antenna height estimate
+        return 1.06 * (Math.sqrt(h1) + Math.sqrt(h2));
+      };
+      
+      // Estimate search range based on signal strength and altitude
+      // From radio horizon math: strength gives secondary constraint
+      // "strong" → ≤25% of horizon, "moderate" → ≤50%, "weak" → ≤90-100%
+      const estimateSearchRange = (strength, altAglFt) => {
+        const horizon = calcRadioHorizon(altAglFt || 1500);
+        if (!horizon) return null;
+        
+        // Map 1-10 strength to % of radio horizon
+        // 10 = very strong (close), 1 = barely audible (near horizon)
+        // Strength 10: ~10% of horizon
+        // Strength 5: ~50% of horizon  
+        // Strength 1: ~100% of horizon
+        const pctOfHorizon = 1.0 - (strength - 1) * 0.1; // 10→10%, 5→50%, 1→100%
+        
+        const maxRange = horizon * pctOfHorizon;
+        const minRange = horizon * Math.max(0, pctOfHorizon - 0.25);
+        
+        return {
+          horizon: horizon.toFixed(1),
+          minRange: minRange.toFixed(1),
+          maxRange: maxRange.toFixed(1),
+          pct: Math.round(pctOfHorizon * 100)
+        };
       };
 
       // Compute probable area
@@ -6702,20 +6759,15 @@ React.createElement(
         const lonStep = step / Math.cos(meanLat * Math.PI / 180);
 
         // ELT horizon lookup table
+        // Radio horizon calculation using standard VHF propagation formula
+        // d_LOS(nm) ≈ 1.06 × (√h_receiver + √h_transmitter)
+        // With k≈4/3 Earth radius factor for refraction
+        // h_transmitter (ELT) assumed at 3 ft (on ground or in wreckage)
         const getEltHorizon = (aglFt) => {
-          const table = [
-            [500, 12], [1000, 18], [2000, 25], [3000, 30], [4000, 35],
-            [5000, 40], [6000, 50], [7000, 58], [8000, 65], [10000, 80], [15000, 100]
-          ];
-          if (aglFt <= table[0][0]) return table[0][1];
-          if (aglFt >= table[table.length-1][0]) return table[table.length-1][1];
-          for (let i = 0; i < table.length - 1; i++) {
-            if (aglFt >= table[i][0] && aglFt < table[i+1][0]) {
-              const t = (aglFt - table[i][0]) / (table[i+1][0] - table[i][0]);
-              return table[i][1] + t * (table[i+1][1] - table[i][1]);
-            }
-          }
-          return 30;
+          if (!aglFt || aglFt <= 0) return 30; // Default fallback
+          const h_receiver = Math.max(aglFt, 100); // Aircraft altitude AGL
+          const h_transmitter = 3; // ELT antenna height (ft)
+          return 1.06 * (Math.sqrt(h_receiver) + Math.sqrt(h_transmitter));
         };
 
         // Build probability grid
@@ -7231,6 +7283,34 @@ React.createElement(
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#718096" }},
                   React.createElement("span", null, "1 = Weak"),
                   React.createElement("span", null, "10 = Strong")
+                ),
+                // Show estimated range based on strength and altitude
+                newEltObs.altAGL && React.createElement("div", { 
+                  style: { 
+                    marginTop: "8px", 
+                    padding: "8px", 
+                    background: "rgba(246,224,94,0.1)", 
+                    borderRadius: "6px",
+                    border: "1px solid rgba(246,224,94,0.2)",
+                    fontSize: "10px"
+                  }
+                },
+                  (() => {
+                    const est = estimateSearchRange(parseInt(newEltObs.strength) || 5, parseFloat(newEltObs.altAGL));
+                    if (!est) return null;
+                    return React.createElement(React.Fragment, null,
+                      React.createElement("div", { style: { color: "#a0aec0", marginBottom: "4px" }},
+                        "📡 Radio Horizon: ", 
+                        React.createElement("span", { style: { color: "#63b3ed", fontWeight: "600" }}, est.horizon, " NM"),
+                        " (at ", newEltObs.altAGL, " ft AGL)"
+                      ),
+                      React.createElement("div", { style: { color: "#f6e05e" }},
+                        "🎯 Est. Range: ",
+                        React.createElement("span", { style: { fontWeight: "700" }}, est.minRange, " - ", est.maxRange, " NM"),
+                        " (~", est.pct, "% of horizon)"
+                      )
+                    );
+                  })()
                 )
               ),
               // Direct Range (optional - overrides strength)
