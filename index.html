@@ -8428,42 +8428,70 @@ React.createElement(
               )
             ),
             
-            // Leg Length, Spacing, and Number of Legs
+            // Leg Length, Spacing, and Number of Legs - with iPad-friendly steppers
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "12px" } },
+              // Leg Length with steppers
               React.createElement("div", { style: styles.formGroup },
                 React.createElement("label", { style: styles.label }, "Leg Length (NM)"),
-                React.createElement("input", { 
-                  type: "number", 
-                  style: styles.input, 
-                  value: spState.clLegLength, 
-                  min: "0.5", 
-                  step: "0.5", 
-                  onChange: e => setSpState(s => ({ ...s, clLegLength: parseFloat(e.target.value) || 8 })) 
-                })
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
+                  React.createElement("button", { 
+                    style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
+                    onClick: () => setSpState(s => ({ ...s, clLegLength: Math.max(0.5, (s.clLegLength || 8) - 0.5) }))
+                  }, "−"),
+                  React.createElement("input", { 
+                    type: "text",
+                    inputMode: "decimal",
+                    style: { ...styles.input, flex: 1, textAlign: "center" }, 
+                    value: spState.clLegLength, 
+                    onChange: e => setSpState(s => ({ ...s, clLegLength: parseFloat(e.target.value) || 8 })) 
+                  }),
+                  React.createElement("button", { 
+                    style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
+                    onClick: () => setSpState(s => ({ ...s, clLegLength: (s.clLegLength || 8) + 0.5 }))
+                  }, "+")
+                )
               ),
+              // Spacing with steppers
               React.createElement("div", { style: styles.formGroup },
                 React.createElement("label", { style: styles.label }, "Spacing (NM)"),
-                React.createElement("input", { 
-                  type: "number", 
-                  style: styles.input, 
-                  value: spState.clSpacing || 1, 
-                  min: "0.1", 
-                  max: "10",
-                  step: "0.1", 
-                  onChange: e => setSpState(s => ({ ...s, clSpacing: parseFloat(e.target.value) || 1 })) 
-                })
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
+                  React.createElement("button", { 
+                    style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
+                    onClick: () => setSpState(s => ({ ...s, clSpacing: Math.max(0.1, Math.round(((s.clSpacing || 1) - 0.1) * 10) / 10) }))
+                  }, "−"),
+                  React.createElement("input", { 
+                    type: "text",
+                    inputMode: "decimal",
+                    style: { ...styles.input, flex: 1, textAlign: "center" }, 
+                    value: spState.clSpacing || 1, 
+                    onChange: e => setSpState(s => ({ ...s, clSpacing: parseFloat(e.target.value) || 1 })) 
+                  }),
+                  React.createElement("button", { 
+                    style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
+                    onClick: () => setSpState(s => ({ ...s, clSpacing: Math.round(((s.clSpacing || 1) + 0.1) * 10) / 10 }))
+                  }, "+")
+                )
               ),
+              // Number of Legs with steppers
               React.createElement("div", { style: styles.formGroup },
                 React.createElement("label", { style: styles.label }, "Number of Legs"),
-                React.createElement("input", { 
-                  type: "number", 
-                  style: styles.input, 
-                  value: spState.clNumLegs || 10, 
-                  min: "1", 
-                  max: "50",
-                  step: "1", 
-                  onChange: e => setSpState(s => ({ ...s, clNumLegs: parseInt(e.target.value) || 10 })) 
-                })
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
+                  React.createElement("button", { 
+                    style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
+                    onClick: () => setSpState(s => ({ ...s, clNumLegs: Math.max(1, (s.clNumLegs || 10) - 1) }))
+                  }, "−"),
+                  React.createElement("input", { 
+                    type: "text",
+                    inputMode: "numeric",
+                    style: { ...styles.input, flex: 1, textAlign: "center" }, 
+                    value: spState.clNumLegs || 10, 
+                    onChange: e => setSpState(s => ({ ...s, clNumLegs: parseInt(e.target.value) || 10 })) 
+                  }),
+                  React.createElement("button", { 
+                    style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
+                    onClick: () => setSpState(s => ({ ...s, clNumLegs: Math.min(50, (s.clNumLegs || 10) + 1) }))
+                  }, "+")
+                )
               )
             ),
             
