@@ -8255,6 +8255,34 @@ React.createElement(
         textAlign: "center"
       });
       
+      // Reusable stepper button style
+      const stepperBtnStyle = { 
+        padding: "8px 12px", 
+        background: "rgba(255,255,255,0.1)", 
+        border: "1px solid rgba(255,255,255,0.2)", 
+        borderRadius: "4px", 
+        color: "#e2e8f0", 
+        fontSize: "16px", 
+        cursor: "pointer" 
+      };
+      
+      // Reusable StepperInput component for iPad-friendly numeric inputs
+      const StepperInput = ({ label, value, onChange, onDecrement, onIncrement, inputMode = "decimal" }) => 
+        React.createElement("div", { style: styles.formGroup },
+          React.createElement("label", { style: styles.label }, label),
+          React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
+            React.createElement("button", { style: stepperBtnStyle, onClick: onDecrement }, "−"),
+            React.createElement("input", { 
+              type: "text", 
+              inputMode,
+              style: { ...styles.input, flex: 1, textAlign: "center" }, 
+              value, 
+              onChange: e => onChange(e.target.value)
+            }),
+            React.createElement("button", { style: stepperBtnStyle, onClick: onIncrement }, "+")
+          )
+        );
+      
       return React.createElement("div", { style: { padding: "10px" } },
         React.createElement("h3", { style: { color: "#b794f4", marginBottom: "15px" } }, "🧭 Search Pattern Planner"),
         
@@ -8308,116 +8336,53 @@ React.createElement(
           )
         ),
         
-        // Common Parameters - with iPad-friendly steppers
+        // Common Parameters - using StepperInput component
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "15px" } }, 
-          React.createElement("div", { style: styles.formGroup }, 
-            React.createElement("label", { style: styles.label }, "Track Spacing (NM)"),
-            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
-              React.createElement("button", { 
-                style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                onClick: () => setSpState(s => ({ ...s, spacing: Math.max(0.1, Math.round((s.spacing - 0.1) * 10) / 10) }))
-              }, "−"),
-              React.createElement("input", { 
-                type: "text", 
-                inputMode: "decimal",
-                style: { ...styles.input, flex: 1, textAlign: "center" }, 
-                value: spacing, 
-                onChange: e => setSpState(s => ({ ...s, spacing: parseFloat(e.target.value) || 0.5 })) 
-              }),
-              React.createElement("button", { 
-                style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                onClick: () => setSpState(s => ({ ...s, spacing: Math.round((s.spacing + 0.1) * 10) / 10 }))
-              }, "+")
-            )
-          ), 
-          React.createElement("div", { style: styles.formGroup }, 
-            React.createElement("label", { style: styles.label }, "Groundspeed (kts)"),
-            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
-              React.createElement("button", { 
-                style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                onClick: () => setSpState(s => ({ ...s, groundspeed: Math.max(60, s.groundspeed - 5) }))
-              }, "−"),
-              React.createElement("input", { 
-                type: "text", 
-                inputMode: "numeric",
-                style: { ...styles.input, flex: 1, textAlign: "center" }, 
-                value: groundspeed, 
-                onChange: e => setSpState(s => ({ ...s, groundspeed: parseInt(e.target.value) || 90 })) 
-              }),
-              React.createElement("button", { 
-                style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                onClick: () => setSpState(s => ({ ...s, groundspeed: s.groundspeed + 5 }))
-              }, "+")
-            )
-          )
+          React.createElement(StepperInput, {
+            label: "Track Spacing (NM)",
+            value: spacing,
+            onChange: v => setSpState(s => ({ ...s, spacing: parseFloat(v) || 0.5 })),
+            onDecrement: () => setSpState(s => ({ ...s, spacing: Math.max(0.1, Math.round((s.spacing - 0.1) * 10) / 10) })),
+            onIncrement: () => setSpState(s => ({ ...s, spacing: Math.round((s.spacing + 0.1) * 10) / 10 })),
+            inputMode: "decimal"
+          }),
+          React.createElement(StepperInput, {
+            label: "Groundspeed (kts)",
+            value: groundspeed,
+            onChange: v => setSpState(s => ({ ...s, groundspeed: parseInt(v) || 90 })),
+            onDecrement: () => setSpState(s => ({ ...s, groundspeed: Math.max(60, s.groundspeed - 5) })),
+            onIncrement: () => setSpState(s => ({ ...s, groundspeed: s.groundspeed + 5 })),
+            inputMode: "numeric"
+          })
         ),
         
-        // POI-Centered Parallel Options - with iPad-friendly steppers
+        // POI-Centered Parallel Options - using StepperInput component
         patternType === 'poiCenteredParallel' && React.createElement("div", { style: { marginBottom: "15px" } },
           React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "10px" } },
-            // # Tracks
-            React.createElement("div", { style: styles.formGroup },
-              React.createElement("label", { style: styles.label }, "# Tracks"),
-              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, poiNumTracks: Math.max(2, (s.poiNumTracks || 6) - 1) }))
-                }, "−"),
-                React.createElement("input", { 
-                  type: "text", 
-                  inputMode: "numeric",
-                  style: { ...styles.input, flex: 1, textAlign: "center" }, 
-                  value: poiNumTracks, 
-                  onChange: e => setSpState(s => ({ ...s, poiNumTracks: parseInt(e.target.value) || 6 })) 
-                }),
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, poiNumTracks: Math.min(20, (s.poiNumTracks || 6) + 1) }))
-                }, "+")
-              )
-            ),
-            // Track Length
-            React.createElement("div", { style: styles.formGroup },
-              React.createElement("label", { style: styles.label }, "Track Len (NM)"),
-              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, poiTrackLength: Math.max(0.5, (s.poiTrackLength || 3) - 0.5) }))
-                }, "−"),
-                React.createElement("input", { 
-                  type: "text", 
-                  inputMode: "decimal",
-                  style: { ...styles.input, flex: 1, textAlign: "center" }, 
-                  value: poiTrackLength, 
-                  onChange: e => setSpState(s => ({ ...s, poiTrackLength: parseFloat(e.target.value) || 3 })) 
-                }),
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, poiTrackLength: (s.poiTrackLength || 3) + 0.5 }))
-                }, "+")
-              )
-            ),
-            // Heading
-            React.createElement("div", { style: styles.formGroup },
-              React.createElement("label", { style: styles.label }, "Heading (°)"),
-              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, poiHeading: (s.poiHeading - 5 + 360) % 360 }))
-                }, "−"),
-                React.createElement("input", { 
-                  type: "text", 
-                  inputMode: "numeric",
-                  style: { ...styles.input, flex: 1, textAlign: "center" }, 
-                  value: poiHeading, 
-                  onChange: e => setSpState(s => ({ ...s, poiHeading: parseInt(e.target.value) || 0 })) 
-                }),
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, poiHeading: (s.poiHeading + 5) % 360 }))
-                }, "+")
-              )
-            )
+            React.createElement(StepperInput, {
+              label: "# Tracks",
+              value: poiNumTracks,
+              onChange: v => setSpState(s => ({ ...s, poiNumTracks: parseInt(v) || 6 })),
+              onDecrement: () => setSpState(s => ({ ...s, poiNumTracks: Math.max(2, (s.poiNumTracks || 6) - 1) })),
+              onIncrement: () => setSpState(s => ({ ...s, poiNumTracks: Math.min(20, (s.poiNumTracks || 6) + 1) })),
+              inputMode: "numeric"
+            }),
+            React.createElement(StepperInput, {
+              label: "Track Len (NM)",
+              value: poiTrackLength,
+              onChange: v => setSpState(s => ({ ...s, poiTrackLength: parseFloat(v) || 3 })),
+              onDecrement: () => setSpState(s => ({ ...s, poiTrackLength: Math.max(0.5, (s.poiTrackLength || 3) - 0.5) })),
+              onIncrement: () => setSpState(s => ({ ...s, poiTrackLength: (s.poiTrackLength || 3) + 0.5 })),
+              inputMode: "decimal"
+            }),
+            React.createElement(StepperInput, {
+              label: "Heading (°)",
+              value: poiHeading,
+              onChange: v => setSpState(s => ({ ...s, poiHeading: parseInt(v) || 0 })),
+              onDecrement: () => setSpState(s => ({ ...s, poiHeading: (s.poiHeading - 5 + 360) % 360 })),
+              onIncrement: () => setSpState(s => ({ ...s, poiHeading: (s.poiHeading + 5) % 360 })),
+              inputMode: "numeric"
+            })
           ),
           React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", background: "rgba(0,0,0,0.2)", padding: "8px", borderRadius: "6px" } },
             "Creates parallel tracks centered on POI. Coverage: ~", (poiNumTracks && spacing ? (poiNumTracks * spacing).toFixed(1) : "?"), " × ", poiTrackLength || "?", " NM"
@@ -8492,14 +8457,11 @@ React.createElement(
           spState.clMode === 'custom' && React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "12px", marginBottom: "12px", border: "1px solid rgba(255,255,255,0.1)" } },
             React.createElement("div", { style: { fontSize: "11px", color: "#f6e05e", marginBottom: "10px", fontWeight: "600" } }, "CUSTOM CREEPING LINE (ForeFlight SAR Compatible)"),
             
-            // Creep Direction with steppers
+            // Creep Direction with steppers and track info
             React.createElement("div", { style: styles.formGroup },
               React.createElement("label", { style: styles.label }, "Creep Direction (°) — Direction search advances"),
               React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, clCreepDirection: ((s.clCreepDirection || 25) - 5 + 360) % 360 }))
-                }, "−"),
+                React.createElement("button", { style: stepperBtnStyle, onClick: () => setSpState(s => ({ ...s, clCreepDirection: ((s.clCreepDirection || 25) - 5 + 360) % 360 })) }, "−"),
                 React.createElement("input", { 
                   type: "text",
                   inputMode: "numeric",
@@ -8507,60 +8469,31 @@ React.createElement(
                   value: spState.clCreepDirection || 25, 
                   onChange: e => setSpState(s => ({ ...s, clCreepDirection: parseInt(e.target.value) || 0 })) 
                 }),
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, clCreepDirection: ((s.clCreepDirection || 25) + 5) % 360 }))
-                }, "+"),
+                React.createElement("button", { style: stepperBtnStyle, onClick: () => setSpState(s => ({ ...s, clCreepDirection: ((s.clCreepDirection || 25) + 5) % 360 })) }, "+"),
                 React.createElement("span", { style: { color: "#a0aec0", fontSize: "11px", whiteSpace: "nowrap", marginLeft: "8px" } }, 
                   "Trks: ", ((spState.clCreepDirection || 25) + 270) % 360, "°/", ((spState.clCreepDirection || 25) + 90) % 360, "°"
                 )
               )
             ),
             
-            // Leg Length and Number of Legs - with iPad-friendly steppers (Spacing uses common field above)
+            // Leg Length and Number of Legs - using StepperInput component
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" } },
-              // Leg Length with steppers
-              React.createElement("div", { style: styles.formGroup },
-                React.createElement("label", { style: styles.label }, "Leg Length (NM)"),
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
-                  React.createElement("button", { 
-                    style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                    onClick: () => setSpState(s => ({ ...s, clLegLength: Math.max(0.5, (s.clLegLength || 8) - 0.5) }))
-                  }, "−"),
-                  React.createElement("input", { 
-                    type: "text",
-                    inputMode: "decimal",
-                    style: { ...styles.input, flex: 1, textAlign: "center" }, 
-                    value: spState.clLegLength, 
-                    onChange: e => setSpState(s => ({ ...s, clLegLength: parseFloat(e.target.value) || 8 })) 
-                  }),
-                  React.createElement("button", { 
-                    style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                    onClick: () => setSpState(s => ({ ...s, clLegLength: (s.clLegLength || 8) + 0.5 }))
-                  }, "+")
-                )
-              ),
-              // Number of Legs with steppers
-              React.createElement("div", { style: styles.formGroup },
-                React.createElement("label", { style: styles.label }, "Number of Legs"),
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
-                  React.createElement("button", { 
-                    style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                    onClick: () => setSpState(s => ({ ...s, clNumLegs: Math.max(1, (s.clNumLegs || 10) - 1) }))
-                  }, "−"),
-                  React.createElement("input", { 
-                    type: "text",
-                    inputMode: "numeric",
-                    style: { ...styles.input, flex: 1, textAlign: "center" }, 
-                    value: spState.clNumLegs || 10, 
-                    onChange: e => setSpState(s => ({ ...s, clNumLegs: parseInt(e.target.value) || 10 })) 
-                  }),
-                  React.createElement("button", { 
-                    style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                    onClick: () => setSpState(s => ({ ...s, clNumLegs: Math.min(50, (s.clNumLegs || 10) + 1) }))
-                  }, "+")
-                )
-              )
+              React.createElement(StepperInput, {
+                label: "Leg Length (NM)",
+                value: spState.clLegLength,
+                onChange: v => setSpState(s => ({ ...s, clLegLength: parseFloat(v) || 8 })),
+                onDecrement: () => setSpState(s => ({ ...s, clLegLength: Math.max(0.5, (s.clLegLength || 8) - 0.5) })),
+                onIncrement: () => setSpState(s => ({ ...s, clLegLength: (s.clLegLength || 8) + 0.5 })),
+                inputMode: "decimal"
+              }),
+              React.createElement(StepperInput, {
+                label: "Number of Legs",
+                value: spState.clNumLegs || 10,
+                onChange: v => setSpState(s => ({ ...s, clNumLegs: parseInt(v) || 10 })),
+                onDecrement: () => setSpState(s => ({ ...s, clNumLegs: Math.max(1, (s.clNumLegs || 10) - 1) })),
+                onIncrement: () => setSpState(s => ({ ...s, clNumLegs: Math.min(50, (s.clNumLegs || 10) + 1) })),
+                inputMode: "numeric"
+              })
             ),
             
             // G1000 Mode Toggle
@@ -8645,51 +8578,25 @@ React.createElement(
           )
         ),
         
-        // Expanding Square Options - with iPad-friendly steppers
+        // Expanding Square Options - using StepperInput component
         patternType === 'expandingSquare' && React.createElement("div", { style: { marginBottom: "15px" } },
           React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" } },
-            // Initial Heading
-            React.createElement("div", { style: styles.formGroup },
-              React.createElement("label", { style: styles.label }, "Initial Heading (°)"),
-              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, initialHeading: (s.initialHeading - 5 + 360) % 360 }))
-                }, "−"),
-                React.createElement("input", { 
-                  type: "text", 
-                  inputMode: "numeric",
-                  style: { ...styles.input, flex: 1, textAlign: "center" }, 
-                  value: initialHeading, 
-                  onChange: e => setSpState(s => ({ ...s, initialHeading: parseInt(e.target.value) || 0 })) 
-                }),
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, initialHeading: (s.initialHeading + 5) % 360 }))
-                }, "+")
-              )
-            ),
-            // Number of Legs
-            React.createElement("div", { style: styles.formGroup },
-              React.createElement("label", { style: styles.label }, "Number of Legs"),
-              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, numLegs: Math.max(2, (s.numLegs || 8) - 2) }))
-                }, "−"),
-                React.createElement("input", { 
-                  type: "text", 
-                  inputMode: "numeric",
-                  style: { ...styles.input, flex: 1, textAlign: "center" }, 
-                  value: numLegs, 
-                  onChange: e => setSpState(s => ({ ...s, numLegs: parseInt(e.target.value) || 8 })) 
-                }),
-                React.createElement("button", { 
-                  style: { padding: "8px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "4px", color: "#e2e8f0", fontSize: "16px", cursor: "pointer" },
-                  onClick: () => setSpState(s => ({ ...s, numLegs: Math.min(20, (s.numLegs || 8) + 2) }))
-                }, "+")
-              )
-            )
+            React.createElement(StepperInput, {
+              label: "Initial Heading (°)",
+              value: initialHeading,
+              onChange: v => setSpState(s => ({ ...s, initialHeading: parseInt(v) || 0 })),
+              onDecrement: () => setSpState(s => ({ ...s, initialHeading: (s.initialHeading - 5 + 360) % 360 })),
+              onIncrement: () => setSpState(s => ({ ...s, initialHeading: (s.initialHeading + 5) % 360 })),
+              inputMode: "numeric"
+            }),
+            React.createElement(StepperInput, {
+              label: "Number of Legs",
+              value: numLegs,
+              onChange: v => setSpState(s => ({ ...s, numLegs: parseInt(v) || 8 })),
+              onDecrement: () => setSpState(s => ({ ...s, numLegs: Math.max(2, (s.numLegs || 8) - 2) })),
+              onIncrement: () => setSpState(s => ({ ...s, numLegs: Math.min(20, (s.numLegs || 8) + 2) })),
+              inputMode: "numeric"
+            })
           ),
           React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Turn Direction"),
           React.createElement("div", { style: { display: "flex", gap: "8px" } },
