@@ -692,6 +692,7 @@ function spGenCreepingLineCustom(params) {
     legLength = 8.0,  // Length of each search track (NM)
     spacing = 0.5,  // Track spacing along creep direction (NM)
     numLegs = 10,  // Number of search tracks
+    g1000Mode = false,  // G1000 mode: add initial waypoint for full first leg
     groundspeed = 90
   } = params;
   
@@ -715,16 +716,36 @@ function spGenCreepingLineCustom(params) {
   let currentLat = poi.latDD;
   let currentLon = poi.lonDD;
   
+  // G1000 MODE: Add initial waypoint before POI to create full first leg
+  if (g1000Mode) {
+    // Calculate G1000 start point: go opposite direction from first track by halfLeg
+    // First track goes trackHeadingOut, so G1000 start is trackHeadingBack from POI
+    const g1000Start = spDestPoint(poi.latDD, poi.lonDD, trackHeadingBack, halfLeg);
+    
+    wps.push({
+      number: wpNum++,
+      lat: g1000Start.latDeg,
+      lon: g1000Start.lonDeg,
+      heading: trackHeadingOut,
+      legLength: legLength,  // Full leg to POI + halfLeg beyond
+      ddm: spFormatCoordDDM(g1000Start.latDeg, g1000Start.lonDeg),
+      foreflight: spFormatForeFlight(g1000Start.latDeg, g1000Start.lonDeg),
+      note: 'G1000 Start (Track 1 Start)'
+    });
+    
+    totalDist += halfLeg;  // Distance from G1000 start to POI
+  }
+  
   // First waypoint is the POI itself
   wps.push({
     number: wpNum++,
     lat: currentLat,
     lon: currentLon,
     heading: trackHeadingOut,
-    legLength: halfLeg,  // First leg is half-length
+    legLength: g1000Mode ? halfLeg : halfLeg,  // Continue to end of track 1
     ddm: spFormatCoordDDM(currentLat, currentLon),
     foreflight: spFormatForeFlight(currentLat, currentLon),
-    note: 'Start / Track 1 Start'
+    note: g1000Mode ? 'POI (Track 1 Mid)' : 'Start / Track 1 Start'
   });
   
   // First track: go half-leg out from POI (perpendicular to creep)
@@ -827,9 +848,10 @@ function spGenCreepingLineCustom(params) {
   };
   
   return {
-    patternType: 'Creeping Line (Custom)',
+    patternType: g1000Mode ? 'Creeping Line (G1000)' : 'Creeping Line (Custom)',
     poi,
     searchArea,
+    g1000Mode,
     dimensions: {
       legLength,
       corridorLength,
@@ -858,7 +880,7 @@ function spGenCreepingLineCustom(params) {
       totalDistance: totalDist,
       timeMinutes: (totalDist / groundspeed) * 60,
       gridAligned: false,
-      method: 'ForeFlight SAR Compatible'
+      method: g1000Mode ? 'Garmin G1000 (Full Legs)' : 'ForeFlight SAR Compatible'
     }
   };
 }
@@ -2619,6 +2641,7 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
       clLegLength: 8.0,  // Length of each search track (NM)
       clSpacing: 1.0,  // Spacing between legs (NM)
       clNumLegs: 10,  // Number of search tracks
+      clG1000Mode: false,  // G1000 mode adds initial waypoint for full first leg
       // POI-centered parallel
       poiNumTracks: 6, 
       poiTrackLength: 3, 
@@ -8061,7 +8084,7 @@ React.createElement(
       const handlePoiChange = (v) => { const p = spParseCoordinate(v); setSpState(s => ({ ...s, poiInput: v, poi: p, detectedGrid: p ? spDetectCapGrid(p.latDD, p.lonDD) : null })); };
       
       const generate = () => {
-        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, clMode, clCreepDirection, clLegLength, clSpacing, clNumLegs } = spState;
+        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, clMode, clCreepDirection, clLegLength, clSpacing, clNumLegs, clG1000Mode } = spState;
         if (!poi) { alert('Enter valid POI'); return; }
         let plan;
         if (spState.patternType === 'gridParallelTrack') {
@@ -8079,6 +8102,7 @@ React.createElement(
               legLength: clLegLength || 8, 
               spacing: clSpacing || 1, 
               numLegs: clNumLegs || 10, 
+              g1000Mode: clG1000Mode || false,
               groundspeed 
             });
           }
@@ -8443,6 +8467,46 @@ React.createElement(
               )
             ),
             
+            // G1000 Mode Toggle
+            React.createElement("div", { style: { marginBottom: "12px" } },
+              React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Aircraft/GPS Mode"),
+              React.createElement("div", { style: { display: "flex", gap: "8px" } },
+                React.createElement("button", { 
+                  style: { 
+                    padding: "10px 16px",
+                    border: !spState.clG1000Mode ? "2px solid #38a169" : "1px solid rgba(255,255,255,0.2)",
+                    borderRadius: "6px",
+                    background: !spState.clG1000Mode ? "rgba(56,161,105,0.3)" : "rgba(0,0,0,0.2)",
+                    color: !spState.clG1000Mode ? "#68d391" : "#a0aec0",
+                    cursor: "pointer",
+                    fontSize: "0.85em",
+                    fontWeight: !spState.clG1000Mode ? "bold" : "normal",
+                    flex: 1,
+                    textAlign: "center"
+                  }, 
+                  onClick: () => setSpState(s => ({ ...s, clG1000Mode: false })) 
+                }, "📱 ForeFlight/CAP"),
+                React.createElement("button", { 
+                  style: { 
+                    padding: "10px 16px",
+                    border: spState.clG1000Mode ? "2px solid #ed8936" : "1px solid rgba(255,255,255,0.2)",
+                    borderRadius: "6px",
+                    background: spState.clG1000Mode ? "rgba(237,137,54,0.3)" : "rgba(0,0,0,0.2)",
+                    color: spState.clG1000Mode ? "#fbd38d" : "#a0aec0",
+                    cursor: "pointer",
+                    fontSize: "0.85em",
+                    fontWeight: spState.clG1000Mode ? "bold" : "normal",
+                    flex: 1,
+                    textAlign: "center"
+                  }, 
+                  onClick: () => setSpState(s => ({ ...s, clG1000Mode: true })) 
+                }, "✈️ Garmin G1000")
+              ),
+              spState.clG1000Mode && React.createElement("div", { style: { fontSize: "11px", color: "#fbd38d", background: "rgba(237,137,54,0.15)", padding: "8px", borderRadius: "6px", marginTop: "8px", borderLeft: "3px solid #ed8936" } },
+                "G1000 Mode adds an initial waypoint to create a full first leg (G1000 doesn't support half-legs)"
+              )
+            ),
+            
             // Estimated coverage info
             React.createElement("div", { style: { fontSize: "11px", color: "#68d391", background: "rgba(56,161,105,0.15)", padding: "10px", borderRadius: "6px", marginTop: "8px" } },
               React.createElement("div", { style: { fontWeight: "600", marginBottom: "4px" } }, "📊 Estimated Coverage:"),
@@ -8451,7 +8515,9 @@ React.createElement(
                 const legLen = spState.clLegLength || 8;
                 const legSpacing = spState.clSpacing || 1;
                 const corridorLen = (numLegs - 1) * legSpacing;
-                const estTotalDist = (legLen / 2) + ((numLegs - 1) * legLen);  // First leg is half + rest full
+                const estTotalDist = spState.clG1000Mode 
+                  ? (numLegs * legLen)  // G1000: all full legs
+                  : (legLen / 2) + ((numLegs - 1) * legLen);  // ForeFlight: first half + rest full
                 const estTime = groundspeed ? (estTotalDist / groundspeed) * 60 : 0;
                 return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" } },
                   React.createElement("span", null, "Tracks: ", React.createElement("strong", null, numLegs)),
@@ -8466,10 +8532,19 @@ React.createElement(
             // Pattern description
             React.createElement("div", { style: { fontSize: "11px", color: "#90cdf4", background: "rgba(99,179,237,0.15)", padding: "10px", borderRadius: "6px", marginTop: "8px", borderLeft: "3px solid #63b3ed" } },
               React.createElement("div", { style: { fontWeight: "600", marginBottom: "4px" } }, "📋 Pattern Structure:"),
-              React.createElement("div", null, "• POI is the starting corner"),
-              React.createElement("div", null, "• First track: half-length (", ((spState.clLegLength || 8) / 2).toFixed(1), " NM) on hdg ", ((spState.clCreepDirection || 25) + 270) % 360, "°"),
-              React.createElement("div", null, "• Subsequent tracks: full-length (", spState.clLegLength || 8, " NM) alternating"),
-              React.createElement("div", null, "• Creep ", spState.clSpacing || 1, " NM on heading ", spState.clCreepDirection || 25, "° between tracks")
+              spState.clG1000Mode 
+                ? React.createElement("div", null,
+                    React.createElement("div", null, "• G1000 start point added before POI"),
+                    React.createElement("div", null, "• First leg: full-length (", spState.clLegLength || 8, " NM) ending at POI + ", ((spState.clLegLength || 8) / 2).toFixed(1), " NM"),
+                    React.createElement("div", null, "• All tracks: full-length (", spState.clLegLength || 8, " NM) alternating"),
+                    React.createElement("div", null, "• Creep ", spState.clSpacing || 1, " NM on heading ", spState.clCreepDirection || 25, "° between tracks")
+                  )
+                : React.createElement("div", null,
+                    React.createElement("div", null, "• POI is the starting corner"),
+                    React.createElement("div", null, "• First track: half-length (", ((spState.clLegLength || 8) / 2).toFixed(1), " NM) on hdg ", ((spState.clCreepDirection || 25) + 270) % 360, "°"),
+                    React.createElement("div", null, "• Subsequent tracks: full-length (", spState.clLegLength || 8, " NM) alternating"),
+                    React.createElement("div", null, "• Creep ", spState.clSpacing || 1, " NM on heading ", spState.clCreepDirection || 25, "° between tracks")
+                  )
             )
           )
         ),
