@@ -3522,8 +3522,70 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
       const [tempF, setTempF] = useState("");
       const [tempUnit, setTempUnit] = useState("F");
       const [results, setResults] = useState(null);
-      const [weatherSource, setWeatherSource] = useState(null); // Track if data came from METAR
-      const [isLoadingWeather, setIsLoadingWeather] = useState(false);
+      const [icaoCode, setIcaoCode] = useState("");
+      const [metarText, setMetarText] = useState("");
+      const [parseError, setParseError] = useState(null);
+      const [parseSuccess, setParseSuccess] = useState(null);
+      const [elevationSource, setElevationSource] = useState(null);
+      
+      // Airport elevation database (feet MSL) - common US airports
+      // Data from FAA airport database
+      const airportElevations = {
+        // Colorado
+        KDEN: 5434, KAPA: 5885, KBJC: 5673, KCOS: 6187, KPUB: 4726, KASE: 7838,
+        KEGE: 6548, KGUC: 7680, KTEX: 6194, KFNL: 5016, KGXY: 4697, KCFO: 5497,
+        KAFF: 6572, KFCS: 5838, KLIC: 5373, KMTJ: 5759, KDRO: 6685, KCYS: 6159,
+        // Major US Hubs
+        KJFK: 13, KLAX: 128, KORD: 672, KDFW: 607, KATL: 1026, KSFO: 13,
+        KLAS: 2181, KPHX: 1135, KMIA: 9, KSEA: 433, KMSP: 841, KDTW: 645,
+        KBOS: 19, KEWR: 18, KLGA: 21, KPHL: 36, KDCA: 15, KIAD: 313,
+        KBWI: 146, KCLT: 748, KMCO: 96, KTPA: 26, KFLL: 9, KSAN: 17,
+        KPDX: 31, KSLC: 4227, KSTL: 618, KMCI: 1026, KBNA: 599, KAUS: 542,
+        KSAT: 809, KHOU: 46, KIAH: 97, KMDW: 620, KOAK: 9, KSJC: 62,
+        KSNA: 56, KONT: 944, KBUR: 778, KLGB: 60, KRNO: 4415, KABQ: 5355,
+        KTUS: 2643, KELP: 3959, KOKC: 1295, KTUL: 677, KMEM: 341, KCVG: 896,
+        KCLE: 791, KPIT: 1204, KPBI: 19, KRDU: 435, KRIC: 167, KORF: 27,
+        KBDL: 173, KPVD: 55, KMKE: 723, KIND: 797, KCMH: 815, KBUF: 728,
+        KSYR: 421, KALB: 285, KROC: 559, KJAX: 30, KRSW: 30, KSRQ: 30,
+        KPNS: 121, KMSY: 4, KLIT: 262, KXNA: 1287, KSGF: 1268, KDSM: 958,
+        KOMA: 984, KICT: 1333, KFSD: 1429, KBIS: 1661, KFAR: 902, KGFK: 845,
+        KRAP: 3204, KBOI: 2871, KGEG: 2386, KBZN: 4473, KMSO: 3206, KGTF: 3677,
+        KBIL: 3652, KHLN: 3877, KFCA: 2977, KIDA: 4744, KTWF: 4154, KPIH: 4452,
+        KLWS: 1442, KYKM: 1095, KRDM: 3080, KEUG: 374, KMFR: 1335, KOTH: 17,
+        KEAT: 1249, KPSC: 410, KALW: 1191, KEPH: 2349,
+        // Alaska
+        PANC: 152, PAFA: 439, PAJN: 26,
+        // Hawaii  
+        PHNL: 13, PHOG: 256, PHKO: 47, PHLI: 153,
+        // Canada (common cross-border)
+        CYVR: 14, CYYZ: 569, CYUL: 118, CYYC: 3557, CYEG: 2373,
+        // Additional Colorado/Rocky Mountain
+        KGJT: 4858, KCPR: 5353,KRIW: 5525, KSHR: 4209, KLAR: 7284,
+        KPSO: 7316, KAEJ: 6380, KANK: 6880
+      };
+      
+      // Look up airport elevation
+      const lookupElevation = (code) => {
+        if (!code || code.length < 3) return;
+        
+        const icao = code.toUpperCase().trim();
+        const elevation = airportElevations[icao];
+        
+        if (elevation !== undefined) {
+          setFieldElevation(elevation.toString());
+          setElevationSource(icao);
+        } else {
+          // Try adding K prefix for US airports entered without it
+          const withK = 'K' + icao;
+          if (airportElevations[withK]) {
+            setFieldElevation(airportElevations[withK].toString());
+            setElevationSource(withK);
+            setIcaoCode(withK);
+          } else {
+            alert(`Airport ${icao} not in database.\n\nYou can:\n1. Enter field elevation manually\n2. Check the FAA website for elevation`);
+          }
+        }
+      };
       
       // Standard atmosphere constants
       const STANDARD_PRESSURE = 29.92; // inches Hg
@@ -3549,222 +3611,107 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
           setTempC(value);
           setTempF(convertTemp(value, "C"));
         }
-        setWeatherSource(null); // Clear weather source when manually editing
       };
       
-      // Parse METAR altimeter setting (e.g., "A3012" = 30.12 inHg)
-      const parseMetarAltimeter = (metar) => {
-        const match = metar.match(/A(\d{4})/);
-        if (match) {
-          return (parseInt(match[1]) / 100).toFixed(2);
+      // Open AWC website to view METAR - direct API access blocked by CORS
+      // Also looks up field elevation from database
+      const openWeatherLookup = (code) => {
+        if (!code || code.length < 3) {
+          alert('Please enter a valid ICAO code (e.g., KDEN, KAPA)');
+          return;
         }
-        // Try QNH format (hectopascals) - Q1013 = 1013 hPa
-        const qnhMatch = metar.match(/Q(\d{4})/);
-        if (qnhMatch) {
-          return (parseInt(qnhMatch[1]) * 0.02953).toFixed(2);
-        }
-        return null;
-      };
-      
-      // Parse METAR temperature (e.g., "15/10" or "M05/M10" for negative)
-      const parseMetarTemp = (metar) => {
-        const match = metar.match(/\s(M?\d{2})\/(M?\d{2})\s/);
-        if (match) {
-          let temp = match[1];
-          if (temp.startsWith('M')) {
-            return -parseInt(temp.substring(1));
-          }
-          return parseInt(temp);
-        }
-        return null;
-      };
-      
-      // Calculate distance between two points (Haversine)
-      const calcDistance = (lat1, lon1, lat2, lon2) => {
-        const R = 3440.065; // Earth radius in nautical miles
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-      };
-      
-      // Fetch weather from nearest station
-      const fetchNearestWeather = async (lat, lon) => {
-        setIsLoadingWeather(true);
-        setWeatherSource(null);
+        const icao = code.toUpperCase().trim();
         
-        try {
-          // AWC API supports location-based queries
-          // Format: @lat,lon searches for stations near that point
-          const radius = 100; // Search within 100 statute miles
-          
-          // The AWC API endpoint for METAR data
-          const metarUrl = `https://aviationweather.gov/api/data/metar?ids=@${lat.toFixed(4)},${lon.toFixed(4)}&distance=${radius}&format=json`;
-          
-          console.log('Fetching weather from:', metarUrl);
-          
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-          
-          const response = await fetch(metarUrl, {
-            method: 'GET',
-            signal: controller.signal,
-            headers: {
-              'Accept': 'application/json',
-              'User-Agent': 'CAP-Observer-Log/1.0'
-            }
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (!response.ok) {
-            const errorText = await response.text().catch(() => 'Unknown error');
-            throw new Error(`Weather API error (${response.status}): ${errorText}`);
-          }
-          
-          const data = await response.json();
-          
-          console.log('Weather data received:', data);
-          
-          if (!data || !Array.isArray(data) || data.length === 0) {
-            throw new Error('No weather stations found within ' + radius + ' miles. Try a different location or enter data manually.');
-          }
-          
-          // Find the closest station with valid data
-          let closestStation = null;
-          let closestDistance = Infinity;
-          
-          for (const station of data) {
-            // Check for required fields
-            if (station.lat !== undefined && station.lon !== undefined && station.rawOb) {
-              const dist = calcDistance(lat, lon, station.lat, station.lon);
-              if (dist < closestDistance) {
-                closestDistance = dist;
-                closestStation = station;
-              }
-            }
-          }
-          
-          if (!closestStation) {
-            throw new Error('Weather stations found but none have complete data. Try entering values manually.');
-          }
-          
-          console.log('Closest station:', closestStation);
-          
-          // Parse the METAR data
-          const metar = closestStation.rawOb;
-          
-          // Get temperature - prefer API field, fallback to parsing METAR
-          let tempCelsius = null;
-          if (closestStation.temp !== undefined && closestStation.temp !== null) {
-            tempCelsius = closestStation.temp;
-          } else {
-            tempCelsius = parseMetarTemp(metar);
-          }
-          
-          // Get altimeter - prefer API field, fallback to parsing METAR
-          let altimeter = null;
-          if (closestStation.altim !== undefined && closestStation.altim !== null) {
-            // API returns altimeter in hPa/mb, convert to inHg
-            altimeter = (closestStation.altim / 33.8639).toFixed(2);
-          } else {
-            altimeter = parseMetarAltimeter(metar);
-          }
-          
-          // Station elevation - API returns in meters, convert to feet
-          let stationElev = null;
-          if (closestStation.elev !== undefined && closestStation.elev !== null) {
-            stationElev = Math.round(closestStation.elev * 3.28084);
-          }
-          
-          // Update form fields with weather data
-          if (stationElev !== null) {
-            setFieldElevation(stationElev.toString());
-          }
-          if (altimeter) {
-            setAltimeterSetting(altimeter);
-          }
-          if (tempCelsius !== null) {
-            const tempCStr = tempCelsius.toString();
-            setTempC(tempCStr);
-            setTempF(convertTemp(tempCStr, "C"));
-          }
-          
-          // Format observation time
-          let obsTimeStr = 'Unknown';
-          if (closestStation.obsTime) {
-            // obsTime may be epoch seconds
-            const obsDate = typeof closestStation.obsTime === 'number' 
-              ? new Date(closestStation.obsTime * 1000)
-              : new Date(closestStation.obsTime);
-            obsTimeStr = obsDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' Z';
-          }
-          
-          // Set weather source info for display
-          setWeatherSource({
-            station: closestStation.icaoId || closestStation.stationId || 'Unknown',
-            name: closestStation.name || closestStation.icaoId || 'Weather Station',
-            distance: closestDistance.toFixed(1),
-            metar: metar,
-            time: obsTimeStr,
-            elevation: stationElev
-          });
-          
-          // Auto-calculate after fetching
-          setTimeout(() => {
-            calculateDensityAltitude();
-          }, 100);
-          
-        } catch (error) {
-          console.error('Weather fetch error:', error);
-          
-          let userMessage = 'Could not fetch weather data.\n\n';
-          
-          if (error.name === 'AbortError') {
-            userMessage += 'Request timed out. The weather service may be slow or unavailable.';
-          } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-            userMessage += 'Network error. Please check your internet connection.\n\nNote: Some networks may block access to weather services.';
-          } else {
-            userMessage += error.message;
-          }
-          
-          userMessage += '\n\nYou can still enter field elevation, altimeter, and temperature manually.';
-          
-          alert(userMessage);
-        } finally {
-          setIsLoadingWeather(false);
-        }
+        // Look up elevation automatically
+        lookupElevation(icao);
+        
+        // Open weather site
+        window.open(`https://aviationweather.gov/data/metar/?id=${icao}&hours=0&decoded=yes`, '_blank');
       };
       
-      // Handle "Find Me" button click
-      const handleFindMe = () => {
-        if (!navigator.geolocation) {
-          alert('GPS not available on this device');
+      // Parse METAR string and extract weather data
+      const parseMetar = (metar) => {
+        if (!metar || metar.trim().length < 10) {
+          setParseError("Please paste a valid METAR string");
+          setParseSuccess(null);
           return;
         }
         
-        setIsLoadingWeather(true);
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const { latitude, longitude } = position.coords;
-            
-            // Check if we have internet connectivity
-            if (navigator.onLine) {
-              await fetchNearestWeather(latitude, longitude);
-            } else {
-              setIsLoadingWeather(false);
-              alert('No internet connection. Please enter weather data manually.');
+        const text = metar.toUpperCase().trim();
+        setParseError(null);
+        setParseSuccess(null);
+        
+        let parsed = {
+          altimeter: null,
+          tempC: null,
+          station: null
+        };
+        
+        // Extract station ID (first 4-letter code starting with K, C, or P for North America)
+        const stationMatch = text.match(/\b([KCP][A-Z]{3})\b/);
+        if (stationMatch) {
+          parsed.station = stationMatch[1];
+        }
+        
+        // Extract altimeter setting
+        // US format: A followed by 4 digits (e.g., A3012 = 30.12 inHg)
+        const altimeterMatch = text.match(/\bA(\d{4})\b/);
+        if (altimeterMatch) {
+          parsed.altimeter = (parseInt(altimeterMatch[1]) / 100).toFixed(2);
+        } else {
+          // International format: Q followed by 4 digits (e.g., Q1013 = 1013 hPa)
+          const qnhMatch = text.match(/\bQ(\d{4})\b/);
+          if (qnhMatch) {
+            // Convert hPa to inHg
+            parsed.altimeter = (parseInt(qnhMatch[1]) * 0.02953).toFixed(2);
+          }
+        }
+        
+        // Extract temperature
+        // Format: XX/XX where XX can be M## for negative (e.g., 15/10 or M05/M10)
+        // Temperature comes before dewpoint, separated by /
+        const tempMatch = text.match(/\s(M?\d{2})\/(M?\d{2})[\s$]/);
+        if (tempMatch) {
+          let tempStr = tempMatch[1];
+          if (tempStr.startsWith('M')) {
+            parsed.tempC = -parseInt(tempStr.substring(1));
+          } else {
+            parsed.tempC = parseInt(tempStr);
+          }
+        }
+        
+        // Check what we found
+        let foundItems = [];
+        let missingItems = [];
+        
+        if (parsed.altimeter) {
+          setAltimeterSetting(parsed.altimeter);
+          foundItems.push(`Altimeter: ${parsed.altimeter}" Hg`);
+        } else {
+          missingItems.push("altimeter (A####)");
+        }
+        
+        if (parsed.tempC !== null) {
+          setTempC(parsed.tempC.toString());
+          setTempF(convertTemp(parsed.tempC.toString(), "C"));
+          foundItems.push(`Temp: ${parsed.tempC}°C`);
+        } else {
+          missingItems.push("temperature (##/##)");
+        }
+        
+        if (foundItems.length > 0) {
+          setParseSuccess(`✅ Parsed: ${foundItems.join(", ")}`);
+          // Auto-calculate if we have all required fields
+          setTimeout(() => {
+            if (fieldElevation && parsed.altimeter && parsed.tempC !== null) {
+              calculateDensityAltitude();
             }
-          },
-          (error) => {
-            setIsLoadingWeather(false);
-            alert('GPS Error: ' + error.message);
-          },
-          { enableHighAccuracy: true, timeout: 10000 }
-        );
+          }, 100);
+        }
+        
+        if (missingItems.length > 0) {
+          setParseError(`Could not find: ${missingItems.join(", ")}`);
+        }
       };
       
       const calculateDensityAltitude = () => {
@@ -3857,56 +3804,95 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
           React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0" } }, "Per CAP MO P-2011 • Remember the 4 H's: Higher altitude, Heat, Humidity = reduced performance")
         ),
         
-        // Find Me Button - Fetch weather from nearest station
-        React.createElement("div", { style: { marginBottom: "16px" } },
-          React.createElement("button", { 
-            style: { 
-              ...ws.button, 
-              width: "100%", 
-              background: isLoadingWeather 
-                ? "linear-gradient(135deg, #4a5568, #2d3748)" 
-                : "linear-gradient(135deg, #38a169, #2f855a)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px"
-            },
-            onClick: handleFindMe,
-            disabled: isLoadingWeather
-          }, 
-            isLoadingWeather ? "🔄 Fetching Weather..." : "📍 Find Me — Get Nearest Weather"
+        // ICAO Code Input - Opens FAA weather website
+        React.createElement("div", { style: { marginBottom: "12px" } },
+          React.createElement("label", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "6px", display: "block" } }, "🛫 Step 1: Look Up Weather"),
+          React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } },
+            React.createElement("input", {
+              type: "text",
+              style: { 
+                ...ws.input, 
+                flex: 1,
+                textTransform: "uppercase",
+                fontFamily: "monospace",
+                letterSpacing: "2px",
+                fontSize: "16px"
+              },
+              placeholder: "KDEN",
+              value: icaoCode,
+              maxLength: 4,
+              onChange: (e) => setIcaoCode(e.target.value.toUpperCase()),
+              onKeyPress: (e) => { if (e.key === 'Enter' && icaoCode.length >= 3) openWeatherLookup(icaoCode); }
+            }),
+            React.createElement("button", {
+              style: { 
+                ...ws.button, 
+                background: "linear-gradient(135deg, #38a169, #2f855a)",
+                padding: "10px 16px",
+                whiteSpace: "nowrap"
+              },
+              onClick: () => openWeatherLookup(icaoCode),
+              disabled: icaoCode.length < 3
+            }, "🌐 Open FAA WX")
           ),
-          React.createElement("div", { style: { fontSize: "10px", color: "#718096", textAlign: "center", marginTop: "4px" } },
-            "Uses GPS to find nearest FAA weather station and auto-fills current conditions"
+          React.createElement("div", { style: { fontSize: "10px", color: "#718096", marginTop: "4px" } },
+            "Opens FAA weather site in new tab"
           )
         ),
         
-        // Weather Source Info (when data is from METAR)
-        weatherSource && React.createElement("div", { style: { 
-          padding: "10px", 
-          background: "rgba(56,161,105,0.15)", 
-          borderRadius: "6px", 
-          border: "1px solid rgba(56,161,105,0.3)", 
-          marginBottom: "12px",
-          fontSize: "11px"
-        } },
-          React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" } },
-            React.createElement("span", { style: { fontSize: "14px" } }, "📡"),
-            React.createElement("span", { style: { fontWeight: "600", color: "#68d391" } }, "Live Weather from ", weatherSource.station)
+        // METAR Paste Box
+        React.createElement("div", { style: { marginBottom: "16px" } },
+          React.createElement("label", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "6px", display: "block" } }, "📋 Step 2: Paste METAR Here"),
+          React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "flex-start" } },
+            React.createElement("textarea", {
+              style: { 
+                ...ws.input, 
+                flex: 1,
+                fontFamily: "monospace",
+                fontSize: "11px",
+                minHeight: "50px",
+                resize: "vertical"
+              },
+              placeholder: "KDEN 151953Z 36007KT 10SM FEW120 SCT200 07/M11 A3012...",
+              value: metarText,
+              onChange: (e) => setMetarText(e.target.value)
+            }),
+            React.createElement("button", {
+              style: { 
+                ...ws.button, 
+                background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
+                padding: "10px 16px",
+                whiteSpace: "nowrap",
+                alignSelf: "flex-start"
+              },
+              onClick: () => parseMetar(metarText),
+              disabled: metarText.length < 10
+            }, "📊 Parse")
           ),
-          React.createElement("div", { style: { color: "#a0aec0", marginBottom: "4px" } },
-            weatherSource.name, " • ", weatherSource.distance, " NM away • Elev: ", weatherSource.elevation, " ft"
-          ),
-          React.createElement("div", { style: { 
-            fontFamily: "monospace", 
-            fontSize: "10px", 
+          
+          // Parse results
+          parseSuccess && React.createElement("div", { style: { 
+            fontSize: "11px", 
             color: "#68d391", 
-            background: "rgba(0,0,0,0.3)", 
-            padding: "6px 8px", 
+            marginTop: "6px",
+            padding: "6px 8px",
+            background: "rgba(56,161,105,0.15)",
             borderRadius: "4px",
-            wordBreak: "break-all"
-          } },
-            weatherSource.metar
+            border: "1px solid rgba(56,161,105,0.3)"
+          } }, parseSuccess),
+          
+          parseError && React.createElement("div", { style: { 
+            fontSize: "11px", 
+            color: "#f6ad55", 
+            marginTop: "6px",
+            padding: "6px 8px",
+            background: "rgba(246,173,85,0.15)",
+            borderRadius: "4px",
+            border: "1px solid rgba(246,173,85,0.3)"
+          } }, "⚠️ ", parseError),
+          
+          React.createElement("div", { style: { fontSize: "10px", color: "#718096", marginTop: "4px" } },
+            "Extracts altimeter (A####) and temperature (##/##) automatically"
           )
         ),
         
@@ -3917,13 +3903,18 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
           // Field Elevation
           React.createElement("div", { style: ws.row },
             React.createElement("div", { style: { flex: 1 } },
-              React.createElement("label", { style: ws.label }, "Field Elevation (ft MSL)"),
+              React.createElement("label", { style: ws.label }, 
+                "Field Elevation (ft MSL)",
+                elevationSource && React.createElement("span", { style: { color: "#68d391", marginLeft: "6px" } }, 
+                  "← ", elevationSource
+                )
+              ),
               React.createElement("input", { 
                 style: ws.input, 
                 type: "number",
                 placeholder: "e.g., 5431", 
                 value: fieldElevation, 
-                onChange: (e) => { setFieldElevation(e.target.value); setWeatherSource(null); }
+                onChange: (e) => { setFieldElevation(e.target.value); setElevationSource(null); }
               })
             ),
             React.createElement("div", { style: { flex: 1 } },
@@ -3934,7 +3925,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
                 step: "0.01",
                 placeholder: "29.92", 
                 value: altimeterSetting, 
-                onChange: (e) => { setAltimeterSetting(e.target.value); setWeatherSource(null); }
+                onChange: (e) => setAltimeterSetting(e.target.value)
               })
             )
           ),
