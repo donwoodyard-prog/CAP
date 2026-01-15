@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
@@ -12,17 +12,11 @@
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23c53030'/><text x='50' y='65' font-size='30' text-anchor='middle' fill='white'>CAP</text></svg>">
   <title>CAP Observer Log</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Fira Code', monospace; background: #0c1929; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
-    #root { min-height: 100vh; min-height: -webkit-fill-available; position: relative; }
-    /* Prevent iOS bounce on main content while allowing modals to scroll */
-    @supports (-webkit-touch-callout: none) {
-      html { height: -webkit-fill-available; }
-      body { min-height: -webkit-fill-available; }
-    }
+    html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Fira Code', monospace; background: #0c1929; overflow-x: hidden; }
+    #root { min-height: 100vh; }
     input, select, textarea, button { font-size: 16px !important; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
@@ -30,20 +24,11 @@
     /* Night/Red Mode for cockpit operations */
     .night-mode { filter: sepia(100%) saturate(300%) hue-rotate(-50deg) brightness(0.7); }
     .night-mode input, .night-mode select, .night-mode textarea { filter: sepia(100%) saturate(300%) hue-rotate(-50deg); }
-    /* iOS scroll fixes */
-    @supports (-webkit-touch-callout: none) {
-      .ios-scroll-fix { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-    }
-    /* Prevent pull-to-refresh on iOS */
-    body { overscroll-behavior-y: none; }
     /* Coordinate validation */
     .coord-invalid { border-color: #e53e3e !important; background: rgba(229,62,62,0.2) !important; }
     /* Ops Normal timer warning */
     @keyframes pulse-warning { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .timer-warning { animation: pulse-warning 1s infinite; }
-  </style>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
     .search-planner-map { height: 350px; border-radius: 8px; margin: 10px 0; border: 2px solid rgba(56,161,105,0.3); }
     .sp-grid-info { background: rgba(49,130,206,0.15); border: 1px solid rgba(49,130,206,0.4); border-radius: 8px; padding: 12px; margin: 10px 0; }
     .sp-coverage { background: rgba(56,161,105,0.15); border: 1px solid rgba(56,161,105,0.4); border-radius: 8px; padding: 12px; margin: 10px 0; }
@@ -51,7 +36,16 @@
 </head>
 <body>
   <div id="root"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script>
+    // Verify Leaflet loaded
+    if (typeof L === 'undefined') {
+      console.error('Leaflet failed to load from CDN');
+      window.L = null;
+    } else {
+      console.log('Leaflet loaded successfully, version:', L.version);
+    }
+  </script>
   <script>
 // === REACT 18 PRODUCTION ===
 /**
@@ -687,6 +681,186 @@ function spGenCreepingLine(params) {
     totalDist += corridorLength;
   }
   return { patternType: 'Creeping Line', poi, gridInfo: { gridId: gridInfo.gridId, cellId: gridInfo.cellId, quarterGrid: gridInfo.quarterGrid, magVariation: gridInfo.magVariation, corners: gridInfo.corners }, dimensions: { corridorLength, corridorWidth, centerLat: dims.centerLat, centerLon: dims.centerLon }, coverage: { numTracks: off.numTracks, spacing, edgeOffset: off.edgeOffset, efficiency: off.efficiency }, waypoints: wps, summary: { spacing, direction, numTracks: off.numTracks, totalDistance: totalDist, timeMinutes: (totalDist / groundspeed) * 60, startSide, gridAligned: true } };
+}
+
+// Enhanced Creeping Line generator - ForeFlight SAR compatible
+// POI is the starting corner, axis is the creep direction, tracks run perpendicular
+function spGenCreepingLineCustom(params) {
+  const { 
+    poi,  // Starting corner point
+    creepDirection = 25,  // Direction the search creeps along (degrees true)
+    legLength = 8.0,  // Length of each search track (NM)
+    spacing = 0.5,  // Track spacing along creep direction (NM)
+    numLegs = 10,  // Number of search tracks
+    groundspeed = 90
+  } = params;
+  
+  if (!poi || spacing <= 0 || legLength <= 0 || numLegs < 1) {
+    return { error: 'Invalid parameters: POI, spacing, leg length, and number of legs required' };
+  }
+  
+  // Track heading is perpendicular to creep direction
+  // First track goes "left" of creep direction (creep - 90°), then alternates
+  const trackHeadingOut = spNormalizeBearing(creepDirection - 90);  // e.g., 25° - 90° = 295°
+  const trackHeadingBack = spNormalizeBearing(creepDirection + 90); // e.g., 25° + 90° = 115°
+  
+  const halfLeg = legLength / 2;
+  
+  // Generate waypoints
+  const wps = [];
+  let wpNum = 0;
+  let totalDist = 0;
+  
+  // Current position starts at POI
+  let currentLat = poi.latDD;
+  let currentLon = poi.lonDD;
+  
+  // First waypoint is the POI itself
+  wps.push({
+    number: wpNum++,
+    lat: currentLat,
+    lon: currentLon,
+    heading: trackHeadingOut,
+    legLength: halfLeg,  // First leg is half-length
+    ddm: spFormatCoordDDM(currentLat, currentLon),
+    foreflight: spFormatForeFlight(currentLat, currentLon),
+    note: 'Start / Track 1 Start'
+  });
+  
+  // First track: go half-leg out from POI (perpendicular to creep)
+  let dest = spDestPoint(currentLat, currentLon, trackHeadingOut, halfLeg);
+  currentLat = dest.latDeg;
+  currentLon = dest.lonDeg;
+  totalDist += halfLeg;
+  
+  wps.push({
+    number: wpNum++,
+    lat: currentLat,
+    lon: currentLon,
+    heading: null,
+    legLength: 0,
+    ddm: spFormatCoordDDM(currentLat, currentLon),
+    foreflight: spFormatForeFlight(currentLat, currentLon),
+    note: 'Track 1 End'
+  });
+  
+  // Now do the remaining tracks
+  for (let i = 1; i < numLegs; i++) {
+    // Creep along the axis direction
+    dest = spDestPoint(currentLat, currentLon, creepDirection, spacing);
+    currentLat = dest.latDeg;
+    currentLon = dest.lonDeg;
+    
+    // Determine track direction (alternates)
+    const isEvenTrack = (i % 2 === 0);  // Track 2, 4, 6... go "out", Track 3, 5, 7... go "back"
+    const trackHeading = isEvenTrack ? trackHeadingOut : trackHeadingBack;
+    
+    // Track start
+    wps.push({
+      number: wpNum++,
+      lat: currentLat,
+      lon: currentLon,
+      heading: trackHeading,
+      legLength: legLength,
+      ddm: spFormatCoordDDM(currentLat, currentLon),
+      foreflight: spFormatForeFlight(currentLat, currentLon),
+      note: 'Track ' + (i + 1) + ' Start'
+    });
+    
+    // Move along the track
+    dest = spDestPoint(currentLat, currentLon, trackHeading, legLength);
+    currentLat = dest.latDeg;
+    currentLon = dest.lonDeg;
+    totalDist += legLength;
+    
+    // Track end
+    wps.push({
+      number: wpNum++,
+      lat: currentLat,
+      lon: currentLon,
+      heading: null,
+      legLength: 0,
+      ddm: spFormatCoordDDM(currentLat, currentLon),
+      foreflight: spFormatForeFlight(currentLat, currentLon),
+      note: 'Track ' + (i + 1) + ' End'
+    });
+  }
+  
+  // Calculate the search area boundary for map display
+  // The search area is a rectangle: 
+  // - Width = legLength (perpendicular to creep)
+  // - Height = (numLegs - 1) * spacing (along creep direction)
+  const corridorLength = (numLegs - 1) * spacing;
+  
+  // The POI is at one corner. The search box extends:
+  // - Half a leg perpendicular to creep (trackHeadingOut direction) from POI
+  // - Half a leg perpendicular to creep (trackHeadingBack direction) from last track's end
+  // - Full corridor length along creep direction
+  
+  // Calculate four corners of the search area
+  // Corner 1 & 2: Near edge (at POI's creep position)
+  const nearMid = { lat: poi.latDD, lon: poi.lonDD };
+  const nearLeftPt = spDestPoint(nearMid.lat, nearMid.lon, trackHeadingOut, halfLeg);
+  const nearLeft = { lat: nearLeftPt.latDeg, lon: nearLeftPt.lonDeg };
+  const nearRightPt = spDestPoint(nearMid.lat, nearMid.lon, trackHeadingBack, halfLeg);
+  const nearRight = { lat: nearRightPt.latDeg, lon: nearRightPt.lonDeg };
+  
+  // Corner 3 & 4: Far edge (at corridor end)
+  const farMidPt = spDestPoint(poi.latDD, poi.lonDD, creepDirection, corridorLength);
+  const farMid = { lat: farMidPt.latDeg, lon: farMidPt.lonDeg };
+  const farLeftPt = spDestPoint(farMid.lat, farMid.lon, trackHeadingOut, halfLeg);
+  const farLeft = { lat: farLeftPt.latDeg, lon: farLeftPt.lonDeg };
+  const farRightPt = spDestPoint(farMid.lat, farMid.lon, trackHeadingBack, halfLeg);
+  const farRight = { lat: farRightPt.latDeg, lon: farRightPt.lonDeg };
+  
+  // The creeping line runs through the CENTER of the search box (parallel to creep direction)
+  // It should be at the midpoint of each track (halfway between the track edges)
+  // Start: POI (which is at the midpoint of the first half-track)
+  // End: midpoint of the last track (farMid)
+  const creepLineStart = { lat: poi.latDD, lon: poi.lonDD };
+  const creepLineEnd = { lat: farMid.lat, lon: farMid.lon };
+  
+  // Search area corners for polygon display (in order for proper polygon rendering)
+  const searchArea = {
+    corners: [nearLeft, nearRight, farRight, farLeft],  // In order for polygon
+    creepLine: { start: creepLineStart, end: creepLineEnd }
+  };
+  
+  return {
+    patternType: 'Creeping Line (Custom)',
+    poi,
+    searchArea,
+    dimensions: {
+      legLength,
+      corridorLength,
+      corridorWidth: legLength,  // Full track width
+      centerLat: poi.latDD,
+      centerLon: poi.lonDD,
+      creepDirection,
+      trackHeadingOut,
+      trackHeadingBack
+    },
+    coverage: {
+      numTracks: numLegs,
+      spacing,
+      totalArea: legLength * corridorLength,
+      efficiency: 100
+    },
+    waypoints: wps,
+    summary: {
+      spacing,
+      creepDirection,
+      trackHeadingOut,
+      trackHeadingBack,
+      numTracks: numLegs,
+      legLength,
+      corridorLength,
+      totalDistance: totalDist,
+      timeMinutes: (totalDist / groundspeed) * 60,
+      gridAligned: false,
+      method: 'ForeFlight SAR Compatible'
+    }
+  };
 }
 
 function spGenKML(plan) {
@@ -2348,443 +2522,6 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
       // 'GA8': { name: 'GippsAero GA8 Airvan', ... }
     }
   };
-  // PirepModal component - defined outside CAPObserverLog to prevent remounting on state changes
-  const PirepSelectButton = ({ selected, onClick, children, color = "#3182ce" }) => /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick,
-      style: {
-        minHeight: "52px",
-        padding: "10px 12px",
-        fontSize: "13px",
-        fontWeight: "700",
-        background: selected ? `linear-gradient(135deg, ${color}, ${color}dd)` : "rgba(0,0,0,0.3)",
-        border: selected ? `3px solid ${color}` : "2px solid rgba(255,255,255,0.15)",
-        borderRadius: "10px",
-        color: selected ? "#fff" : "#a0aec0",
-        fontFamily: "inherit",
-        cursor: "pointer",
-        touchAction: "manipulation",
-        boxShadow: selected ? `0 4px 12px ${color}44` : "none"
-      }
-    },
-    children
-  );
-  const PirepModal = ({ isOpen, onClose, onSave, onRadioCall, data, setData }) => {
-    if (!isOpen) return null;
-    const buildPirepString = () => {
-      let parts = [];
-      if (data.aircraft) parts.push(`A/C: ${data.aircraft}`);
-      if (data.altitude) parts.push(`ALT: ${data.altitude}`);
-      if (data.clouds) parts.push(`SKY: ${data.clouds}`);
-      if (data.turbulence) parts.push(`TB: ${data.turbulence}`);
-      if (data.icing) parts.push(`IC: ${data.icing}`);
-      if (data.visibility) parts.push(`VIS: ${data.visibility}`);
-      if (data.windDirection || data.windSpeed) {
-        let windStr = "WND: ";
-        if (data.windDirection) windStr += data.windDirection + "°";
-        if (data.windSpeed) windStr += "@" + data.windSpeed + "KT";
-        if (data.windGusts) windStr += "G" + data.windGusts;
-        parts.push(windStr);
-      }
-      if (data.windShear) parts.push(`WS: ${data.windShear}`);
-      if (data.remarks) parts.push(`RMK: ${data.remarks}`);
-      return parts.length > 0 ? "PIREP - " + parts.join(", ") : "PIREP";
-    };
-    return /* @__PURE__ */ React.createElement(
-      "div",
-      {
-        style: {
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(0,0,0,0.9)",
-          zIndex: 1e3,
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "center",
-          padding: "20px",
-          overflowY: "auto",
-          WebkitOverflowScrolling: "touch"
-        },
-        onClick: (e) => {
-          if (e.target === e.currentTarget) onClose();
-        }
-      },
-      /* @__PURE__ */ React.createElement("div", { onClick: (e) => e.stopPropagation(), style: {
-        background: "linear-gradient(135deg, #1a365d 0%, #0c1929 100%)",
-        borderRadius: "16px",
-        border: "2px solid rgba(99,179,237,0.3)",
-        width: "100%",
-        maxWidth: "500px",
-        marginBottom: "20px"
-      } }, /* @__PURE__ */ React.createElement("div", { style: {
-        background: "linear-gradient(90deg, rgba(49,130,206,0.4) 0%, transparent 100%)",
-        padding: "16px 20px",
-        borderBottom: "1px solid rgba(255,255,255,0.1)",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center"
-      } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "18px", fontWeight: "700", color: "#63b3ed" } }, "\u2601\uFE0F Quick PIREP"), /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          onClick: onClose,
-          style: {
-            background: "rgba(255,255,255,0.1)",
-            border: "none",
-            borderRadius: "8px",
-            padding: "12px 20px",
-            color: "#fff",
-            fontSize: "14px",
-            fontWeight: "700",
-            cursor: "pointer",
-            minHeight: "48px"
-          }
-        },
-        "\u2715 CANCEL"
-      )), /* @__PURE__ */ React.createElement("div", { style: { padding: "20px" } }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2708\uFE0F Aircraft"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, ["C172", "C182", "C206", "C210", "GA8", "OTHER"].map((ac) => /* @__PURE__ */ React.createElement(
-        PirepSelectButton,
-        {
-          key: ac,
-          selected: data.aircraft === ac,
-          onClick: () => setData({ ...data, aircraft: ac }),
-          color: "#3182ce"
-        },
-        ac
-      )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F4CF} Altitude (ft MSL)"), 
-      /* Current altitude display */
-      /* @__PURE__ */ React.createElement("div", { style: { 
-        background: data.altitude ? "rgba(128,90,213,0.2)" : "rgba(0,0,0,0.3)",
-        border: data.altitude ? "2px solid #805ad5" : "2px solid rgba(255,255,255,0.2)",
-        borderRadius: "12px",
-        padding: "16px",
-        textAlign: "center",
-        marginBottom: "12px"
-      }},
-        /* @__PURE__ */ React.createElement("div", { style: { fontSize: "36px", fontWeight: "700", color: data.altitude ? "#fff" : "#4a5568", fontFamily: "monospace" }}, 
-          data.altitude ? parseInt(data.altitude).toLocaleString() : "—"
-        ),
-        /* @__PURE__ */ React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginTop: "4px" }}, 
-          data.altitude ? "feet MSL" : "No altitude set"
-        )
-      ),
-      /* Large increment buttons */
-      /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px", marginBottom: "12px" }},
-        /* @__PURE__ */ React.createElement("button", { 
-          onClick: () => {
-            const current = parseInt(data.altitude) || 7500;
-            const newAlt = Math.max(0, current - 1000);
-            setData({ ...data, altitude: String(newAlt) });
-          },
-          style: {
-            minHeight: "56px",
-            padding: "12px",
-            fontSize: "16px",
-            fontWeight: "700",
-            background: "linear-gradient(135deg, #e53e3e, #c53030)",
-            border: "none",
-            borderRadius: "10px",
-            color: "#fff",
-            cursor: "pointer",
-            touchAction: "manipulation"
-          }
-        }, "−1000"),
-        /* @__PURE__ */ React.createElement("button", { 
-          onClick: () => {
-            const current = parseInt(data.altitude) || 7500;
-            const newAlt = Math.max(0, current - 500);
-            setData({ ...data, altitude: String(newAlt) });
-          },
-          style: {
-            minHeight: "56px",
-            padding: "12px",
-            fontSize: "16px",
-            fontWeight: "700",
-            background: "linear-gradient(135deg, #dd6b20, #c05621)",
-            border: "none",
-            borderRadius: "10px",
-            color: "#fff",
-            cursor: "pointer",
-            touchAction: "manipulation"
-          }
-        }, "−500"),
-        /* @__PURE__ */ React.createElement("button", { 
-          onClick: () => {
-            const current = parseInt(data.altitude) || 7500;
-            const newAlt = Math.min(18000, current + 500);
-            setData({ ...data, altitude: String(newAlt) });
-          },
-          style: {
-            minHeight: "56px",
-            padding: "12px",
-            fontSize: "16px",
-            fontWeight: "700",
-            background: "linear-gradient(135deg, #38a169, #2f855a)",
-            border: "none",
-            borderRadius: "10px",
-            color: "#fff",
-            cursor: "pointer",
-            touchAction: "manipulation"
-          }
-        }, "+500"),
-        /* @__PURE__ */ React.createElement("button", { 
-          onClick: () => {
-            const current = parseInt(data.altitude) || 7500;
-            const newAlt = Math.min(18000, current + 1000);
-            setData({ ...data, altitude: String(newAlt) });
-          },
-          style: {
-            minHeight: "56px",
-            padding: "12px",
-            fontSize: "16px",
-            fontWeight: "700",
-            background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
-            border: "none",
-            borderRadius: "10px",
-            color: "#fff",
-            cursor: "pointer",
-            touchAction: "manipulation"
-          }
-        }, "+1000")
-      ),
-      /* Quick preset buttons */
-      /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "6px" }},
-        ["5500", "6500", "7500", "8500", "9500", "10500", "11500", "12500", "13500", "14500", "15500", "17500"].map((alt) => /* @__PURE__ */ React.createElement(
-          "button",
-          {
-            key: alt,
-            onClick: () => setData({ ...data, altitude: alt }),
-            style: {
-              minHeight: "44px",
-              padding: "8px 4px",
-              fontSize: "11px",
-              fontWeight: "600",
-              background: data.altitude === alt ? "linear-gradient(135deg, #805ad5, #6b46c1)" : "rgba(0,0,0,0.3)",
-              border: data.altitude === alt ? "2px solid #805ad5" : "1px solid rgba(255,255,255,0.15)",
-              borderRadius: "8px",
-              color: data.altitude === alt ? "#fff" : "#a0aec0",
-              cursor: "pointer",
-              touchAction: "manipulation"
-            }
-          },
-          (parseInt(alt) / 1000).toFixed(1) + "K"
-        ))
-      )), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2601\uFE0F Sky Condition"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
-        { v: "CLR", l: "CLEAR" },
-        { v: "FEW", l: "FEW" },
-        { v: "SCT", l: "SCTRD" },
-        { v: "BKN", l: "BROKN" },
-        { v: "OVC", l: "OVCST" },
-        { v: "IMC", l: "IMC" }
-      ].map((sky) => /* @__PURE__ */ React.createElement(
-        PirepSelectButton,
-        {
-          key: sky.v,
-          selected: data.clouds === sky.v,
-          onClick: () => setData({ ...data, clouds: sky.v }),
-          color: "#718096"
-        },
-        sky.l
-      )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u3030\uFE0F Turbulence"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
-        { v: "NEG", l: "NONE", c: "#38a169" },
-        { v: "SMTH", l: "SMOOTH", c: "#38a169" },
-        { v: "LGT", l: "LIGHT", c: "#d69e2e" },
-        { v: "LGT-MOD", l: "LGT-MOD", c: "#dd6b20" },
-        { v: "MOD", l: "MOD", c: "#e53e3e" },
-        { v: "MOD-SVR", l: "MOD-SVR", c: "#c53030" },
-        { v: "SVR", l: "SEVERE", c: "#9b2c2c" },
-        { v: "EXTRM", l: "EXTRM", c: "#742a2a" }
-      ].map((tb) => /* @__PURE__ */ React.createElement(
-        PirepSelectButton,
-        {
-          key: tb.v,
-          selected: data.turbulence === tb.v,
-          onClick: () => setData({ ...data, turbulence: tb.v }),
-          color: tb.c
-        },
-        tb.l
-      )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2744\uFE0F Icing"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
-        { v: "NEG", l: "NONE", c: "#38a169" },
-        { v: "TRC", l: "TRACE", c: "#3182ce" },
-        { v: "LGT", l: "LIGHT", c: "#d69e2e" },
-        { v: "LGT-MOD", l: "LGT-MOD", c: "#dd6b20" },
-        { v: "MOD", l: "MOD", c: "#e53e3e" },
-        { v: "SVR", l: "SEVERE", c: "#9b2c2c" }
-      ].map((ic) => /* @__PURE__ */ React.createElement(
-        PirepSelectButton,
-        {
-          key: ic.v,
-          selected: data.icing === ic.v,
-          onClick: () => setData({ ...data, icing: ic.v }),
-          color: ic.c
-        },
-        ic.l
-      )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F441} Visibility"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" } }, [
-        { v: "10+", l: "10+ SM", c: "#38a169" },
-        { v: "5-10", l: "5-10", c: "#3182ce" },
-        { v: "3-5", l: "3-5", c: "#d69e2e" },
-        { v: "1-3", l: "1-3", c: "#dd6b20" },
-        { v: "<1", l: "<1 SM", c: "#e53e3e" }
-      ].map((vis) => /* @__PURE__ */ React.createElement(
-        PirepSelectButton,
-        {
-          key: vis.v,
-          selected: data.visibility === vis.v,
-          onClick: () => setData({ ...data, visibility: vis.v }),
-          color: vis.c
-        },
-        vis.l
-      )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F4A8} Wind"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0", display: "block", marginBottom: "4px" } }, "DIRECTION (\xB0)"), /* @__PURE__ */ React.createElement(
-        "input",
-        {
-          type: "text",
-          inputMode: "numeric",
-          placeholder: "270",
-          value: data.windDirection || "",
-          onChange: (e) => setData({ ...data, windDirection: e.target.value }),
-          style: {
-            width: "100%",
-            background: "rgba(0,0,0,0.4)",
-            border: "2px solid rgba(255,255,255,0.2)",
-            borderRadius: "8px",
-            padding: "14px",
-            fontSize: "16px",
-            color: "#fff",
-            fontFamily: "inherit"
-          }
-        }
-      )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0", display: "block", marginBottom: "4px" } }, "SPEED (KT)"), /* @__PURE__ */ React.createElement(
-        "input",
-        {
-          type: "text",
-          inputMode: "numeric",
-          placeholder: "15",
-          value: data.windSpeed || "",
-          onChange: (e) => setData({ ...data, windSpeed: e.target.value }),
-          style: {
-            width: "100%",
-            background: "rgba(0,0,0,0.4)",
-            border: "2px solid rgba(255,255,255,0.2)",
-            borderRadius: "8px",
-            padding: "14px",
-            fontSize: "16px",
-            color: "#fff",
-            fontFamily: "inherit"
-          }
-        }
-      ))), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0", display: "block", marginBottom: "4px" } }, "GUSTS (KT)"), /* @__PURE__ */ React.createElement(
-        "input",
-        {
-          type: "text",
-          inputMode: "numeric",
-          placeholder: "25",
-          value: data.windGusts || "",
-          onChange: (e) => setData({ ...data, windGusts: e.target.value }),
-          style: {
-            width: "100%",
-            background: "rgba(0,0,0,0.4)",
-            border: "2px solid rgba(255,255,255,0.2)",
-            borderRadius: "8px",
-            padding: "14px",
-            fontSize: "16px",
-            color: "#fff",
-            fontFamily: "inherit"
-          }
-        }
-      )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0", display: "block", marginBottom: "4px" } }, "WIND SHEAR"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "4px" } }, [
-        { v: "NEG", l: "NONE", c: "#38a169" },
-        { v: "LGT", l: "LGT", c: "#d69e2e" },
-        { v: "MOD", l: "MOD", c: "#e53e3e" }
-      ].map((ws) => /* @__PURE__ */ React.createElement(
-        PirepSelectButton,
-        {
-          key: ws.v,
-          selected: data.windShear === ws.v,
-          onClick: () => setData({ ...data, windShear: ws.v }),
-          color: ws.c
-        },
-        ws.l
-      )))))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F4DD} Remarks (optional)"), /* @__PURE__ */ React.createElement(
-        "input",
-        {
-          type: "text",
-          placeholder: "Additional notes...",
-          value: data.remarks || "",
-          onChange: (e) => setData({ ...data, remarks: e.target.value.toUpperCase() }),
-          style: {
-            width: "100%",
-            background: "rgba(0,0,0,0.4)",
-            border: "2px solid rgba(255,255,255,0.2)",
-            borderRadius: "8px",
-            padding: "14px",
-            fontSize: "16px",
-            color: "#fff",
-            fontFamily: "inherit"
-          }
-        }
-      )), /* @__PURE__ */ React.createElement("div", { style: {
-        background: "rgba(0,0,0,0.4)",
-        borderRadius: "10px",
-        padding: "16px",
-        marginBottom: "20px",
-        border: "1px solid rgba(104,211,145,0.3)"
-      } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "11px", fontWeight: "700", color: "#68d391", textTransform: "uppercase", display: "block", marginBottom: "8px" } }, "Preview"), /* @__PURE__ */ React.createElement("div", { style: {
-        fontSize: "14px",
-        color: "#68d391",
-        lineHeight: "1.5",
-        fontWeight: "600"
-      } }, buildPirepString())), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "12px" } },
-        /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          onClick: () => {
-            onSave(buildPirepString());
-            onClose();
-          },
-          style: {
-            flex: 1,
-            minHeight: "64px",
-            padding: "18px",
-            fontSize: "18px",
-            fontWeight: "700",
-            background: "linear-gradient(135deg, #38a169, #2f855a)",
-            border: "3px solid #48bb78",
-            borderRadius: "12px",
-            color: "#fff",
-            cursor: "pointer",
-            touchAction: "manipulation",
-            boxShadow: "0 4px 12px rgba(56,161,105,0.4)"
-          }
-        },
-        "\u2713 SAVE"
-      ), /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          onClick: () => {
-            onSave(buildPirepString());
-            onRadioCall();
-          },
-          style: {
-            flex: 1,
-            minHeight: "64px",
-            padding: "18px",
-            fontSize: "18px",
-            fontWeight: "700",
-            background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
-            border: "3px solid #4299e1",
-            borderRadius: "12px",
-            color: "#fff",
-            cursor: "pointer",
-            touchAction: "manipulation",
-            boxShadow: "0 4px 12px rgba(49,130,206,0.4)"
-          }
-        },
-        "\u{1F4FB} RADIO CALL"
-      ))))
-    );
-  };
   var CAPObserverLog = () => {
     const [missionInfo, setMissionInfo] = useState({
       missionNumber: "",
@@ -2836,10 +2573,6 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
       turbulence: "",
       icing: "",
       visibility: "",
-      windDirection: "",
-      windSpeed: "",
-      windGusts: "",
-      windShear: "",
       remarks: ""
     });
     const [targetLocations, setTargetLocations] = useState([
@@ -2866,7 +2599,33 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     const [expandedProcedure, setExpandedProcedure] = useState(null);
     const [expandedRadioCall, setExpandedRadioCall] = useState(null);
 
-    const [spState, setSpState] = useState({ patternType: 'gridParallelTrack', poiInput: '', poi: null, detectedGrid: null, spacing: 1.0, groundspeed: 120, entryCorner: 'NW', initialHeading: 0, turnDirection: 'Right', numLegs: 8, clDirection: 0, clStartSide: 'Left', poiNumTracks: 6, poiTrackLength: 3, poiHeading: 0, lastPlan: null, showMap: false });
+    const [spState, setSpState] = useState({ 
+      patternType: 'gridParallelTrack', 
+      poiInput: '', 
+      poi: null, 
+      detectedGrid: null, 
+      spacing: 0.5, 
+      groundspeed: 90, 
+      entryCorner: 'NW', 
+      initialHeading: 0, 
+      turnDirection: 'Right', 
+      numLegs: 8, 
+      // Legacy creeping line (grid-based)
+      clDirection: 0, 
+      clStartSide: 'Left', 
+      // Enhanced creeping line parameters (ForeFlight compatible)
+      clMode: 'custom',  // 'grid' or 'custom'
+      clCreepDirection: 25,  // Direction the search creeps along (degrees)
+      clLegLength: 8.0,  // Length of each search track (NM)
+      clSpacing: 1.0,  // Spacing between legs (NM)
+      clNumLegs: 10,  // Number of search tracks
+      // POI-centered parallel
+      poiNumTracks: 6, 
+      poiTrackLength: 3, 
+      poiHeading: 0, 
+      lastPlan: null, 
+      showMap: false 
+    });
     const [selectedState, setSelectedState] = useState("CO");
     const [selectedCommsCategory, setSelectedCommsCategory] = useState("channels");
     const [commsView, setCommsView] = useState("channels");
@@ -3048,7 +2807,272 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         };
       }
     };
-    const PirepRadioCallOverlay = ({ isOpen, onClose, pirepData, event, missionInfo, radioCallSigns }) => {
+    const PirepModal = ({ isOpen, onClose, onSave, onRadioCall, data, setData }) => {
+      if (!isOpen) return null;
+      const buildPirepString = () => {
+        let parts = [];
+        if (data.aircraft) parts.push(`A/C: ${data.aircraft}`);
+        if (data.altitude) parts.push(`ALT: ${data.altitude}`);
+        if (data.clouds) parts.push(`SKY: ${data.clouds}`);
+        if (data.turbulence) parts.push(`TB: ${data.turbulence}`);
+        if (data.icing) parts.push(`IC: ${data.icing}`);
+        if (data.visibility) parts.push(`VIS: ${data.visibility}`);
+        if (data.remarks) parts.push(`RMK: ${data.remarks}`);
+        return parts.length > 0 ? "PIREP - " + parts.join(", ") : "PIREP";
+      };
+      const SelectButton = ({ selected, onClick, children, color = "#3182ce" }) => /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick,
+          style: {
+            minHeight: "52px",
+            padding: "10px 12px",
+            fontSize: "13px",
+            fontWeight: "700",
+            background: selected ? `linear-gradient(135deg, ${color}, ${color}dd)` : "rgba(0,0,0,0.3)",
+            border: selected ? `3px solid ${color}` : "2px solid rgba(255,255,255,0.15)",
+            borderRadius: "10px",
+            color: selected ? "#fff" : "#a0aec0",
+            fontFamily: "inherit",
+            cursor: "pointer",
+            touchAction: "manipulation",
+            boxShadow: selected ? `0 4px 12px ${color}44` : "none"
+          }
+        },
+        children
+      );
+      return /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          style: {
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.9)",
+            zIndex: 1e3,
+            overflowY: "auto",
+            WebkitOverflowScrolling: "touch"
+          },
+          onClick: (e) => {
+            if (e.target === e.currentTarget) onClose();
+          }
+        },
+        /* @__PURE__ */ React.createElement("div", { style: {
+          background: "linear-gradient(135deg, #1a365d 0%, #0c1929 100%)",
+          borderRadius: "16px",
+          border: "2px solid rgba(99,179,237,0.3)",
+          margin: "20px auto",
+          width: "calc(100% - 40px)",
+          maxWidth: "500px"
+        } }, /* @__PURE__ */ React.createElement("div", { style: {
+          background: "linear-gradient(90deg, rgba(49,130,206,0.4) 0%, transparent 100%)",
+          padding: "16px 20px",
+          borderBottom: "1px solid rgba(255,255,255,0.1)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "18px", fontWeight: "700", color: "#63b3ed" } }, "\u2601\uFE0F Quick PIREP"), /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: onClose,
+            style: {
+              background: "rgba(255,255,255,0.1)",
+              border: "none",
+              borderRadius: "8px",
+              padding: "12px 20px",
+              color: "#fff",
+              fontSize: "14px",
+              fontWeight: "700",
+              cursor: "pointer",
+              minHeight: "48px"
+            }
+          },
+          "\u2715 CANCEL"
+        )), /* @__PURE__ */ React.createElement("div", { style: { padding: "20px" } }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2708\uFE0F Aircraft"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, ["C172", "C182", "C206", "C210", "GA8", "OTHER"].map((ac) => /* @__PURE__ */ React.createElement(
+          SelectButton,
+          {
+            key: ac,
+            selected: data.aircraft === ac,
+            onClick: () => setData({ ...data, aircraft: ac }),
+            color: "#3182ce"
+          },
+          ac
+        )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F4CF} Altitude (ft MSL)"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "8px" } }, ["5500", "7500", "9500", "11500"].map((alt) => /* @__PURE__ */ React.createElement(
+          SelectButton,
+          {
+            key: alt,
+            selected: data.altitude === alt,
+            onClick: () => setData({ ...data, altitude: alt }),
+            color: "#805ad5"
+          },
+          (parseInt(alt) / 1e3).toFixed(1),
+          "K"
+        ))), /* @__PURE__ */ React.createElement(
+          "input",
+          {
+            type: "text",
+            inputMode: "numeric",
+            placeholder: "Or enter altitude...",
+            value: data.altitude,
+            onChange: (e) => setData({ ...data, altitude: e.target.value }),
+            style: {
+              width: "100%",
+              background: "rgba(0,0,0,0.4)",
+              border: "2px solid rgba(255,255,255,0.2)",
+              borderRadius: "8px",
+              padding: "14px",
+              fontSize: "16px",
+              color: "#fff",
+              fontFamily: "inherit"
+            }
+          }
+        )), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2601\uFE0F Sky Condition"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
+          { v: "CLR", l: "CLEAR" },
+          { v: "FEW", l: "FEW" },
+          { v: "SCT", l: "SCTRD" },
+          { v: "BKN", l: "BROKN" },
+          { v: "OVC", l: "OVCST" },
+          { v: "IMC", l: "IMC" }
+        ].map((sky) => /* @__PURE__ */ React.createElement(
+          SelectButton,
+          {
+            key: sky.v,
+            selected: data.clouds === sky.v,
+            onClick: () => setData({ ...data, clouds: sky.v }),
+            color: "#718096"
+          },
+          sky.l
+        )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u3030\uFE0F Turbulence"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
+          { v: "NEG", l: "NONE", c: "#38a169" },
+          { v: "SMTH", l: "SMOOTH", c: "#38a169" },
+          { v: "LGT", l: "LIGHT", c: "#d69e2e" },
+          { v: "LGT-MOD", l: "LGT-MOD", c: "#dd6b20" },
+          { v: "MOD", l: "MOD", c: "#e53e3e" },
+          { v: "MOD-SVR", l: "MOD-SVR", c: "#c53030" },
+          { v: "SVR", l: "SEVERE", c: "#9b2c2c" },
+          { v: "EXTRM", l: "EXTRM", c: "#742a2a" }
+        ].map((tb) => /* @__PURE__ */ React.createElement(
+          SelectButton,
+          {
+            key: tb.v,
+            selected: data.turbulence === tb.v,
+            onClick: () => setData({ ...data, turbulence: tb.v }),
+            color: tb.c
+          },
+          tb.l
+        )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2744\uFE0F Icing"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
+          { v: "NEG", l: "NONE", c: "#38a169" },
+          { v: "TRC", l: "TRACE", c: "#3182ce" },
+          { v: "LGT", l: "LIGHT", c: "#d69e2e" },
+          { v: "LGT-MOD", l: "LGT-MOD", c: "#dd6b20" },
+          { v: "MOD", l: "MOD", c: "#e53e3e" },
+          { v: "SVR", l: "SEVERE", c: "#9b2c2c" }
+        ].map((ic) => /* @__PURE__ */ React.createElement(
+          SelectButton,
+          {
+            key: ic.v,
+            selected: data.icing === ic.v,
+            onClick: () => setData({ ...data, icing: ic.v }),
+            color: ic.c
+          },
+          ic.l
+        )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F441} Visibility"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" } }, [
+          { v: "10+", l: "10+ SM", c: "#38a169" },
+          { v: "5-10", l: "5-10", c: "#3182ce" },
+          { v: "3-5", l: "3-5", c: "#d69e2e" },
+          { v: "1-3", l: "1-3", c: "#dd6b20" },
+          { v: "<1", l: "<1 SM", c: "#e53e3e" }
+        ].map((vis) => /* @__PURE__ */ React.createElement(
+          SelectButton,
+          {
+            key: vis.v,
+            selected: data.visibility === vis.v,
+            onClick: () => setData({ ...data, visibility: vis.v }),
+            color: vis.c
+          },
+          vis.l
+        )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F4DD} Remarks (optional)"), /* @__PURE__ */ React.createElement(
+          "input",
+          {
+            type: "text",
+            placeholder: "Additional notes...",
+            value: data.remarks,
+            onChange: (e) => setData({ ...data, remarks: e.target.value.toUpperCase() }),
+            style: {
+              width: "100%",
+              background: "rgba(0,0,0,0.4)",
+              border: "2px solid rgba(255,255,255,0.2)",
+              borderRadius: "8px",
+              padding: "14px",
+              fontSize: "16px",
+              color: "#fff",
+              fontFamily: "inherit"
+            }
+          }
+        )), /* @__PURE__ */ React.createElement("div", { style: {
+          background: "rgba(0,0,0,0.4)",
+          borderRadius: "10px",
+          padding: "16px",
+          marginBottom: "20px",
+          border: "1px solid rgba(104,211,145,0.3)"
+        } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "11px", fontWeight: "700", color: "#68d391", textTransform: "uppercase", display: "block", marginBottom: "8px" } }, "Preview"), /* @__PURE__ */ React.createElement("div", { style: {
+          fontSize: "14px",
+          color: "#68d391",
+          lineHeight: "1.5",
+          fontWeight: "600"
+        } }, buildPirepString())), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "12px" } },
+          /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => {
+              onSave(buildPirepString());
+              onClose();
+            },
+            style: {
+              flex: 1,
+              minHeight: "64px",
+              padding: "18px",
+              fontSize: "18px",
+              fontWeight: "700",
+              background: "linear-gradient(135deg, #38a169, #2f855a)",
+              border: "3px solid #48bb78",
+              borderRadius: "12px",
+              color: "#fff",
+              cursor: "pointer",
+              touchAction: "manipulation",
+              boxShadow: "0 4px 12px rgba(56,161,105,0.4)"
+            }
+          },
+          "\u2713 SAVE"
+        ), /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => {
+              onSave(buildPirepString());
+              onRadioCall();
+            },
+            style: {
+              flex: 1,
+              minHeight: "64px",
+              padding: "18px",
+              fontSize: "18px",
+              fontWeight: "700",
+              background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
+              border: "3px solid #4299e1",
+              borderRadius: "12px",
+              color: "#fff",
+              cursor: "pointer",
+              touchAction: "manipulation",
+              boxShadow: "0 4px 12px rgba(49,130,206,0.4)"
+            }
+          },
+          "\u{1F4FB} RADIO CALL"
+        ))))
+      );
+    };
+    const PirepRadioCallOverlay = ({ isOpen, onClose, pirepData, event, missionInfo }) => {
       if (!isOpen) return null;
       
       // Determine report type based on severity
@@ -3152,26 +3176,6 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         return icNames[pirepData.icing] || pirepData.icing || "";
       };
       
-      // Format winds
-      const formatWinds = () => {
-        if (!pirepData.windDirection && !pirepData.windSpeed) return "";
-        let windStr = "";
-        if (pirepData.windDirection) windStr += pirepData.windDirection + " degrees";
-        if (pirepData.windSpeed) windStr += " at " + pirepData.windSpeed + " knots";
-        if (pirepData.windGusts) windStr += " gusting " + pirepData.windGusts;
-        return windStr;
-      };
-      
-      // Format wind shear
-      const formatWindShear = () => {
-        const wsNames = {
-          "NEG": "Negative",
-          "LGT": "Light wind shear",
-          "MOD": "Moderate wind shear"
-        };
-        return wsNames[pirepData.windShear] || pirepData.windShear || "";
-      };
-      
       // Build the report lines
       const reportLines = [
         { label: "Report Type", value: reportType, highlight: isUrgent },
@@ -3182,8 +3186,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         { label: "Sky Condition", value: formatSky() },
         { label: "Visibility", value: formatVisibility() },
         { label: "Temperature", value: "" },
-        { label: "Winds", value: formatWinds() },
-        { label: "Wind Shear", value: formatWindShear() },
+        { label: "Winds", value: "" },
         { label: "Turbulence", value: formatTurbulence() },
         { label: "Icing", value: formatIcing() },
         { label: "Remarks", value: pirepData.remarks || "" }
@@ -3304,9 +3307,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
               "Flight Service (122.2) or EFAS Flight Watch (122.0)",
               React.createElement("br", null),
               React.createElement("strong", null, "Say: "), 
-              radioCallSigns?.aircraft 
-                ? "\"" + radioCallSigns.aircraft + ", PIREP\" then read each item below"
-                : "\"[Callsign], PIREP\" then read each item below"
+              "\"[Callsign], PIREP\" then read each item below"
             )
           ),
           
@@ -4804,7 +4805,7 @@ Events: ${events.length}`;
     };
     
     const styles = {
-      container: { minHeight: "100vh", minHeight: "-webkit-fill-available", background: "linear-gradient(135deg, #0c1929 0%, #1a365d 50%, #234e82 100%)", fontFamily: '-apple-system, BlinkMacSystemFont, "SF Mono", monospace', color: "#e2e8f0", paddingBottom: "140px", paddingBottom: "calc(140px + env(safe-area-inset-bottom, 0px))" },
+      container: { minHeight: "100vh", background: "linear-gradient(135deg, #0c1929 0%, #1a365d 50%, #234e82 100%)", fontFamily: '-apple-system, BlinkMacSystemFont, "SF Mono", monospace', color: "#e2e8f0", paddingBottom: "100px" },
       header: { background: "linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 100%)", borderBottom: "1px solid rgba(255,255,255,0.1)", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(10px)" },
       logo: { display: "flex", alignItems: "center", gap: "12px" },
       logoCircle: { width: "44px", height: "44px", borderRadius: "50%", background: "linear-gradient(135deg, #c53030 0%, #9b2c2c 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.3)", border: "2px solid #f6e05e", color: "white", fontWeight: "bold", fontSize: ts("12") },
@@ -4834,7 +4835,7 @@ Events: ${events.length}`;
       grid3: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" },
       grid4: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" },
       calculated: { background: "rgba(104, 211, 145, 0.1)", border: "1px solid rgba(104, 211, 145, 0.3)", borderRadius: "8px", padding: "12px", color: "#68d391" },
-      footer: { position: "fixed", bottom: 0, left: 0, right: 0, background: "linear-gradient(180deg, transparent 0%, rgba(12, 25, 41, 0.95) 20%, #0c1929 100%)", padding: "16px", paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))", display: "flex", gap: "12px", justifyContent: "center", zIndex: 50 },
+      footer: { position: "fixed", bottom: 0, left: 0, right: 0, background: "linear-gradient(180deg, transparent 0%, rgba(12, 25, 41, 0.95) 20%, #0c1929 100%)", padding: "16px", display: "flex", gap: "12px", justifyContent: "center" },
       timeButton: { background: "rgba(104, 211, 145, 0.2)", border: "2px solid #68d391", color: "#68d391", borderRadius: "8px", padding: "12px 16px", fontSize: ts("13"), fontWeight: "700", cursor: "pointer", fontFamily: "inherit", minHeight: "48px", touchAction: "manipulation" },
       // Reference section styles
       refNav: { display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" },
@@ -5083,13 +5084,6 @@ Events: ${events.length}`;
                 React.createElement("div", { style: styles.field },
                   React.createElement("label", { style: styles.label }, "Observer Name"),
                   React.createElement("input", { style: styles.input, type: "text", value: missionInfo.observerName, onChange: (e) => setMissionInfo({ ...missionInfo, observerName: e.target.value }), placeholder: "Your name" }))),
-              React.createElement("div", { style: styles.grid2 },
-                React.createElement("div", { style: styles.field },
-                  React.createElement("label", { style: styles.label }, "Aircraft Call Sign"),
-                  React.createElement("input", { style: styles.input, type: "text", value: radioCallSigns.aircraft, onChange: (e) => setRadioCallSigns({ ...radioCallSigns, aircraft: e.target.value.toUpperCase() }), placeholder: "e.g., CAP 594" })),
-                React.createElement("div", { style: styles.field },
-                  React.createElement("label", { style: styles.label }, "Mission Base"),
-                  React.createElement("input", { style: styles.input, type: "text", value: radioCallSigns.missionBase, onChange: (e) => setRadioCallSigns({ ...radioCallSigns, missionBase: e.target.value.toUpperCase() }), placeholder: "e.g., BLUE MESA 92" }))),
               React.createElement("div", { style: styles.field },
                 React.createElement("label", { style: styles.label }, "Route of Flight"),
                 React.createElement("input", { style: styles.input, type: "text", value: missionInfo.routeOfFlight, onChange: (e) => setMissionInfo({ ...missionInfo, routeOfFlight: e.target.value }), placeholder: "e.g., KAPA - DEN111 vicinity - KFLY" }))))),
@@ -5471,10 +5465,6 @@ Events: ${events.length}`;
               turbulence: "",
               icing: "",
               visibility: "",
-              windDirection: "",
-              windSpeed: "",
-              windGusts: "",
-              windShear: "",
               remarks: ""
             });
             setPirepModal({ open: true, eventId: event.id });
@@ -5655,8 +5645,7 @@ Events: ${events.length}`;
           },
           pirepData: pirepData,
           event: events.find((e) => e.id === pirepRadioCall.eventId),
-          missionInfo: missionInfo,
-          radioCallSigns: radioCallSigns
+          missionInfo: missionInfo
         }
       ));
     };
@@ -7488,36 +7477,54 @@ React.createElement(
       ];
 
       return React.createElement("div", null,
-        // Call Sign Display Section
+        // Call Sign Configuration Section
         React.createElement("div", { style: styles.section },
           React.createElement("div", { style: styles.sectionHeader }, "📻 Your Call Signs"),
           React.createElement("div", { style: styles.sectionBody },
-            (radioCallSigns.aircraft || radioCallSigns.missionBase) ? React.createElement("div", { style: {
+            React.createElement("div", { style: { 
+              background: "rgba(99,179,237,0.1)", 
+              padding: "12px", 
+              borderRadius: "8px",
+              marginBottom: "12px",
+              border: "1px solid rgba(99,179,237,0.2)"
+            }},
+              React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "8px" }},
+                "Enter your call signs below to customize all examples"
+              ),
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }},
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#63b3ed", fontWeight: "600" }}, "AIRCRAFT CALL SIGN"),
+                  React.createElement("input", {
+                    style: { ...styles.input, marginTop: "4px", fontSize: "14px", fontWeight: "600" },
+                    value: radioCallSigns.aircraft,
+                    onChange: (e) => setRadioCallSigns({ ...radioCallSigns, aircraft: e.target.value.toUpperCase() }),
+                    placeholder: "e.g., CAP 594"
+                  })
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { fontSize: "10px", color: "#63b3ed", fontWeight: "600" }}, "MISSION BASE"),
+                  React.createElement("input", {
+                    style: { ...styles.input, marginTop: "4px", fontSize: "14px", fontWeight: "600" },
+                    value: radioCallSigns.missionBase,
+                    onChange: (e) => setRadioCallSigns({ ...radioCallSigns, missionBase: e.target.value.toUpperCase() }),
+                    placeholder: "e.g., BLUE MESA 92"
+                  })
+                )
+              )
+            ),
+            // Show current call signs if set
+            (radioCallSigns.aircraft || radioCallSigns.missionBase) && React.createElement("div", { style: {
               background: "rgba(56,161,105,0.15)",
-              padding: "12px",
+              padding: "10px 12px",
               borderRadius: "6px",
               border: "1px solid rgba(104,211,145,0.3)",
-              fontSize: "12px"
+              fontSize: "11px"
             }},
               React.createElement("span", { style: { color: "#68d391", fontWeight: "600" }}, "✓ Examples below will use: "),
-              React.createElement("span", { style: { color: "#fff", fontWeight: "600" }}, 
+              React.createElement("span", { style: { color: "#fff" }}, 
                 radioCallSigns.missionBase || "[MISSION BASE]", 
                 ", THIS IS ", 
                 radioCallSigns.aircraft || "[AIRCRAFT]"
-              ),
-              React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginTop: "8px" }},
-                "Edit call signs in Mission Info tab"
-              )
-            ) : React.createElement("div", { style: {
-              background: "rgba(99,179,237,0.1)",
-              padding: "12px",
-              borderRadius: "6px",
-              border: "1px solid rgba(99,179,237,0.2)",
-              fontSize: "12px"
-            }},
-              React.createElement("span", { style: { color: "#63b3ed" }}, "ℹ️ No call signs set. "),
-              React.createElement("span", { style: { color: "#a0aec0" }}, 
-                "Enter your Aircraft Call Sign and Mission Base in the Mission Info tab to customize radio call examples."
               )
             )
           )
@@ -8054,15 +8061,27 @@ React.createElement(
       const handlePoiChange = (v) => { const p = spParseCoordinate(v); setSpState(s => ({ ...s, poiInput: v, poi: p, detectedGrid: p ? spDetectCapGrid(p.latDD, p.lonDD) : null })); };
       
       const generate = () => {
-        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading } = spState;
+        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, clMode, clCreepDirection, clLegLength, clSpacing, clNumLegs } = spState;
         if (!poi) { alert('Enter valid POI'); return; }
         let plan;
         if (spState.patternType === 'gridParallelTrack') {
           if (!detectedGrid) { alert('Could not detect CAP grid for this location'); return; }
           plan = spGenGridParallel({ poi, gridInfo: detectedGrid, spacing, entryCorner, groundspeed });
         } else if (spState.patternType === 'creepingLine') {
-          if (!detectedGrid) { alert('Could not detect CAP grid for this location'); return; }
-          plan = spGenCreepingLine({ poi, gridInfo: detectedGrid, spacing, direction: clDirection, startSide: clStartSide, groundspeed });
+          if (clMode === 'grid') {
+            if (!detectedGrid) { alert('Could not detect CAP grid for this location'); return; }
+            plan = spGenCreepingLine({ poi, gridInfo: detectedGrid, spacing, direction: clDirection, startSide: clStartSide, groundspeed });
+          } else {
+            // Custom creeping line mode (ForeFlight compatible)
+            plan = spGenCreepingLineCustom({ 
+              poi, 
+              creepDirection: clCreepDirection || 25, 
+              legLength: clLegLength || 8, 
+              spacing: clSpacing || 1, 
+              numLegs: clNumLegs || 10, 
+              groundspeed 
+            });
+          }
         } else if (spState.patternType === 'poiCenteredParallel') {
           plan = spGenPoiCenteredParallel({ poi, spacing, numTracks: poiNumTracks, trackLength: poiTrackLength, heading: poiHeading, groundspeed });
         } else {
@@ -8074,7 +8093,109 @@ React.createElement(
       
       const copyFF = () => { if (!spState.lastPlan) return; navigator.clipboard.writeText(spState.lastPlan.waypoints.map(w => w.foreflight).join(' ')); alert('ForeFlight route copied!'); };
       const exportKML = () => { if (!spState.lastPlan) return; const b = new Blob([spGenKML(spState.lastPlan)], { type: 'application/vnd.google-earth.kml+xml' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'CAP_Search_' + (spState.lastPlan.gridInfo?.gridId?.replace(/\s+/g,'_') || 'Pattern') + '.kml'; a.click(); };
-      const openMap = () => { if (!spState.lastPlan) return; setSpState(s => ({ ...s, showMap: true })); setTimeout(() => { if (spMap) { spMap.remove(); spMap = null; } const el = document.getElementById('spMapDiv'); if (!el) return; const p = spState.lastPlan; const ctr = [p.dimensions?.centerLat || p.poi.latDD, p.dimensions?.centerLon || p.poi.lonDD]; spMap = L.map('spMapDiv').setView(ctr, 11); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(spMap); if (p.gridInfo?.corners) { const c = p.gridInfo.corners; L.polygon([[c.nw.lat, c.nw.lon], [c.ne.lat, c.ne.lon], [c.se.lat, c.se.lon], [c.sw.lat, c.sw.lon]], { color: '#3182ce', weight: 2, fillOpacity: 0.1, dashArray: '5,5' }).addTo(spMap); } const path = p.waypoints.map(w => [w.lat, w.lon]); L.polyline(path, { color: '#38a169', weight: 3 }).addTo(spMap); p.waypoints.forEach((w, i) => L.circleMarker([w.lat, w.lon], { radius: i === 0 ? 8 : 5, fillColor: i === 0 ? '#e53e3e' : '#38a169', color: '#fff', weight: 2, fillOpacity: 0.8 }).addTo(spMap).bindPopup('WP' + w.number + ': ' + w.ddm)); spMap.fitBounds(path, { padding: [30, 30] }); }, 100); };
+      const openMap = () => { 
+        if (!spState.lastPlan) { alert('No search plan to display. Generate a pattern first.'); return; }
+        if (typeof L === 'undefined') { alert('Map library not loaded. Please refresh the page.'); return; }
+        const planToShow = spState.lastPlan; // Capture the plan in closure
+        setSpState(s => ({ ...s, showMap: true })); 
+        setTimeout(() => { 
+          try {
+            if (typeof L === 'undefined') { console.error('Leaflet not available'); return; }
+            if (spMap) { try { spMap.remove(); } catch(e) {} spMap = null; } 
+            const el = document.getElementById('spMapDiv'); 
+            if (!el) { console.error('Map container not found'); return; }
+            if (!planToShow || !planToShow.waypoints || planToShow.waypoints.length === 0) {
+              console.error('Invalid plan data');
+              return;
+            }
+            
+            // Get center coordinates
+            let ctrLat = planToShow.poi?.latDD;
+            let ctrLon = planToShow.poi?.lonDD;
+            if (planToShow.dimensions) {
+              ctrLat = planToShow.dimensions.centerLat || ctrLat;
+              ctrLon = planToShow.dimensions.centerLon || ctrLon;
+            }
+            if (!ctrLat || !ctrLon) {
+              // Fallback to first waypoint
+              ctrLat = planToShow.waypoints[0].lat;
+              ctrLon = planToShow.waypoints[0].lon;
+            }
+            
+            spMap = L.map('spMapDiv').setView([ctrLat, ctrLon], 11); 
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(spMap); 
+            
+            // Draw grid corners if available (for grid-based patterns)
+            if (planToShow.gridInfo?.corners) { 
+              const c = planToShow.gridInfo.corners; 
+              L.polygon([[c.nw.lat, c.nw.lon], [c.ne.lat, c.ne.lon], [c.se.lat, c.se.lon], [c.sw.lat, c.sw.lon]], { color: '#3182ce', weight: 2, fillOpacity: 0.1, dashArray: '5,5' }).addTo(spMap); 
+            }
+            
+            // Draw custom search area if available (for custom creeping line)
+            if (planToShow.searchArea) {
+              // Draw search area polygon
+              if (planToShow.searchArea.corners && planToShow.searchArea.corners.length === 4) {
+                const corners = planToShow.searchArea.corners;
+                L.polygon(corners.map(c => [c.lat, c.lon]), { 
+                  color: '#ed8936', 
+                  weight: 2, 
+                  fillOpacity: 0.1, 
+                  fillColor: '#ed8936',
+                  dashArray: '8,4' 
+                }).addTo(spMap);
+              }
+              
+              // Draw creeping line (axis) as a dashed line
+              if (planToShow.searchArea.creepLine) {
+                const cl = planToShow.searchArea.creepLine;
+                L.polyline([[cl.start.lat, cl.start.lon], [cl.end.lat, cl.end.lon]], { 
+                  color: '#e53e3e', 
+                  weight: 3, 
+                  dashArray: '10,10',
+                  opacity: 0.9
+                }).addTo(spMap).bindPopup('Creep Direction: ' + (planToShow.dimensions?.creepDirection || '?') + '°');
+              }
+            }
+            
+            // Draw flight path
+            const path = planToShow.waypoints.map(w => [w.lat, w.lon]); 
+            L.polyline(path, { color: '#38a169', weight: 3 }).addTo(spMap); 
+            
+            // Draw waypoint markers
+            planToShow.waypoints.forEach((w, i) => {
+              const isStart = i === 0;
+              const isEnd = i === planToShow.waypoints.length - 1;
+              L.circleMarker([w.lat, w.lon], { 
+                radius: isStart ? 8 : (isEnd ? 7 : 5), 
+                fillColor: isStart ? '#e53e3e' : (isEnd ? '#805ad5' : '#38a169'), 
+                color: '#fff', 
+                weight: 2, 
+                fillOpacity: 0.8 
+              }).addTo(spMap).bindPopup('WP' + w.number + ': ' + w.ddm + (w.note ? '<br>' + w.note : ''));
+            });
+            
+            // Draw POI marker
+            if (planToShow.poi) {
+              L.marker([planToShow.poi.latDD, planToShow.poi.lonDD], {
+                icon: L.divIcon({
+                  className: 'poi-marker',
+                  html: '<div style="background:#e53e3e;color:white;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:bold;white-space:nowrap;">POI</div>',
+                  iconSize: [30, 20],
+                  iconAnchor: [15, 10]
+                })
+              }).addTo(spMap);
+            }
+            
+            // Fit map to show all waypoints
+            if (path.length > 0) {
+              spMap.fitBounds(path, { padding: [30, 30] }); 
+            }
+          } catch (err) {
+            console.error('Map error:', err);
+            alert('Error displaying map: ' + err.message);
+          }
+        }, 150); 
+      };
       
       const setPattern = (p) => setSpState(s => ({ ...s, patternType: p }));
       const setCorner = (c) => setSpState(s => ({ ...s, entryCorner: c }));
@@ -8209,16 +8330,147 @@ React.createElement(
         ),
         
         // Creeping Line Options
+        // ENHANCED Creeping Line Options
         patternType === 'creepingLine' && React.createElement("div", { style: { marginBottom: "15px" } },
-          React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Search Direction"),
-          React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "10px" } },
-            React.createElement("button", { style: optionBtnStyle(clDirection === 0), onClick: () => setClDir(0) }, "↕ N-S"),
-            React.createElement("button", { style: optionBtnStyle(clDirection === 90), onClick: () => setClDir(90) }, "↔ E-W")
+          // Mode selector
+          React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Definition Mode"),
+          React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "15px" } },
+            React.createElement("button", { 
+              style: { 
+                padding: "8px 12px",
+                border: spState.clMode === 'custom' ? "2px solid #ed8936" : "1px solid rgba(255,255,255,0.2)",
+                borderRadius: "6px",
+                background: spState.clMode === 'custom' ? "rgba(237,137,54,0.3)" : "rgba(0,0,0,0.2)",
+                color: spState.clMode === 'custom' ? "#fbd38d" : "#a0aec0",
+                cursor: "pointer",
+                fontSize: "0.85em",
+                fontWeight: spState.clMode === 'custom' ? "bold" : "normal",
+                flex: 1,
+                textAlign: "center"
+              }, 
+              onClick: () => setSpState(s => ({ ...s, clMode: 'custom' })) 
+            }, "📐 Custom Corridor"),
+            React.createElement("button", { 
+              style: { 
+                padding: "8px 12px",
+                border: spState.clMode === 'grid' ? "2px solid #ed8936" : "1px solid rgba(255,255,255,0.2)",
+                borderRadius: "6px",
+                background: spState.clMode === 'grid' ? "rgba(237,137,54,0.3)" : "rgba(0,0,0,0.2)",
+                color: spState.clMode === 'grid' ? "#fbd38d" : "#a0aec0",
+                cursor: "pointer",
+                fontSize: "0.85em",
+                fontWeight: spState.clMode === 'grid' ? "bold" : "normal",
+                flex: 1,
+                textAlign: "center"
+              }, 
+              onClick: () => setSpState(s => ({ ...s, clMode: 'grid' })) 
+            }, "⬛ Grid-Aligned")
           ),
-          React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Start Side"),
-          React.createElement("div", { style: { display: "flex", gap: "8px" } },
-            React.createElement("button", { style: optionBtnStyle(clStartSide === 'Left'), onClick: () => setClSide('Left') }, "◀ Left"),
-            React.createElement("button", { style: optionBtnStyle(clStartSide === 'Right'), onClick: () => setClSide('Right') }, "▶ Right")
+          
+          // Grid-aligned mode (original)
+          spState.clMode === 'grid' && React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "12px", marginBottom: "12px", border: "1px solid rgba(255,255,255,0.1)" } },
+            React.createElement("div", { style: { fontSize: "11px", color: "#f6e05e", marginBottom: "10px", fontWeight: "600" } }, "GRID-ALIGNED MODE"),
+            React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Search Direction"),
+            React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "10px" } },
+              React.createElement("button", { style: optionBtnStyle(clDirection === 0), onClick: () => setClDir(0) }, "↕ N-S"),
+              React.createElement("button", { style: optionBtnStyle(clDirection === 90), onClick: () => setClDir(90) }, "↔ E-W")
+            ),
+            React.createElement("label", { style: { ...styles.label, marginBottom: "8px", display: "block" } }, "Start Side"),
+            React.createElement("div", { style: { display: "flex", gap: "8px" } },
+              React.createElement("button", { style: optionBtnStyle(clStartSide === 'Left'), onClick: () => setClSide('Left') }, "◀ Left"),
+              React.createElement("button", { style: optionBtnStyle(clStartSide === 'Right'), onClick: () => setClSide('Right') }, "▶ Right")
+            )
+          ),
+          
+          // Custom corridor mode (ForeFlight SAR compatible)
+          spState.clMode === 'custom' && React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "12px", marginBottom: "12px", border: "1px solid rgba(255,255,255,0.1)" } },
+            React.createElement("div", { style: { fontSize: "11px", color: "#f6e05e", marginBottom: "10px", fontWeight: "600" } }, "CUSTOM CREEPING LINE (ForeFlight SAR Compatible)"),
+            
+            // Creep Direction
+            React.createElement("div", { style: styles.formGroup },
+              React.createElement("label", { style: styles.label }, "Creep Direction (°) — Direction search advances"),
+              React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } },
+                React.createElement("input", { 
+                  type: "number", 
+                  style: { ...styles.input, flex: 1 }, 
+                  value: spState.clCreepDirection || 25, 
+                  min: "0", 
+                  max: "359", 
+                  onChange: e => setSpState(s => ({ ...s, clCreepDirection: parseInt(e.target.value) || 0 })) 
+                }),
+                React.createElement("span", { style: { color: "#a0aec0", fontSize: "12px", whiteSpace: "nowrap" } }, 
+                  "Tracks: ", ((spState.clCreepDirection || 25) + 270) % 360, "°/", ((spState.clCreepDirection || 25) + 90) % 360, "°"
+                )
+              )
+            ),
+            
+            // Leg Length, Spacing, and Number of Legs
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "12px" } },
+              React.createElement("div", { style: styles.formGroup },
+                React.createElement("label", { style: styles.label }, "Leg Length (NM)"),
+                React.createElement("input", { 
+                  type: "number", 
+                  style: styles.input, 
+                  value: spState.clLegLength, 
+                  min: "0.5", 
+                  step: "0.5", 
+                  onChange: e => setSpState(s => ({ ...s, clLegLength: parseFloat(e.target.value) || 8 })) 
+                })
+              ),
+              React.createElement("div", { style: styles.formGroup },
+                React.createElement("label", { style: styles.label }, "Spacing (NM)"),
+                React.createElement("input", { 
+                  type: "number", 
+                  style: styles.input, 
+                  value: spState.clSpacing || 1, 
+                  min: "0.1", 
+                  max: "10",
+                  step: "0.1", 
+                  onChange: e => setSpState(s => ({ ...s, clSpacing: parseFloat(e.target.value) || 1 })) 
+                })
+              ),
+              React.createElement("div", { style: styles.formGroup },
+                React.createElement("label", { style: styles.label }, "Number of Legs"),
+                React.createElement("input", { 
+                  type: "number", 
+                  style: styles.input, 
+                  value: spState.clNumLegs || 10, 
+                  min: "1", 
+                  max: "50",
+                  step: "1", 
+                  onChange: e => setSpState(s => ({ ...s, clNumLegs: parseInt(e.target.value) || 10 })) 
+                })
+              )
+            ),
+            
+            // Estimated coverage info
+            React.createElement("div", { style: { fontSize: "11px", color: "#68d391", background: "rgba(56,161,105,0.15)", padding: "10px", borderRadius: "6px", marginTop: "8px" } },
+              React.createElement("div", { style: { fontWeight: "600", marginBottom: "4px" } }, "📊 Estimated Coverage:"),
+              (() => {
+                const numLegs = spState.clNumLegs || 10;
+                const legLen = spState.clLegLength || 8;
+                const legSpacing = spState.clSpacing || 1;
+                const corridorLen = (numLegs - 1) * legSpacing;
+                const estTotalDist = (legLen / 2) + ((numLegs - 1) * legLen);  // First leg is half + rest full
+                const estTime = groundspeed ? (estTotalDist / groundspeed) * 60 : 0;
+                return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" } },
+                  React.createElement("span", null, "Tracks: ", React.createElement("strong", null, numLegs)),
+                  React.createElement("span", null, "Corridor: ", React.createElement("strong", null, corridorLen.toFixed(1), " NM")),
+                  React.createElement("span", null, "Distance: ", React.createElement("strong", null, estTotalDist.toFixed(1), " NM")),
+                  React.createElement("span", null, "Time: ", React.createElement("strong", null, estTime.toFixed(0), " min")),
+                  React.createElement("span", null, "Area: ", React.createElement("strong", null, (legLen * corridorLen).toFixed(1), " sq NM"))
+                );
+              })()
+            ),
+            
+            // Pattern description
+            React.createElement("div", { style: { fontSize: "11px", color: "#90cdf4", background: "rgba(99,179,237,0.15)", padding: "10px", borderRadius: "6px", marginTop: "8px", borderLeft: "3px solid #63b3ed" } },
+              React.createElement("div", { style: { fontWeight: "600", marginBottom: "4px" } }, "📋 Pattern Structure:"),
+              React.createElement("div", null, "• POI is the starting corner"),
+              React.createElement("div", null, "• First track: half-length (", ((spState.clLegLength || 8) / 2).toFixed(1), " NM) on hdg ", ((spState.clCreepDirection || 25) + 270) % 360, "°"),
+              React.createElement("div", null, "• Subsequent tracks: full-length (", spState.clLegLength || 8, " NM) alternating"),
+              React.createElement("div", null, "• Creep ", spState.clSpacing || 1, " NM on heading ", spState.clCreepDirection || 25, "° between tracks")
+            )
           )
         ),
         
