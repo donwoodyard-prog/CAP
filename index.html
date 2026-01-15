@@ -2668,6 +2668,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     const [eltObservations, setEltObservations] = useState([]);
     const [eltResult, setEltResult] = useState(null);
     const [eltShowMap, setEltShowMap] = useState(false);
+    const [eltDiagramZoom, setEltDiagramZoom] = useState(1.0); // Zoom level for diagram (1.0 = fit all, higher = zoom in)
     const eltMapRef = React.useRef(null);
     const [eltSettings, setEltSettings] = useState({
       r10: 0.5,           // NM at strength 10
@@ -6552,6 +6553,33 @@ React.createElement(
           agl: parseFloat(o.altAGL) || 1500,
           source: o.source || 'audio'
         }));
+        
+        // ========================================
+        // SARSAT-SPECIFIC WEIGHTING (1/error²)
+        // ========================================
+        // For SARSAT data, use inverse square of error radius for weighting
+        // This correctly emphasizes high-confidence pings
+        const hasSarsatData = obsData.some(o => o.source === 'sarsat' && o.directRange !== null);
+        
+        let sarsatWeightedCentroid = null;
+        if (hasSarsatData) {
+          const sarsatObs = obsData.filter(o => o.source === 'sarsat' && o.directRange !== null && o.directRange <= 10);
+          if (sarsatObs.length >= 2) {
+            let totalWeight = 0;
+            let wLat = 0, wLon = 0;
+            sarsatObs.forEach(o => {
+              const weight = 1 / (o.directRange * o.directRange); // 1/error²
+              totalWeight += weight;
+              wLat += o.lat * weight;
+              wLon += o.lon * weight;
+            });
+            sarsatWeightedCentroid = {
+              lat: wLat / totalWeight,
+              lon: wLon / totalWeight,
+              obsCount: sarsatObs.length
+            };
+          }
+        }
 
         // ========================================
         // ADAPTIVE UNCERTAINTY CALCULATION
@@ -6624,18 +6652,50 @@ React.createElement(
         );
         const maxR0 = Math.max(...expectedRanges);
 
+        // ========================================
+        // OUTLIER-ROBUST BOUNDS CALCULATION
+        // ========================================
+        // Use median-based bounds to prevent outliers from skewing the view
+        const sortedLats = [...lats].sort((a, b) => a - b);
+        const sortedLons = [...lons].sort((a, b) => a - b);
+        
+        // Calculate IQR for outlier detection
+        const q1Lat = sortedLats[Math.floor(sortedLats.length * 0.25)];
+        const q3Lat = sortedLats[Math.floor(sortedLats.length * 0.75)];
+        const iqrLat = q3Lat - q1Lat;
+        const q1Lon = sortedLons[Math.floor(sortedLons.length * 0.25)];
+        const q3Lon = sortedLons[Math.floor(sortedLons.length * 0.75)];
+        const iqrLon = q3Lon - q1Lon;
+        
+        // Filter to non-outlier observations for bounds (1.5 * IQR rule)
+        // But use wider threshold (3x) to keep most data
+        const latThreshold = Math.max(iqrLat * 3, 0.05); // At least 3 NM
+        const lonThreshold = Math.max(iqrLon * 3, 0.05);
+        const medianLat = sortedLats[Math.floor(sortedLats.length / 2)];
+        const medianLon = sortedLons[Math.floor(sortedLons.length / 2)];
+        
+        const inlierLats = lats.filter(lat => Math.abs(lat - medianLat) <= latThreshold);
+        const inlierLons = lons.filter(lon => Math.abs(lon - medianLon) <= lonThreshold);
+        
+        // Use inlier bounds if we have enough points, otherwise use all
+        const useLats = inlierLats.length >= 2 ? inlierLats : lats;
+        const useLons = inlierLons.length >= 2 ? inlierLons : lons;
+
         // Determine bounds - dynamic margin based on max expected range + uncertainty
-        const meanLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+        const meanLat = (Math.min(...useLats) + Math.max(...useLats)) / 2;
         const marginNm = Math.max(8, maxR0 * (1 + uncertaintyPct) + 3);
         const margin = marginNm / 60;
         const lonMargin = margin / Math.cos(meanLat * Math.PI / 180);
         
         const bounds = {
-          minLat: Math.min(...lats) - margin,
-          maxLat: Math.max(...lats) + margin,
-          minLon: Math.min(...lons) - lonMargin,
-          maxLon: Math.max(...lons) + lonMargin
+          minLat: Math.min(...useLats) - margin,
+          maxLat: Math.max(...useLats) + margin,
+          minLon: Math.min(...useLons) - lonMargin,
+          maxLon: Math.max(...useLons) + lonMargin
         };
+        
+        // Track outliers for display
+        const outlierCount = obsData.length - Math.min(inlierLats.length, inlierLons.length);
 
         // Grid resolution
         const step = eltSettings.resolution / 60;
@@ -6672,18 +6732,27 @@ React.createElement(
               const distNm = Math.sqrt(dLat * dLat + dLon * dLon);
               
               // Range likelihood with adaptive uncertainty
-              let r0, sigmaR;
-              if (obs.directRange !== null) {
-                r0 = obs.directRange;
-                // Use provided accuracy, or apply adaptive uncertainty
-                sigmaR = obs.rangeAccuracy !== null 
+              let lRange;
+              
+              if (obs.source === 'sarsat' && obs.directRange !== null) {
+                // SARSAT data: directRange is ERROR RADIUS, not expected distance
+                // Target should be WITHIN the error circle, centered on observation
+                // Use Gaussian centered at 0 (observation point) with sigma = error radius
+                const sigmaR = obs.directRange * (1 + uncertaintyPct * 0.5);
+                lRange = -0.5 * Math.pow(distNm / sigmaR, 2);
+              } else if (obs.directRange !== null) {
+                // Non-SARSAT with directRange: target at specific distance
+                const r0 = obs.directRange;
+                const sigmaR = obs.rangeAccuracy !== null 
                   ? obs.rangeAccuracy 
                   : Math.max(r0 * uncertaintyPct, uncertaintyMin);
+                lRange = -0.5 * Math.pow((distNm - r0) / sigmaR, 2);
               } else {
-                r0 = eltSettings.r10 * Math.pow(2, (10 - obs.strength) / eltSettings.k);
-                sigmaR = Math.max(r0 * uncertaintyPct, uncertaintyMin);
+                // Audio/signal strength based: estimate range from strength
+                const r0 = eltSettings.r10 * Math.pow(2, (10 - obs.strength) / eltSettings.k);
+                const sigmaR = Math.max(r0 * uncertaintyPct, uncertaintyMin);
+                lRange = -0.5 * Math.pow((distNm - r0) / sigmaR, 2);
               }
-              const lRange = -0.5 * Math.pow((distNm - r0) / sigmaR, 2);
               
               // Bearing likelihood (if available)
               let lBearing = 0;
@@ -6696,11 +6765,13 @@ React.createElement(
                 lBearing = -0.5 * Math.pow(dTheta / obs.bearingAcc, 2);
               }
               
-              // Radio horizon soft cap
-              const horizonNm = getEltHorizon(obs.agl);
+              // Radio horizon soft cap - skip for SARSAT (satellite-based)
               let lHorizon = 0;
-              if (distNm > horizonNm) {
-                lHorizon = -0.5 * Math.pow((distNm - horizonNm) / 2, 2);
+              if (obs.source !== 'sarsat') {
+                const horizonNm = getEltHorizon(obs.agl);
+                if (distNm > horizonNm) {
+                  lHorizon = -0.5 * Math.pow((distNm - horizonNm) / 2, 2);
+                }
               }
               
               logL += lRange + lBearing + lHorizon;
@@ -6763,19 +6834,40 @@ React.createElement(
             lonDeg: centLonDdm.deg,
             lonMin: centLonDdm.min.toFixed(3)
           },
+          // SARSAT-specific weighted centroid (if available)
+          sarsatCentroid: sarsatWeightedCentroid ? {
+            lat: sarsatWeightedCentroid.lat,
+            lon: sarsatWeightedCentroid.lon,
+            latDeg: gpsUtils.ddToDdm(sarsatWeightedCentroid.lat).deg,
+            latMin: gpsUtils.ddToDdm(sarsatWeightedCentroid.lat).min.toFixed(3),
+            lonDeg: gpsUtils.ddToDdm(Math.abs(sarsatWeightedCentroid.lon)).deg,
+            lonMin: gpsUtils.ddToDdm(Math.abs(sarsatWeightedCentroid.lon)).min.toFixed(3),
+            obsCount: sarsatWeightedCentroid.obsCount
+          } : null,
           capGrid: capGrid.full,
           area50: area50,
           area90: area90,
           area50SizeNm2: area50SizeNm2.toFixed(2),
           area90SizeNm2: area90SizeNm2.toFixed(2),
+          // Estimated search radius (radius of circle with same area as 50% zone)
+          searchRadiusNm: Math.sqrt(area50SizeNm2 / Math.PI).toFixed(2),
           obsCount: activeObs.length,
           dfCount: dfCount,
+          directRangeCount: directRangeCount,
+          outlierCount: outlierCount || 0,
           qualityScore: Math.round(qualityScore),
           qualityLabel: qualityLabel,
           uncertaintyPct: Math.round(uncertaintyPct * 100),
           grid: grid,
           bounds: bounds,
-          observations: obsData
+          observations: obsData,
+          // Data source breakdown
+          sourceBreakdown: {
+            sarsat: obsData.filter(o => o.source === 'sarsat').length,
+            audio: obsData.filter(o => o.source === 'audio').length,
+            df: obsData.filter(o => o.source === 'df').length,
+            visual: obsData.filter(o => o.source === 'visual').length
+          }
         };
 
         setEltResult(result);
@@ -6856,14 +6948,32 @@ React.createElement(
       const renderVisualization = () => {
         if (!eltResult || !eltResult.grid.length) return null;
         
-        const svgWidth = 300;
-        const svgHeight = 250;
-        const padding = 20;
-        const { bounds, centroid, observations, area50, area90 } = eltResult;
+        const svgWidth = 320;
+        const svgHeight = 280;
+        const padding = 25;
+        const { bounds: originalBounds, centroid, observations, area50, area90 } = eltResult;
+        
+        // Apply zoom - shrink bounds around centroid
+        const zoomFactor = eltDiagramZoom;
+        const latRange = (originalBounds.maxLat - originalBounds.minLat) / zoomFactor;
+        const lonRange = (originalBounds.maxLon - originalBounds.minLon) / zoomFactor;
+        
+        const bounds = {
+          minLat: centroid.lat - latRange / 2,
+          maxLat: centroid.lat + latRange / 2,
+          minLon: centroid.lon - lonRange / 2,
+          maxLon: centroid.lon + lonRange / 2
+        };
         
         // Scale functions
         const scaleX = (lon) => padding + ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon)) * (svgWidth - 2 * padding);
         const scaleY = (lat) => svgHeight - padding - ((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * (svgHeight - 2 * padding);
+        
+        // Check if observation is within bounds (for outlier detection)
+        const isInBounds = (obs) => {
+          return obs.lat >= bounds.minLat && obs.lat <= bounds.maxLat &&
+                 obs.lon >= bounds.minLon && obs.lon <= bounds.maxLon;
+        };
         
         // Get max probability for color scaling
         const maxP = Math.max(...eltResult.grid.map(g => g.p));
@@ -6891,16 +7001,43 @@ React.createElement(
             height: 6,
             fill: `rgba(252,211,77,${0.5 + (g.p / maxP) * 0.5})`
           })),
-          // Observation points
-          observations.map((obs, i) => React.createElement("circle", {
-            key: `obs-${i}`,
-            cx: scaleX(obs.lon),
-            cy: scaleY(obs.lat),
-            r: 6,
-            fill: "#3182ce",
-            stroke: "#fff",
-            strokeWidth: 2
-          })),
+          // Observation points (only those in bounds, mark outliers at edge)
+          observations.map((obs, i) => {
+            const inBounds = isInBounds(obs);
+            if (inBounds) {
+              return React.createElement("circle", {
+                key: `obs-${i}`,
+                cx: scaleX(obs.lon),
+                cy: scaleY(obs.lat),
+                r: 6,
+                fill: "#3182ce",
+                stroke: "#fff",
+                strokeWidth: 2
+              });
+            } else {
+              // Outlier - show as arrow at edge pointing to direction
+              const clampedX = Math.max(padding, Math.min(svgWidth - padding, scaleX(obs.lon)));
+              const clampedY = Math.max(padding, Math.min(svgHeight - padding, scaleY(obs.lat)));
+              return React.createElement("g", { key: `obs-${i}` },
+                React.createElement("circle", {
+                  cx: clampedX,
+                  cy: clampedY,
+                  r: 5,
+                  fill: "#fc8181",
+                  stroke: "#fff",
+                  strokeWidth: 1,
+                  opacity: 0.6
+                }),
+                React.createElement("text", {
+                  x: clampedX,
+                  y: clampedY - 8,
+                  fill: "#fc8181",
+                  fontSize: "8px",
+                  textAnchor: "middle"
+                }, "outlier")
+              );
+            }
+          }),
           // Bearing lines (if any)
           observations.filter(o => o.bearing !== null).map((obs, i) => {
             const len = 100;
@@ -7456,6 +7593,64 @@ React.createElement(
                       }, 100);
                     }
                   }, "🗺️ Map")
+                ),
+                // Zoom controls for diagram view
+                !eltShowMap && React.createElement("div", { 
+                  style: { 
+                    display: "flex", 
+                    justifyContent: "center", 
+                    alignItems: "center",
+                    gap: "8px", 
+                    marginBottom: "8px" 
+                  }
+                },
+                  React.createElement("button", {
+                    style: {
+                      background: "rgba(99,179,237,0.2)",
+                      border: "1px solid rgba(99,179,237,0.5)",
+                      borderRadius: "6px",
+                      padding: "6px 12px",
+                      color: "#63b3ed",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "bold"
+                    },
+                    onClick: () => setEltDiagramZoom(z => Math.max(0.5, z / 1.5))
+                  }, "➖ Zoom Out"),
+                  React.createElement("span", { 
+                    style: { 
+                      color: "#a0aec0", 
+                      fontSize: "11px",
+                      minWidth: "60px",
+                      textAlign: "center"
+                    } 
+                  }, `${(eltDiagramZoom * 100).toFixed(0)}%`),
+                  React.createElement("button", {
+                    style: {
+                      background: "rgba(99,179,237,0.2)",
+                      border: "1px solid rgba(99,179,237,0.5)",
+                      borderRadius: "6px",
+                      padding: "6px 12px",
+                      color: "#63b3ed",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "bold"
+                    },
+                    onClick: () => setEltDiagramZoom(z => Math.min(20, z * 1.5))
+                  }, "➕ Zoom In"),
+                  React.createElement("button", {
+                    style: {
+                      background: "rgba(246,224,94,0.2)",
+                      border: "1px solid rgba(246,224,94,0.5)",
+                      borderRadius: "6px",
+                      padding: "6px 12px",
+                      color: "#f6e05e",
+                      cursor: "pointer",
+                      fontSize: "11px",
+                      marginLeft: "8px"
+                    },
+                    onClick: () => setEltDiagramZoom(1.0)
+                  }, "Reset")
                 ),
                 // Show either SVG or Map
                 !eltShowMap ? renderVisualization() : 
