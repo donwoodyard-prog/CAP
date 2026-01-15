@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
@@ -16,8 +16,13 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Fira Code', monospace; background: #0c1929; overflow-x: hidden; }
-    #root { min-height: 100vh; }
+    html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Fira Code', monospace; background: #0c1929; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+    #root { min-height: 100vh; min-height: -webkit-fill-available; position: relative; }
+    /* Prevent iOS bounce on main content while allowing modals to scroll */
+    @supports (-webkit-touch-callout: none) {
+      html { height: -webkit-fill-available; }
+      body { min-height: -webkit-fill-available; }
+    }
     input, select, textarea, button { font-size: 16px !important; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
@@ -25,6 +30,12 @@
     /* Night/Red Mode for cockpit operations */
     .night-mode { filter: sepia(100%) saturate(300%) hue-rotate(-50deg) brightness(0.7); }
     .night-mode input, .night-mode select, .night-mode textarea { filter: sepia(100%) saturate(300%) hue-rotate(-50deg); }
+    /* iOS scroll fixes */
+    @supports (-webkit-touch-callout: none) {
+      .ios-scroll-fix { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    }
+    /* Prevent pull-to-refresh on iOS */
+    body { overscroll-behavior-y: none; }
     /* Coordinate validation */
     .coord-invalid { border-color: #e53e3e !important; background: rgba(229,62,62,0.2) !important; }
     /* Ops Normal timer warning */
@@ -2337,6 +2348,443 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
       // 'GA8': { name: 'GippsAero GA8 Airvan', ... }
     }
   };
+  // PirepModal component - defined outside CAPObserverLog to prevent remounting on state changes
+  const PirepSelectButton = ({ selected, onClick, children, color = "#3182ce" }) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick,
+      style: {
+        minHeight: "52px",
+        padding: "10px 12px",
+        fontSize: "13px",
+        fontWeight: "700",
+        background: selected ? `linear-gradient(135deg, ${color}, ${color}dd)` : "rgba(0,0,0,0.3)",
+        border: selected ? `3px solid ${color}` : "2px solid rgba(255,255,255,0.15)",
+        borderRadius: "10px",
+        color: selected ? "#fff" : "#a0aec0",
+        fontFamily: "inherit",
+        cursor: "pointer",
+        touchAction: "manipulation",
+        boxShadow: selected ? `0 4px 12px ${color}44` : "none"
+      }
+    },
+    children
+  );
+  const PirepModal = ({ isOpen, onClose, onSave, onRadioCall, data, setData }) => {
+    if (!isOpen) return null;
+    const buildPirepString = () => {
+      let parts = [];
+      if (data.aircraft) parts.push(`A/C: ${data.aircraft}`);
+      if (data.altitude) parts.push(`ALT: ${data.altitude}`);
+      if (data.clouds) parts.push(`SKY: ${data.clouds}`);
+      if (data.turbulence) parts.push(`TB: ${data.turbulence}`);
+      if (data.icing) parts.push(`IC: ${data.icing}`);
+      if (data.visibility) parts.push(`VIS: ${data.visibility}`);
+      if (data.windDirection || data.windSpeed) {
+        let windStr = "WND: ";
+        if (data.windDirection) windStr += data.windDirection + "°";
+        if (data.windSpeed) windStr += "@" + data.windSpeed + "KT";
+        if (data.windGusts) windStr += "G" + data.windGusts;
+        parts.push(windStr);
+      }
+      if (data.windShear) parts.push(`WS: ${data.windShear}`);
+      if (data.remarks) parts.push(`RMK: ${data.remarks}`);
+      return parts.length > 0 ? "PIREP - " + parts.join(", ") : "PIREP";
+    };
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.9)",
+          zIndex: 1e3,
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "center",
+          padding: "20px",
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch"
+        },
+        onClick: (e) => {
+          if (e.target === e.currentTarget) onClose();
+        }
+      },
+      /* @__PURE__ */ React.createElement("div", { onClick: (e) => e.stopPropagation(), style: {
+        background: "linear-gradient(135deg, #1a365d 0%, #0c1929 100%)",
+        borderRadius: "16px",
+        border: "2px solid rgba(99,179,237,0.3)",
+        width: "100%",
+        maxWidth: "500px",
+        marginBottom: "20px"
+      } }, /* @__PURE__ */ React.createElement("div", { style: {
+        background: "linear-gradient(90deg, rgba(49,130,206,0.4) 0%, transparent 100%)",
+        padding: "16px 20px",
+        borderBottom: "1px solid rgba(255,255,255,0.1)",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center"
+      } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "18px", fontWeight: "700", color: "#63b3ed" } }, "\u2601\uFE0F Quick PIREP"), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: onClose,
+          style: {
+            background: "rgba(255,255,255,0.1)",
+            border: "none",
+            borderRadius: "8px",
+            padding: "12px 20px",
+            color: "#fff",
+            fontSize: "14px",
+            fontWeight: "700",
+            cursor: "pointer",
+            minHeight: "48px"
+          }
+        },
+        "\u2715 CANCEL"
+      )), /* @__PURE__ */ React.createElement("div", { style: { padding: "20px" } }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2708\uFE0F Aircraft"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, ["C172", "C182", "C206", "C210", "GA8", "OTHER"].map((ac) => /* @__PURE__ */ React.createElement(
+        PirepSelectButton,
+        {
+          key: ac,
+          selected: data.aircraft === ac,
+          onClick: () => setData({ ...data, aircraft: ac }),
+          color: "#3182ce"
+        },
+        ac
+      )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F4CF} Altitude (ft MSL)"), 
+      /* Current altitude display */
+      /* @__PURE__ */ React.createElement("div", { style: { 
+        background: data.altitude ? "rgba(128,90,213,0.2)" : "rgba(0,0,0,0.3)",
+        border: data.altitude ? "2px solid #805ad5" : "2px solid rgba(255,255,255,0.2)",
+        borderRadius: "12px",
+        padding: "16px",
+        textAlign: "center",
+        marginBottom: "12px"
+      }},
+        /* @__PURE__ */ React.createElement("div", { style: { fontSize: "36px", fontWeight: "700", color: data.altitude ? "#fff" : "#4a5568", fontFamily: "monospace" }}, 
+          data.altitude ? parseInt(data.altitude).toLocaleString() : "—"
+        ),
+        /* @__PURE__ */ React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginTop: "4px" }}, 
+          data.altitude ? "feet MSL" : "No altitude set"
+        )
+      ),
+      /* Large increment buttons */
+      /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px", marginBottom: "12px" }},
+        /* @__PURE__ */ React.createElement("button", { 
+          onClick: () => {
+            const current = parseInt(data.altitude) || 7500;
+            const newAlt = Math.max(0, current - 1000);
+            setData({ ...data, altitude: String(newAlt) });
+          },
+          style: {
+            minHeight: "56px",
+            padding: "12px",
+            fontSize: "16px",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #e53e3e, #c53030)",
+            border: "none",
+            borderRadius: "10px",
+            color: "#fff",
+            cursor: "pointer",
+            touchAction: "manipulation"
+          }
+        }, "−1000"),
+        /* @__PURE__ */ React.createElement("button", { 
+          onClick: () => {
+            const current = parseInt(data.altitude) || 7500;
+            const newAlt = Math.max(0, current - 500);
+            setData({ ...data, altitude: String(newAlt) });
+          },
+          style: {
+            minHeight: "56px",
+            padding: "12px",
+            fontSize: "16px",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #dd6b20, #c05621)",
+            border: "none",
+            borderRadius: "10px",
+            color: "#fff",
+            cursor: "pointer",
+            touchAction: "manipulation"
+          }
+        }, "−500"),
+        /* @__PURE__ */ React.createElement("button", { 
+          onClick: () => {
+            const current = parseInt(data.altitude) || 7500;
+            const newAlt = Math.min(18000, current + 500);
+            setData({ ...data, altitude: String(newAlt) });
+          },
+          style: {
+            minHeight: "56px",
+            padding: "12px",
+            fontSize: "16px",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #38a169, #2f855a)",
+            border: "none",
+            borderRadius: "10px",
+            color: "#fff",
+            cursor: "pointer",
+            touchAction: "manipulation"
+          }
+        }, "+500"),
+        /* @__PURE__ */ React.createElement("button", { 
+          onClick: () => {
+            const current = parseInt(data.altitude) || 7500;
+            const newAlt = Math.min(18000, current + 1000);
+            setData({ ...data, altitude: String(newAlt) });
+          },
+          style: {
+            minHeight: "56px",
+            padding: "12px",
+            fontSize: "16px",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
+            border: "none",
+            borderRadius: "10px",
+            color: "#fff",
+            cursor: "pointer",
+            touchAction: "manipulation"
+          }
+        }, "+1000")
+      ),
+      /* Quick preset buttons */
+      /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "6px" }},
+        ["5500", "6500", "7500", "8500", "9500", "10500", "11500", "12500", "13500", "14500", "15500", "17500"].map((alt) => /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            key: alt,
+            onClick: () => setData({ ...data, altitude: alt }),
+            style: {
+              minHeight: "44px",
+              padding: "8px 4px",
+              fontSize: "11px",
+              fontWeight: "600",
+              background: data.altitude === alt ? "linear-gradient(135deg, #805ad5, #6b46c1)" : "rgba(0,0,0,0.3)",
+              border: data.altitude === alt ? "2px solid #805ad5" : "1px solid rgba(255,255,255,0.15)",
+              borderRadius: "8px",
+              color: data.altitude === alt ? "#fff" : "#a0aec0",
+              cursor: "pointer",
+              touchAction: "manipulation"
+            }
+          },
+          (parseInt(alt) / 1000).toFixed(1) + "K"
+        ))
+      )), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2601\uFE0F Sky Condition"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
+        { v: "CLR", l: "CLEAR" },
+        { v: "FEW", l: "FEW" },
+        { v: "SCT", l: "SCTRD" },
+        { v: "BKN", l: "BROKN" },
+        { v: "OVC", l: "OVCST" },
+        { v: "IMC", l: "IMC" }
+      ].map((sky) => /* @__PURE__ */ React.createElement(
+        PirepSelectButton,
+        {
+          key: sky.v,
+          selected: data.clouds === sky.v,
+          onClick: () => setData({ ...data, clouds: sky.v }),
+          color: "#718096"
+        },
+        sky.l
+      )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u3030\uFE0F Turbulence"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
+        { v: "NEG", l: "NONE", c: "#38a169" },
+        { v: "SMTH", l: "SMOOTH", c: "#38a169" },
+        { v: "LGT", l: "LIGHT", c: "#d69e2e" },
+        { v: "LGT-MOD", l: "LGT-MOD", c: "#dd6b20" },
+        { v: "MOD", l: "MOD", c: "#e53e3e" },
+        { v: "MOD-SVR", l: "MOD-SVR", c: "#c53030" },
+        { v: "SVR", l: "SEVERE", c: "#9b2c2c" },
+        { v: "EXTRM", l: "EXTRM", c: "#742a2a" }
+      ].map((tb) => /* @__PURE__ */ React.createElement(
+        PirepSelectButton,
+        {
+          key: tb.v,
+          selected: data.turbulence === tb.v,
+          onClick: () => setData({ ...data, turbulence: tb.v }),
+          color: tb.c
+        },
+        tb.l
+      )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2744\uFE0F Icing"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
+        { v: "NEG", l: "NONE", c: "#38a169" },
+        { v: "TRC", l: "TRACE", c: "#3182ce" },
+        { v: "LGT", l: "LIGHT", c: "#d69e2e" },
+        { v: "LGT-MOD", l: "LGT-MOD", c: "#dd6b20" },
+        { v: "MOD", l: "MOD", c: "#e53e3e" },
+        { v: "SVR", l: "SEVERE", c: "#9b2c2c" }
+      ].map((ic) => /* @__PURE__ */ React.createElement(
+        PirepSelectButton,
+        {
+          key: ic.v,
+          selected: data.icing === ic.v,
+          onClick: () => setData({ ...data, icing: ic.v }),
+          color: ic.c
+        },
+        ic.l
+      )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F441} Visibility"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" } }, [
+        { v: "10+", l: "10+ SM", c: "#38a169" },
+        { v: "5-10", l: "5-10", c: "#3182ce" },
+        { v: "3-5", l: "3-5", c: "#d69e2e" },
+        { v: "1-3", l: "1-3", c: "#dd6b20" },
+        { v: "<1", l: "<1 SM", c: "#e53e3e" }
+      ].map((vis) => /* @__PURE__ */ React.createElement(
+        PirepSelectButton,
+        {
+          key: vis.v,
+          selected: data.visibility === vis.v,
+          onClick: () => setData({ ...data, visibility: vis.v }),
+          color: vis.c
+        },
+        vis.l
+      )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F4A8} Wind"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0", display: "block", marginBottom: "4px" } }, "DIRECTION (\xB0)"), /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          type: "text",
+          inputMode: "numeric",
+          placeholder: "270",
+          value: data.windDirection || "",
+          onChange: (e) => setData({ ...data, windDirection: e.target.value }),
+          style: {
+            width: "100%",
+            background: "rgba(0,0,0,0.4)",
+            border: "2px solid rgba(255,255,255,0.2)",
+            borderRadius: "8px",
+            padding: "14px",
+            fontSize: "16px",
+            color: "#fff",
+            fontFamily: "inherit"
+          }
+        }
+      )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0", display: "block", marginBottom: "4px" } }, "SPEED (KT)"), /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          type: "text",
+          inputMode: "numeric",
+          placeholder: "15",
+          value: data.windSpeed || "",
+          onChange: (e) => setData({ ...data, windSpeed: e.target.value }),
+          style: {
+            width: "100%",
+            background: "rgba(0,0,0,0.4)",
+            border: "2px solid rgba(255,255,255,0.2)",
+            borderRadius: "8px",
+            padding: "14px",
+            fontSize: "16px",
+            color: "#fff",
+            fontFamily: "inherit"
+          }
+        }
+      ))), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0", display: "block", marginBottom: "4px" } }, "GUSTS (KT)"), /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          type: "text",
+          inputMode: "numeric",
+          placeholder: "25",
+          value: data.windGusts || "",
+          onChange: (e) => setData({ ...data, windGusts: e.target.value }),
+          style: {
+            width: "100%",
+            background: "rgba(0,0,0,0.4)",
+            border: "2px solid rgba(255,255,255,0.2)",
+            borderRadius: "8px",
+            padding: "14px",
+            fontSize: "16px",
+            color: "#fff",
+            fontFamily: "inherit"
+          }
+        }
+      )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "10px", color: "#a0aec0", display: "block", marginBottom: "4px" } }, "WIND SHEAR"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "4px" } }, [
+        { v: "NEG", l: "NONE", c: "#38a169" },
+        { v: "LGT", l: "LGT", c: "#d69e2e" },
+        { v: "MOD", l: "MOD", c: "#e53e3e" }
+      ].map((ws) => /* @__PURE__ */ React.createElement(
+        PirepSelectButton,
+        {
+          key: ws.v,
+          selected: data.windShear === ws.v,
+          onClick: () => setData({ ...data, windShear: ws.v }),
+          color: ws.c
+        },
+        ws.l
+      )))))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F4DD} Remarks (optional)"), /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          type: "text",
+          placeholder: "Additional notes...",
+          value: data.remarks || "",
+          onChange: (e) => setData({ ...data, remarks: e.target.value.toUpperCase() }),
+          style: {
+            width: "100%",
+            background: "rgba(0,0,0,0.4)",
+            border: "2px solid rgba(255,255,255,0.2)",
+            borderRadius: "8px",
+            padding: "14px",
+            fontSize: "16px",
+            color: "#fff",
+            fontFamily: "inherit"
+          }
+        }
+      )), /* @__PURE__ */ React.createElement("div", { style: {
+        background: "rgba(0,0,0,0.4)",
+        borderRadius: "10px",
+        padding: "16px",
+        marginBottom: "20px",
+        border: "1px solid rgba(104,211,145,0.3)"
+      } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "11px", fontWeight: "700", color: "#68d391", textTransform: "uppercase", display: "block", marginBottom: "8px" } }, "Preview"), /* @__PURE__ */ React.createElement("div", { style: {
+        fontSize: "14px",
+        color: "#68d391",
+        lineHeight: "1.5",
+        fontWeight: "600"
+      } }, buildPirepString())), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "12px" } },
+        /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => {
+            onSave(buildPirepString());
+            onClose();
+          },
+          style: {
+            flex: 1,
+            minHeight: "64px",
+            padding: "18px",
+            fontSize: "18px",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #38a169, #2f855a)",
+            border: "3px solid #48bb78",
+            borderRadius: "12px",
+            color: "#fff",
+            cursor: "pointer",
+            touchAction: "manipulation",
+            boxShadow: "0 4px 12px rgba(56,161,105,0.4)"
+          }
+        },
+        "\u2713 SAVE"
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => {
+            onSave(buildPirepString());
+            onRadioCall();
+          },
+          style: {
+            flex: 1,
+            minHeight: "64px",
+            padding: "18px",
+            fontSize: "18px",
+            fontWeight: "700",
+            background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
+            border: "3px solid #4299e1",
+            borderRadius: "12px",
+            color: "#fff",
+            cursor: "pointer",
+            touchAction: "manipulation",
+            boxShadow: "0 4px 12px rgba(49,130,206,0.4)"
+          }
+        },
+        "\u{1F4FB} RADIO CALL"
+      ))))
+    );
+  };
   var CAPObserverLog = () => {
     const [missionInfo, setMissionInfo] = useState({
       missionNumber: "",
@@ -2388,16 +2836,24 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
       turbulence: "",
       icing: "",
       visibility: "",
+      windDirection: "",
+      windSpeed: "",
+      windGusts: "",
+      windShear: "",
       remarks: ""
     });
     const [targetLocations, setTargetLocations] = useState([
       { passes: ["", "", "", ""], estimate: "" },
       { passes: ["", "", "", ""], estimate: "" }
     ]);
-    const [activeTab, setActiveTab] = useState("mission");
+    const [activeTab, setActiveTab] = useState("home");
     const [commsUnlocked, setCommsUnlocked] = useState(false);
     // Night mode for cockpit operations
     const [nightMode, setNightMode] = useState(false);
+    // Text size for accessibility - normal, large, xlarge
+    const [textSize, setTextSize] = useState("normal");
+    // Enlarge modal for viewing text content in extra large format
+    const [enlargeModal, setEnlargeModal] = useState({ open: false, title: "", content: "" });
     // Ops Normal Timer
     const [opsTimerEnabled, setOpsTimerEnabled] = useState(false);
     const [opsTimerMinutes, setOpsTimerMinutes] = useState(30);
@@ -2592,272 +3048,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         };
       }
     };
-    const PirepModal = ({ isOpen, onClose, onSave, onRadioCall, data, setData }) => {
-      if (!isOpen) return null;
-      const buildPirepString = () => {
-        let parts = [];
-        if (data.aircraft) parts.push(`A/C: ${data.aircraft}`);
-        if (data.altitude) parts.push(`ALT: ${data.altitude}`);
-        if (data.clouds) parts.push(`SKY: ${data.clouds}`);
-        if (data.turbulence) parts.push(`TB: ${data.turbulence}`);
-        if (data.icing) parts.push(`IC: ${data.icing}`);
-        if (data.visibility) parts.push(`VIS: ${data.visibility}`);
-        if (data.remarks) parts.push(`RMK: ${data.remarks}`);
-        return parts.length > 0 ? "PIREP - " + parts.join(", ") : "PIREP";
-      };
-      const SelectButton = ({ selected, onClick, children, color = "#3182ce" }) => /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          onClick,
-          style: {
-            minHeight: "52px",
-            padding: "10px 12px",
-            fontSize: "13px",
-            fontWeight: "700",
-            background: selected ? `linear-gradient(135deg, ${color}, ${color}dd)` : "rgba(0,0,0,0.3)",
-            border: selected ? `3px solid ${color}` : "2px solid rgba(255,255,255,0.15)",
-            borderRadius: "10px",
-            color: selected ? "#fff" : "#a0aec0",
-            fontFamily: "inherit",
-            cursor: "pointer",
-            touchAction: "manipulation",
-            boxShadow: selected ? `0 4px 12px ${color}44` : "none"
-          }
-        },
-        children
-      );
-      return /* @__PURE__ */ React.createElement(
-        "div",
-        {
-          style: {
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.9)",
-            zIndex: 1e3,
-            overflowY: "auto",
-            WebkitOverflowScrolling: "touch"
-          },
-          onClick: (e) => {
-            if (e.target === e.currentTarget) onClose();
-          }
-        },
-        /* @__PURE__ */ React.createElement("div", { style: {
-          background: "linear-gradient(135deg, #1a365d 0%, #0c1929 100%)",
-          borderRadius: "16px",
-          border: "2px solid rgba(99,179,237,0.3)",
-          margin: "20px auto",
-          width: "calc(100% - 40px)",
-          maxWidth: "500px"
-        } }, /* @__PURE__ */ React.createElement("div", { style: {
-          background: "linear-gradient(90deg, rgba(49,130,206,0.4) 0%, transparent 100%)",
-          padding: "16px 20px",
-          borderBottom: "1px solid rgba(255,255,255,0.1)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center"
-        } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "18px", fontWeight: "700", color: "#63b3ed" } }, "\u2601\uFE0F Quick PIREP"), /* @__PURE__ */ React.createElement(
-          "button",
-          {
-            onClick: onClose,
-            style: {
-              background: "rgba(255,255,255,0.1)",
-              border: "none",
-              borderRadius: "8px",
-              padding: "12px 20px",
-              color: "#fff",
-              fontSize: "14px",
-              fontWeight: "700",
-              cursor: "pointer",
-              minHeight: "48px"
-            }
-          },
-          "\u2715 CANCEL"
-        )), /* @__PURE__ */ React.createElement("div", { style: { padding: "20px" } }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2708\uFE0F Aircraft"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, ["C172", "C182", "C206", "C210", "GA8", "OTHER"].map((ac) => /* @__PURE__ */ React.createElement(
-          SelectButton,
-          {
-            key: ac,
-            selected: data.aircraft === ac,
-            onClick: () => setData({ ...data, aircraft: ac }),
-            color: "#3182ce"
-          },
-          ac
-        )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F4CF} Altitude (ft MSL)"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "8px" } }, ["5500", "7500", "9500", "11500"].map((alt) => /* @__PURE__ */ React.createElement(
-          SelectButton,
-          {
-            key: alt,
-            selected: data.altitude === alt,
-            onClick: () => setData({ ...data, altitude: alt }),
-            color: "#805ad5"
-          },
-          (parseInt(alt) / 1e3).toFixed(1),
-          "K"
-        ))), /* @__PURE__ */ React.createElement(
-          "input",
-          {
-            type: "text",
-            inputMode: "numeric",
-            placeholder: "Or enter altitude...",
-            value: data.altitude,
-            onChange: (e) => setData({ ...data, altitude: e.target.value }),
-            style: {
-              width: "100%",
-              background: "rgba(0,0,0,0.4)",
-              border: "2px solid rgba(255,255,255,0.2)",
-              borderRadius: "8px",
-              padding: "14px",
-              fontSize: "16px",
-              color: "#fff",
-              fontFamily: "inherit"
-            }
-          }
-        )), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2601\uFE0F Sky Condition"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
-          { v: "CLR", l: "CLEAR" },
-          { v: "FEW", l: "FEW" },
-          { v: "SCT", l: "SCTRD" },
-          { v: "BKN", l: "BROKN" },
-          { v: "OVC", l: "OVCST" },
-          { v: "IMC", l: "IMC" }
-        ].map((sky) => /* @__PURE__ */ React.createElement(
-          SelectButton,
-          {
-            key: sky.v,
-            selected: data.clouds === sky.v,
-            onClick: () => setData({ ...data, clouds: sky.v }),
-            color: "#718096"
-          },
-          sky.l
-        )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u3030\uFE0F Turbulence"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
-          { v: "NEG", l: "NONE", c: "#38a169" },
-          { v: "SMTH", l: "SMOOTH", c: "#38a169" },
-          { v: "LGT", l: "LIGHT", c: "#d69e2e" },
-          { v: "LGT-MOD", l: "LGT-MOD", c: "#dd6b20" },
-          { v: "MOD", l: "MOD", c: "#e53e3e" },
-          { v: "MOD-SVR", l: "MOD-SVR", c: "#c53030" },
-          { v: "SVR", l: "SEVERE", c: "#9b2c2c" },
-          { v: "EXTRM", l: "EXTRM", c: "#742a2a" }
-        ].map((tb) => /* @__PURE__ */ React.createElement(
-          SelectButton,
-          {
-            key: tb.v,
-            selected: data.turbulence === tb.v,
-            onClick: () => setData({ ...data, turbulence: tb.v }),
-            color: tb.c
-          },
-          tb.l
-        )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u2744\uFE0F Icing"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" } }, [
-          { v: "NEG", l: "NONE", c: "#38a169" },
-          { v: "TRC", l: "TRACE", c: "#3182ce" },
-          { v: "LGT", l: "LIGHT", c: "#d69e2e" },
-          { v: "LGT-MOD", l: "LGT-MOD", c: "#dd6b20" },
-          { v: "MOD", l: "MOD", c: "#e53e3e" },
-          { v: "SVR", l: "SEVERE", c: "#9b2c2c" }
-        ].map((ic) => /* @__PURE__ */ React.createElement(
-          SelectButton,
-          {
-            key: ic.v,
-            selected: data.icing === ic.v,
-            onClick: () => setData({ ...data, icing: ic.v }),
-            color: ic.c
-          },
-          ic.l
-        )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F441} Visibility"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" } }, [
-          { v: "10+", l: "10+ SM", c: "#38a169" },
-          { v: "5-10", l: "5-10", c: "#3182ce" },
-          { v: "3-5", l: "3-5", c: "#d69e2e" },
-          { v: "1-3", l: "1-3", c: "#dd6b20" },
-          { v: "<1", l: "<1 SM", c: "#e53e3e" }
-        ].map((vis) => /* @__PURE__ */ React.createElement(
-          SelectButton,
-          {
-            key: vis.v,
-            selected: data.visibility === vis.v,
-            onClick: () => setData({ ...data, visibility: vis.v }),
-            color: vis.c
-          },
-          vis.l
-        )))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#f6e05e", textTransform: "uppercase", display: "block", marginBottom: "10px" } }, "\u{1F4DD} Remarks (optional)"), /* @__PURE__ */ React.createElement(
-          "input",
-          {
-            type: "text",
-            placeholder: "Additional notes...",
-            value: data.remarks,
-            onChange: (e) => setData({ ...data, remarks: e.target.value.toUpperCase() }),
-            style: {
-              width: "100%",
-              background: "rgba(0,0,0,0.4)",
-              border: "2px solid rgba(255,255,255,0.2)",
-              borderRadius: "8px",
-              padding: "14px",
-              fontSize: "16px",
-              color: "#fff",
-              fontFamily: "inherit"
-            }
-          }
-        )), /* @__PURE__ */ React.createElement("div", { style: {
-          background: "rgba(0,0,0,0.4)",
-          borderRadius: "10px",
-          padding: "16px",
-          marginBottom: "20px",
-          border: "1px solid rgba(104,211,145,0.3)"
-        } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "11px", fontWeight: "700", color: "#68d391", textTransform: "uppercase", display: "block", marginBottom: "8px" } }, "Preview"), /* @__PURE__ */ React.createElement("div", { style: {
-          fontSize: "14px",
-          color: "#68d391",
-          lineHeight: "1.5",
-          fontWeight: "600"
-        } }, buildPirepString())), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "12px" } },
-          /* @__PURE__ */ React.createElement(
-          "button",
-          {
-            onClick: () => {
-              onSave(buildPirepString());
-              onClose();
-            },
-            style: {
-              flex: 1,
-              minHeight: "64px",
-              padding: "18px",
-              fontSize: "18px",
-              fontWeight: "700",
-              background: "linear-gradient(135deg, #38a169, #2f855a)",
-              border: "3px solid #48bb78",
-              borderRadius: "12px",
-              color: "#fff",
-              cursor: "pointer",
-              touchAction: "manipulation",
-              boxShadow: "0 4px 12px rgba(56,161,105,0.4)"
-            }
-          },
-          "\u2713 SAVE"
-        ), /* @__PURE__ */ React.createElement(
-          "button",
-          {
-            onClick: () => {
-              onSave(buildPirepString());
-              onRadioCall();
-            },
-            style: {
-              flex: 1,
-              minHeight: "64px",
-              padding: "18px",
-              fontSize: "18px",
-              fontWeight: "700",
-              background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
-              border: "3px solid #4299e1",
-              borderRadius: "12px",
-              color: "#fff",
-              cursor: "pointer",
-              touchAction: "manipulation",
-              boxShadow: "0 4px 12px rgba(49,130,206,0.4)"
-            }
-          },
-          "\u{1F4FB} RADIO CALL"
-        ))))
-      );
-    };
-    const PirepRadioCallOverlay = ({ isOpen, onClose, pirepData, event, missionInfo }) => {
+    const PirepRadioCallOverlay = ({ isOpen, onClose, pirepData, event, missionInfo, radioCallSigns }) => {
       if (!isOpen) return null;
       
       // Determine report type based on severity
@@ -2961,6 +3152,26 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         return icNames[pirepData.icing] || pirepData.icing || "";
       };
       
+      // Format winds
+      const formatWinds = () => {
+        if (!pirepData.windDirection && !pirepData.windSpeed) return "";
+        let windStr = "";
+        if (pirepData.windDirection) windStr += pirepData.windDirection + " degrees";
+        if (pirepData.windSpeed) windStr += " at " + pirepData.windSpeed + " knots";
+        if (pirepData.windGusts) windStr += " gusting " + pirepData.windGusts;
+        return windStr;
+      };
+      
+      // Format wind shear
+      const formatWindShear = () => {
+        const wsNames = {
+          "NEG": "Negative",
+          "LGT": "Light wind shear",
+          "MOD": "Moderate wind shear"
+        };
+        return wsNames[pirepData.windShear] || pirepData.windShear || "";
+      };
+      
       // Build the report lines
       const reportLines = [
         { label: "Report Type", value: reportType, highlight: isUrgent },
@@ -2971,7 +3182,8 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
         { label: "Sky Condition", value: formatSky() },
         { label: "Visibility", value: formatVisibility() },
         { label: "Temperature", value: "" },
-        { label: "Winds", value: "" },
+        { label: "Winds", value: formatWinds() },
+        { label: "Wind Shear", value: formatWindShear() },
         { label: "Turbulence", value: formatTurbulence() },
         { label: "Icing", value: formatIcing() },
         { label: "Remarks", value: pirepData.remarks || "" }
@@ -3092,7 +3304,9 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
               "Flight Service (122.2) or EFAS Flight Watch (122.0)",
               React.createElement("br", null),
               React.createElement("strong", null, "Say: "), 
-              "\"[Callsign], PIREP\" then read each item below"
+              radioCallSigns?.aircraft 
+                ? "\"" + radioCallSigns.aircraft + ", PIREP\" then read each item below"
+                : "\"[Callsign], PIREP\" then read each item below"
             )
           ),
           
@@ -3809,10 +4023,10 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
     useEffect(() => {
       const data = { 
         missionInfo, crewManifest, times, fuelOil, notes, events, targetLocations,
-        eltObservations, eltSolutions, radioCallSigns, nightMode
+        eltObservations, eltSolutions, radioCallSigns, nightMode, textSize
       };
       localStorage.setItem("capObserverLog", JSON.stringify(data));
-    }, [missionInfo, crewManifest, times, fuelOil, notes, events, targetLocations, eltObservations, eltSolutions, radioCallSigns, nightMode]);
+    }, [missionInfo, crewManifest, times, fuelOil, notes, events, targetLocations, eltObservations, eltSolutions, radioCallSigns, nightMode, textSize]);
     
     // Load saved data on startup with resume prompt
     useEffect(() => {
@@ -3844,6 +4058,7 @@ const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
           if (data.eltSolutions) setEltSolutions(data.eltSolutions);
           if (data.radioCallSigns) setRadioCallSigns(data.radioCallSigns);
           if (data.nightMode) setNightMode(data.nightMode);
+          if (data.textSize) setTextSize(data.textSize);
         } catch (e) {
           console.error("Failed to load saved data:", e);
         }
@@ -4355,7 +4570,7 @@ ${events.map((e) => `
       const nativeShare = async () => {
         const data = {
           missionInfo, crewManifest, times, fuelOil, notes, events, targetLocations,
-          eltObservations, eltSolutions, radioCallSigns, nightMode
+          eltObservations, eltSolutions, radioCallSigns, nightMode, textSize
         };
         const jsonStr = JSON.stringify(data);
         const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -4496,30 +4711,122 @@ Events: ${events.length}`;
         setEvents([createEmptyEvent(1)]);
       }
     };
+    
+    // Text size multipliers for accessibility
+    const getTextScale = () => {
+      switch(textSize) {
+        case 'large': return 1.25;
+        case 'xlarge': return 1.5;
+        default: return 1;
+      }
+    };
+    const ts = (baseSize) => Math.round(parseFloat(baseSize) * getTextScale()) + 'px';
+    
+    // Enlarge modal renderer
+    const renderEnlargeModal = () => {
+      if (!enlargeModal.open) return null;
+      return React.createElement("div", {
+        style: {
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.9)",
+          zIndex: 9999,
+          display: "flex",
+          flexDirection: "column",
+          padding: "20px"
+        },
+        onClick: () => setEnlargeModal({ open: false, title: "", content: "" })
+      },
+        React.createElement("div", {
+          style: {
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "20px"
+          }
+        },
+          React.createElement("div", { style: { fontSize: "24px", fontWeight: "700", color: "#f6e05e" }}, enlargeModal.title),
+          React.createElement("button", {
+            style: {
+              background: "rgba(255,255,255,0.2)",
+              border: "none",
+              borderRadius: "50%",
+              width: "50px",
+              height: "50px",
+              fontSize: "28px",
+              color: "#fff",
+              cursor: "pointer"
+            },
+            onClick: () => setEnlargeModal({ open: false, title: "", content: "" })
+          }, "×")
+        ),
+        React.createElement("div", {
+          style: {
+            flex: 1,
+            overflow: "auto",
+            background: "rgba(255,255,255,0.05)",
+            borderRadius: "12px",
+            padding: "24px",
+            fontSize: "28px",
+            lineHeight: "1.6",
+            color: "#fff",
+            fontFamily: "monospace"
+          },
+          onClick: (e) => e.stopPropagation()
+        }, enlargeModal.content)
+      );
+    };
+    
+    // Enlarge button component for multi-line text
+    const EnlargeButton = ({ title, content }) => {
+      return React.createElement("button", {
+        style: {
+          background: "rgba(99,179,237,0.2)",
+          border: "1px solid rgba(99,179,237,0.4)",
+          borderRadius: "6px",
+          padding: "6px 10px",
+          fontSize: ts("11"),
+          color: "#63b3ed",
+          cursor: "pointer",
+          marginLeft: "8px",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "4px"
+        },
+        onClick: (e) => {
+          e.stopPropagation();
+          setEnlargeModal({ open: true, title, content });
+        }
+      }, "🔍 Enlarge");
+    };
+    
     const styles = {
-      container: { minHeight: "100vh", background: "linear-gradient(135deg, #0c1929 0%, #1a365d 50%, #234e82 100%)", fontFamily: '-apple-system, BlinkMacSystemFont, "SF Mono", monospace', color: "#e2e8f0", paddingBottom: "100px" },
+      container: { minHeight: "100vh", minHeight: "-webkit-fill-available", background: "linear-gradient(135deg, #0c1929 0%, #1a365d 50%, #234e82 100%)", fontFamily: '-apple-system, BlinkMacSystemFont, "SF Mono", monospace', color: "#e2e8f0", paddingBottom: "140px", paddingBottom: "calc(140px + env(safe-area-inset-bottom, 0px))" },
       header: { background: "linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 100%)", borderBottom: "1px solid rgba(255,255,255,0.1)", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(10px)" },
       logo: { display: "flex", alignItems: "center", gap: "12px" },
-      logoCircle: { width: "44px", height: "44px", borderRadius: "50%", background: "linear-gradient(135deg, #c53030 0%, #9b2c2c 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.3)", border: "2px solid #f6e05e", color: "white", fontWeight: "bold", fontSize: "12px" },
-      title: { fontSize: "14px", fontWeight: "700", color: "#f6e05e" },
-      subtitle: { fontSize: "10px", color: "#a0aec0", letterSpacing: "1px" },
-      zuluTime: { background: "rgba(0,0,0,0.3)", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: "600", color: "#68d391", border: "1px solid rgba(104, 211, 145, 0.3)" },
+      logoCircle: { width: "44px", height: "44px", borderRadius: "50%", background: "linear-gradient(135deg, #c53030 0%, #9b2c2c 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.3)", border: "2px solid #f6e05e", color: "white", fontWeight: "bold", fontSize: ts("12") },
+      title: { fontSize: ts("14"), fontWeight: "700", color: "#f6e05e" },
+      subtitle: { fontSize: ts("10"), color: "#a0aec0", letterSpacing: "1px" },
+      zuluTime: { background: "rgba(0,0,0,0.3)", padding: "6px 12px", borderRadius: "6px", fontSize: ts("12"), fontWeight: "600", color: "#68d391", border: "1px solid rgba(104, 211, 145, 0.3)" },
       tabs: { display: "flex", gap: "2px", padding: "8px 12px", background: "rgba(0,0,0,0.2)", overflowX: "auto", WebkitOverflowScrolling: "touch" },
-      tab: { padding: "12px 16px", fontSize: "11px", fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", border: "none", borderRadius: "6px", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", minHeight: "48px", touchAction: "manipulation" },
+      tab: { padding: "12px 16px", fontSize: ts("11"), fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", border: "none", borderRadius: "6px", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", minHeight: "48px", touchAction: "manipulation" },
       tabActive: { background: "linear-gradient(135deg, #dd6b20 0%, #c05621 100%)", color: "#fff", boxShadow: "0 4px 12px rgba(221, 107, 32, 0.4)" },
       tabInactive: { background: "rgba(255,255,255,0.05)", color: "#a0aec0" },
       content: { padding: "16px", maxWidth: "800px", margin: "0 auto" },
       section: { background: "rgba(255,255,255,0.03)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", marginBottom: "16px", overflow: "hidden" },
-      sectionHeader: { background: "linear-gradient(90deg, rgba(221,107,32,0.3) 0%, transparent 100%)", padding: "14px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: "13px", fontWeight: "700", letterSpacing: "1px", textTransform: "uppercase", color: "#f6e05e", display: "flex", alignItems: "center", gap: "8px" },
+      sectionHeader: { background: "linear-gradient(90deg, rgba(221,107,32,0.3) 0%, transparent 100%)", padding: "14px 16px", borderBottom: "1px solid rgba(255,255,255,0.08)", fontSize: ts("13"), fontWeight: "700", letterSpacing: "1px", textTransform: "uppercase", color: "#f6e05e", display: "flex", alignItems: "center", gap: "8px" },
       sectionBody: { padding: "16px" },
       fieldGroup: { display: "grid", gap: "14px" },
       field: { display: "flex", flexDirection: "column", gap: "6px" },
-      label: { fontSize: "11px", fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", color: "#a0aec0" },
-      input: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "14px", fontSize: "16px", color: "#fff", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box", minHeight: "50px" },
+      label: { fontSize: ts("11"), fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase", color: "#a0aec0" },
+      input: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "14px", fontSize: ts("16"), color: "#fff", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box", minHeight: "50px" },
       textarea: { minHeight: "100px", resize: "vertical" },
-      button: { background: "linear-gradient(135deg, #dd6b20 0%, #c05621 100%)", color: "#fff", border: "none", borderRadius: "10px", padding: "16px 24px", fontSize: "14px", fontWeight: "700", cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px rgba(221, 107, 32, 0.3)", minHeight: "52px", touchAction: "manipulation" },
+      button: { background: "linear-gradient(135deg, #dd6b20 0%, #c05621 100%)", color: "#fff", border: "none", borderRadius: "10px", padding: "16px 24px", fontSize: ts("14"), fontWeight: "700", cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px rgba(221, 107, 32, 0.3)", minHeight: "52px", touchAction: "manipulation" },
       buttonSecondary: { background: "rgba(255,255,255,0.1)", color: "#e2e8f0", boxShadow: "none" },
-      buttonSmall: { padding: "12px 16px", fontSize: "12px", minHeight: "48px" },
+      buttonSmall: { padding: "12px 16px", fontSize: ts("12"), minHeight: "48px" },
       buttonDanger: { background: "linear-gradient(135deg, #c53030 0%, #9b2c2c 100%)" },
       checkbox: { width: "28px", height: "28px", accentColor: "#dd6b20" },
       eventCard: { background: "rgba(0,0,0,0.2)", borderRadius: "10px", padding: "16px", marginBottom: "16px", border: "1px solid rgba(255,255,255,0.05)" },
@@ -4527,27 +4834,186 @@ Events: ${events.length}`;
       grid3: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" },
       grid4: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" },
       calculated: { background: "rgba(104, 211, 145, 0.1)", border: "1px solid rgba(104, 211, 145, 0.3)", borderRadius: "8px", padding: "12px", color: "#68d391" },
-      footer: { position: "fixed", bottom: 0, left: 0, right: 0, background: "linear-gradient(180deg, transparent 0%, rgba(12, 25, 41, 0.95) 20%, #0c1929 100%)", padding: "16px", display: "flex", gap: "12px", justifyContent: "center" },
-      timeButton: { background: "rgba(104, 211, 145, 0.2)", border: "2px solid #68d391", color: "#68d391", borderRadius: "8px", padding: "12px 16px", fontSize: "13px", fontWeight: "700", cursor: "pointer", fontFamily: "inherit", minHeight: "48px", touchAction: "manipulation" },
+      footer: { position: "fixed", bottom: 0, left: 0, right: 0, background: "linear-gradient(180deg, transparent 0%, rgba(12, 25, 41, 0.95) 20%, #0c1929 100%)", padding: "16px", paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))", display: "flex", gap: "12px", justifyContent: "center", zIndex: 50 },
+      timeButton: { background: "rgba(104, 211, 145, 0.2)", border: "2px solid #68d391", color: "#68d391", borderRadius: "8px", padding: "12px 16px", fontSize: ts("13"), fontWeight: "700", cursor: "pointer", fontFamily: "inherit", minHeight: "48px", touchAction: "manipulation" },
       // Reference section styles
       refNav: { display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" },
-      refNavBtn: { padding: "12px 16px", fontSize: "11px", fontWeight: "600", border: "none", borderRadius: "8px", cursor: "pointer", fontFamily: "inherit", minHeight: "44px", touchAction: "manipulation" },
+      refNavBtn: { padding: "12px 16px", fontSize: ts("11"), fontWeight: "600", border: "none", borderRadius: "8px", cursor: "pointer", fontFamily: "inherit", minHeight: "44px", touchAction: "manipulation" },
       refNavActive: { background: "#dd6b20", color: "#fff" },
       refNavInactive: { background: "rgba(255,255,255,0.1)", color: "#a0aec0" },
       refCard: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "12px", marginBottom: "8px", border: "1px solid rgba(255,255,255,0.05)" },
-      refTable: { width: "100%", borderCollapse: "collapse", fontSize: "12px" },
+      refTable: { width: "100%", borderCollapse: "collapse", fontSize: ts("12") },
       refTh: { background: "rgba(221,107,32,0.3)", padding: "8px", textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.1)" },
       refTd: { padding: "8px", borderBottom: "1px solid rgba(255,255,255,0.05)" },
-      refHighlight: { background: "rgba(104, 211, 145, 0.1)", border: "1px solid rgba(104, 211, 145, 0.3)", borderRadius: "4px", padding: "2px 6px", fontSize: "11px", color: "#68d391" },
-      pre: { background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "6px", overflow: "auto", fontSize: "11px", lineHeight: "1.4", whiteSpace: "pre-wrap", fontFamily: "monospace" },
-      searchInput: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "14px", fontSize: "16px", color: "#fff", width: "100%", marginBottom: "12px", minHeight: "50px" },
-      selectLarge: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "16px 14px", fontSize: "18px", color: "#fff", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box", minHeight: "58px", cursor: "pointer", WebkitAppearance: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f6e05e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: "44px" }
+      refHighlight: { background: "rgba(104, 211, 145, 0.1)", border: "1px solid rgba(104, 211, 145, 0.3)", borderRadius: "4px", padding: "2px 6px", fontSize: ts("11"), color: "#68d391" },
+      pre: { background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "6px", overflow: "auto", fontSize: ts("11"), lineHeight: "1.4", whiteSpace: "pre-wrap", fontFamily: "monospace" },
+      searchInput: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "14px", fontSize: ts("16"), color: "#fff", width: "100%", marginBottom: "12px", minHeight: "50px" },
+      selectLarge: { background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "16px 14px", fontSize: ts("18"), color: "#fff", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box", minHeight: "58px", cursor: "pointer", WebkitAppearance: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f6e05e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: "44px" }
     };
     const [zuluClock, setZuluClock] = useState(getCurrentZuluTime());
     useEffect(() => {
       const interval = setInterval(() => setZuluClock(getCurrentZuluTime()), 1e3);
       return () => clearInterval(interval);
     }, []);
+    
+    // Home Screen with large navigation buttons
+    const renderHomeTab = () => {
+      const menuItems = [
+        { id: "mission", icon: "📋", label: "Mission Info", desc: "Aircraft, crew, mission details", color: "#dd6b20" },
+        { id: "times", icon: "⏱️", label: "Times & Fuel", desc: "Tach, Hobbs, flight times", color: "#3182ce" },
+        { id: "events", icon: "📍", label: "Event Log", desc: "Record observations & positions", color: "#38a169" },
+        { id: "crosshair", icon: "🎯", label: "Target Locate", desc: "Crosshair triangulation tool", color: "#d69e2e" },
+        { id: "eltAssist", icon: "📡", label: "ELT Assist", desc: "ELT signal tracking & SARSAT", color: "#ed8936" },
+        { id: "searchPlanner", icon: "🧭", label: "Search Planner", desc: "Generate search patterns", color: "#805ad5" },
+        { id: "radio", icon: "📢", label: "Radio Calls", desc: "CAP radio call templates", color: "#3182ce" },
+        { id: "coComms", icon: "📻", label: "CO Comms", desc: "Colorado frequencies & callsigns", color: "#2b6cb0" },
+        { id: "emergency", icon: "🚨", label: "Emergency", desc: "Emergency procedures & checklists", color: "#c53030" },
+        { id: "reference", icon: "📚", label: "Reference", desc: "Charts, conversions, guides", color: "#718096" }
+      ];
+      
+      const homeStyles = {
+        container: {
+          padding: "8px"
+        },
+        welcome: {
+          textAlign: "center",
+          marginBottom: "24px",
+          padding: "20px",
+          background: "linear-gradient(135deg, rgba(221,107,32,0.2), rgba(192,86,33,0.1))",
+          borderRadius: "16px",
+          border: "1px solid rgba(221,107,32,0.3)"
+        },
+        welcomeTitle: {
+          fontSize: ts("28"),
+          fontWeight: "700",
+          color: "#f6e05e",
+          marginBottom: "8px"
+        },
+        welcomeSub: {
+          fontSize: ts("14"),
+          color: "#a0aec0"
+        },
+        grid: {
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: "12px"
+        },
+        menuButton: {
+          background: "rgba(0,0,0,0.3)",
+          border: "2px solid rgba(255,255,255,0.1)",
+          borderRadius: "16px",
+          padding: "20px 16px",
+          cursor: "pointer",
+          textAlign: "center",
+          transition: "all 0.2s",
+          minHeight: "120px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px"
+        },
+        menuIcon: {
+          fontSize: ts("36"),
+          marginBottom: "4px"
+        },
+        menuLabel: {
+          fontSize: ts("16"),
+          fontWeight: "700",
+          color: "#fff"
+        },
+        menuDesc: {
+          fontSize: ts("11"),
+          color: "#a0aec0",
+          lineHeight: "1.3"
+        },
+        quickActions: {
+          marginTop: "24px",
+          padding: "16px",
+          background: "rgba(104,211,145,0.1)",
+          borderRadius: "12px",
+          border: "1px solid rgba(104,211,145,0.3)"
+        },
+        quickTitle: {
+          fontSize: ts("12"),
+          fontWeight: "700",
+          color: "#68d391",
+          textTransform: "uppercase",
+          marginBottom: "12px",
+          letterSpacing: "1px"
+        },
+        quickGrid: {
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "8px"
+        },
+        quickBtn: {
+          background: "rgba(0,0,0,0.3)",
+          border: "1px solid rgba(104,211,145,0.3)",
+          borderRadius: "8px",
+          padding: "12px 8px",
+          cursor: "pointer",
+          textAlign: "center",
+          color: "#68d391",
+          fontSize: ts("11"),
+          fontWeight: "600"
+        }
+      };
+      
+      return React.createElement("div", { style: homeStyles.container },
+        // Welcome header
+        React.createElement("div", { style: homeStyles.welcome },
+          React.createElement("div", { style: homeStyles.welcomeTitle }, "CAP Observer Log"),
+          React.createElement("div", { style: homeStyles.welcomeSub }, 
+            "Mission: ", missionInfo.missionNumber || "Not Set", " • ", zuluClock, "Z"
+          )
+        ),
+        
+        // Main menu grid
+        React.createElement("div", { style: homeStyles.grid },
+          menuItems.map(item => 
+            React.createElement("button", {
+              key: item.id,
+              style: {
+                ...homeStyles.menuButton,
+                borderColor: `${item.color}60`,
+                background: `linear-gradient(135deg, ${item.color}20, ${item.color}10)`
+              },
+              onClick: () => setActiveTab(item.id)
+            },
+              React.createElement("div", { style: homeStyles.menuIcon }, item.icon),
+              React.createElement("div", { style: { ...homeStyles.menuLabel, color: item.color === "#c53030" ? "#fc8181" : "#fff" }}, item.label),
+              React.createElement("div", { style: homeStyles.menuDesc }, item.desc)
+            )
+          )
+        ),
+        
+        // Quick actions section
+        React.createElement("div", { style: homeStyles.quickActions },
+          React.createElement("div", { style: homeStyles.quickTitle }, "⚡ Quick Actions"),
+          React.createElement("div", { style: homeStyles.quickGrid },
+            React.createElement("button", {
+              style: homeStyles.quickBtn,
+              onClick: () => { setActiveTab("events"); }
+            }, "➕ New Event"),
+            React.createElement("button", {
+              style: homeStyles.quickBtn,
+              onClick: () => { setActiveTab("times"); }
+            }, "⏱️ Log Time"),
+            React.createElement("button", {
+              style: homeStyles.quickBtn,
+              onClick: () => setShowShareModal(true)
+            }, "📤 Export")
+          )
+        ),
+        
+        // Version info
+        React.createElement("div", { style: { textAlign: "center", marginTop: "24px", fontSize: ts("10"), color: "#718096" }},
+          "CAP Observer Log v3.0 • Civil Air Patrol"
+        )
+      );
+    };
+    
     const renderMissionTab = () => {
       const missionSymbols = [
         { value: "", label: "Select Symbol..." },
@@ -4617,6 +5083,13 @@ Events: ${events.length}`;
                 React.createElement("div", { style: styles.field },
                   React.createElement("label", { style: styles.label }, "Observer Name"),
                   React.createElement("input", { style: styles.input, type: "text", value: missionInfo.observerName, onChange: (e) => setMissionInfo({ ...missionInfo, observerName: e.target.value }), placeholder: "Your name" }))),
+              React.createElement("div", { style: styles.grid2 },
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: styles.label }, "Aircraft Call Sign"),
+                  React.createElement("input", { style: styles.input, type: "text", value: radioCallSigns.aircraft, onChange: (e) => setRadioCallSigns({ ...radioCallSigns, aircraft: e.target.value.toUpperCase() }), placeholder: "e.g., CAP 594" })),
+                React.createElement("div", { style: styles.field },
+                  React.createElement("label", { style: styles.label }, "Mission Base"),
+                  React.createElement("input", { style: styles.input, type: "text", value: radioCallSigns.missionBase, onChange: (e) => setRadioCallSigns({ ...radioCallSigns, missionBase: e.target.value.toUpperCase() }), placeholder: "e.g., BLUE MESA 92" }))),
               React.createElement("div", { style: styles.field },
                 React.createElement("label", { style: styles.label }, "Route of Flight"),
                 React.createElement("input", { style: styles.input, type: "text", value: missionInfo.routeOfFlight, onChange: (e) => setMissionInfo({ ...missionInfo, routeOfFlight: e.target.value }), placeholder: "e.g., KAPA - DEN111 vicinity - KFLY" }))))),
@@ -4747,14 +5220,19 @@ Events: ${events.length}`;
       const toggleShowMore = (eventId) => {
         setShowMoreEventTypes((prev) => ({ ...prev, [eventId]: !prev[eventId] }));
       };
-      return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4CD} Events Log ", /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, marginLeft: "auto" }, onClick: addEvent }, "+ ADD EVENT")), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, events.map((event, index) => /* @__PURE__ */ React.createElement("div", { key: event.id, style: styles.eventCard }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "700", color: "#f6e05e", fontSize: "16px" } }, "Event #", event.eventNum || index + 1), events.length > 1 && /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, ...styles.buttonDanger }, onClick: () => removeEvent(event.id) }, "\u2715 REMOVE")), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Event Type"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "6px" } }, primaryEventTypes.map((type) => /* @__PURE__ */ React.createElement(
+      
+      // Check if an event has data (considered "in progress" or "complete")
+      const isEventComplete = (evt) => evt.eventType && evt.timeZ;
+      const isEventEmpty = (evt) => !evt.eventType && !evt.timeZ && !evt.notes && !evt.latDeg;
+      
+      return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4CD} Events Log ", /* @__PURE__ */ React.createElement("span", { style: { fontSize: ts("12"), fontWeight: "400", color: "#a0aec0", marginLeft: "8px" } }, events.filter(e => isEventComplete(e)).length, " saved"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, marginLeft: "auto" }, onClick: addEvent }, "+ ADD EVENT")), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, events.map((event, index) => /* @__PURE__ */ React.createElement("div", { key: event.id, style: { ...styles.eventCard, border: isEventEmpty(event) ? "2px dashed rgba(104,211,145,0.5)" : isEventComplete(event) ? "1px solid rgba(104,211,145,0.3)" : "1px solid rgba(255,255,255,0.05)", background: isEventEmpty(event) ? "rgba(104,211,145,0.05)" : "rgba(0,0,0,0.2)" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "12px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "700", color: "#f6e05e", fontSize: ts("16") } }, "Event #", event.eventNum || index + 1), isEventComplete(event) ? /* @__PURE__ */ React.createElement("span", { style: { background: "rgba(104,211,145,0.2)", color: "#68d391", padding: "4px 10px", borderRadius: "12px", fontSize: ts("11"), fontWeight: "600", border: "1px solid rgba(104,211,145,0.3)" } }, "✓ SAVED") : isEventEmpty(event) ? /* @__PURE__ */ React.createElement("span", { style: { background: "rgba(99,179,237,0.2)", color: "#63b3ed", padding: "4px 10px", borderRadius: "12px", fontSize: ts("11"), fontWeight: "600", border: "1px solid rgba(99,179,237,0.3)" } }, "● NEW") : /* @__PURE__ */ React.createElement("span", { style: { background: "rgba(246,224,94,0.2)", color: "#f6e05e", padding: "4px 10px", borderRadius: "12px", fontSize: ts("11"), fontWeight: "600", border: "1px solid rgba(246,224,94,0.3)" } }, "◐ IN PROGRESS")), events.length > 1 && /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSmall, ...styles.buttonDanger }, onClick: () => removeEvent(event.id) }, "\u2715 REMOVE")), /* @__PURE__ */ React.createElement("div", { style: styles.fieldGroup }, /* @__PURE__ */ React.createElement("div", { style: styles.field }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "Event Type"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "6px" } }, primaryEventTypes.map((type) => /* @__PURE__ */ React.createElement(
         "button",
         {
           key: type.value,
           style: {
             minHeight: "56px",
             padding: "12px 8px",
-            fontSize: "12px",
+            fontSize: ts("12"),
             fontWeight: "700",
             background: event.eventType === type.value ? `linear-gradient(135deg, ${type.color}, ${type.color}dd)` : "rgba(0,0,0,0.3)",
             border: event.eventType === type.value ? `3px solid ${type.color}` : "2px solid rgba(255,255,255,0.15)",
@@ -4993,6 +5471,10 @@ Events: ${events.length}`;
               turbulence: "",
               icing: "",
               visibility: "",
+              windDirection: "",
+              windSpeed: "",
+              windGusts: "",
+              windShear: "",
               remarks: ""
             });
             setPirepModal({ open: true, eventId: event.id });
@@ -5093,6 +5575,48 @@ Events: ${events.length}`;
           value: event.notes,
           onChange: (e) => updateEvent(event.id, "notes", e.target.value)
         }
+      ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "12px", marginTop: "16px", paddingTop: "16px", borderTop: "2px solid rgba(255,255,255,0.1)" } },
+        /* @__PURE__ */ React.createElement("button", {
+          style: {
+            ...styles.button,
+            flex: 1,
+            background: "linear-gradient(135deg, #38a169, #2f855a)",
+            fontSize: ts("15"),
+            padding: "16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px"
+          },
+          onClick: () => {
+            // Mark this event as saved (could add visual feedback)
+            if (!event.eventType) {
+              alert("Please select an event type before saving.");
+              return;
+            }
+            // Add a new blank event
+            addEvent();
+            // Scroll to top of events or to the new event
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }, "✓ SAVE & NEW EVENT"),
+        /* @__PURE__ */ React.createElement("button", {
+          style: {
+            ...styles.button,
+            ...styles.buttonSecondary,
+            flex: 1,
+            border: "2px solid rgba(255,255,255,0.2)",
+            fontSize: ts("14"),
+            padding: "16px"
+          },
+          onClick: () => {
+            if (confirm("Reset this event? All data will be cleared.")) {
+              const resetEvent = createEmptyEvent(event.eventNum);
+              resetEvent.id = event.id;
+              setEvents(events.map(e => e.id === event.id ? resetEvent : e));
+            }
+          }
+        }, "↺ RESET EVENT")
       ))))))), /* @__PURE__ */ React.createElement(
         GpsToolsModal,
         {
@@ -5131,7 +5655,8 @@ Events: ${events.length}`;
           },
           pirepData: pirepData,
           event: events.find((e) => e.id === pirepRadioCall.eventId),
-          missionInfo: missionInfo
+          missionInfo: missionInfo,
+          radioCallSigns: radioCallSigns
         }
       ));
     };
@@ -6963,54 +7488,36 @@ React.createElement(
       ];
 
       return React.createElement("div", null,
-        // Call Sign Configuration Section
+        // Call Sign Display Section
         React.createElement("div", { style: styles.section },
           React.createElement("div", { style: styles.sectionHeader }, "📻 Your Call Signs"),
           React.createElement("div", { style: styles.sectionBody },
-            React.createElement("div", { style: { 
-              background: "rgba(99,179,237,0.1)", 
-              padding: "12px", 
-              borderRadius: "8px",
-              marginBottom: "12px",
-              border: "1px solid rgba(99,179,237,0.2)"
-            }},
-              React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "8px" }},
-                "Enter your call signs below to customize all examples"
-              ),
-              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }},
-                React.createElement("div", null,
-                  React.createElement("label", { style: { fontSize: "10px", color: "#63b3ed", fontWeight: "600" }}, "AIRCRAFT CALL SIGN"),
-                  React.createElement("input", {
-                    style: { ...styles.input, marginTop: "4px", fontSize: "14px", fontWeight: "600" },
-                    value: radioCallSigns.aircraft,
-                    onChange: (e) => setRadioCallSigns({ ...radioCallSigns, aircraft: e.target.value.toUpperCase() }),
-                    placeholder: "e.g., CAP 594"
-                  })
-                ),
-                React.createElement("div", null,
-                  React.createElement("label", { style: { fontSize: "10px", color: "#63b3ed", fontWeight: "600" }}, "MISSION BASE"),
-                  React.createElement("input", {
-                    style: { ...styles.input, marginTop: "4px", fontSize: "14px", fontWeight: "600" },
-                    value: radioCallSigns.missionBase,
-                    onChange: (e) => setRadioCallSigns({ ...radioCallSigns, missionBase: e.target.value.toUpperCase() }),
-                    placeholder: "e.g., BLUE MESA 92"
-                  })
-                )
-              )
-            ),
-            // Show current call signs if set
-            (radioCallSigns.aircraft || radioCallSigns.missionBase) && React.createElement("div", { style: {
+            (radioCallSigns.aircraft || radioCallSigns.missionBase) ? React.createElement("div", { style: {
               background: "rgba(56,161,105,0.15)",
-              padding: "10px 12px",
+              padding: "12px",
               borderRadius: "6px",
               border: "1px solid rgba(104,211,145,0.3)",
-              fontSize: "11px"
+              fontSize: "12px"
             }},
               React.createElement("span", { style: { color: "#68d391", fontWeight: "600" }}, "✓ Examples below will use: "),
-              React.createElement("span", { style: { color: "#fff" }}, 
+              React.createElement("span", { style: { color: "#fff", fontWeight: "600" }}, 
                 radioCallSigns.missionBase || "[MISSION BASE]", 
                 ", THIS IS ", 
                 radioCallSigns.aircraft || "[AIRCRAFT]"
+              ),
+              React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginTop: "8px" }},
+                "Edit call signs in Mission Info tab"
+              )
+            ) : React.createElement("div", { style: {
+              background: "rgba(99,179,237,0.1)",
+              padding: "12px",
+              borderRadius: "6px",
+              border: "1px solid rgba(99,179,237,0.2)",
+              fontSize: "12px"
+            }},
+              React.createElement("span", { style: { color: "#63b3ed" }}, "ℹ️ No call signs set. "),
+              React.createElement("span", { style: { color: "#a0aec0" }}, 
+                "Enter your Aircraft Call Sign and Mission Base in the Mission Info tab to customize radio call examples."
               )
             )
           )
@@ -7063,10 +7570,10 @@ React.createElement(
                 isExpanded && React.createElement("div", { style: { padding: "0 16px 16px 16px" }},
                   // Situation
                   React.createElement("div", { style: { marginBottom: "12px" }},
-                    React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", textTransform: "uppercase", marginBottom: "4px" }}, "Situation"),
-                    React.createElement("div", { style: { fontSize: "13px", color: "#e2e8f0" }}, call.situation)
+                    React.createElement("div", { style: { fontSize: ts("10"), color: "#a0aec0", textTransform: "uppercase", marginBottom: "4px" }}, "Situation"),
+                    React.createElement("div", { style: { fontSize: ts("13"), color: "#e2e8f0" }}, call.situation)
                   ),
-                  // Template
+                  // Template with Enlarge button
                   React.createElement("div", { style: { 
                     background: "rgba(0,0,0,0.3)", 
                     padding: "12px", 
@@ -7074,10 +7581,13 @@ React.createElement(
                     marginBottom: "12px",
                     border: "1px solid rgba(99,179,237,0.3)"
                   }},
-                    React.createElement("div", { style: { fontSize: "10px", color: "#63b3ed", textTransform: "uppercase", marginBottom: "6px" }}, "📝 Template"),
-                    React.createElement("div", { style: { fontSize: "13px", color: "#f6e05e", fontFamily: "monospace", lineHeight: "1.5" }}, call.template)
+                    React.createElement("div", { style: { fontSize: ts("10"), color: "#63b3ed", textTransform: "uppercase", marginBottom: "6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}, 
+                      React.createElement("span", null, "📝 Template"),
+                      React.createElement(EnlargeButton, { title: call.title + " - Template", content: call.template })
+                    ),
+                    React.createElement("div", { style: { fontSize: ts("13"), color: "#f6e05e", fontFamily: "monospace", lineHeight: "1.5" }}, call.template)
                   ),
-                  // Example
+                  // Example with Enlarge button
                   React.createElement("div", { style: { 
                     background: "rgba(56,161,105,0.1)", 
                     padding: "12px", 
@@ -7085,24 +7595,30 @@ React.createElement(
                     marginBottom: "12px",
                     border: "1px solid rgba(104,211,145,0.3)"
                   }},
-                    React.createElement("div", { style: { fontSize: "10px", color: "#68d391", textTransform: "uppercase", marginBottom: "6px" }}, "💬 Example"),
-                    React.createElement("div", { style: { fontSize: "12px", color: "#68d391", fontStyle: "italic", lineHeight: "1.5" }}, call.example)
+                    React.createElement("div", { style: { fontSize: ts("10"), color: "#68d391", textTransform: "uppercase", marginBottom: "6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}, 
+                      React.createElement("span", null, "💬 Example"),
+                      React.createElement(EnlargeButton, { title: call.title + " - Example", content: call.example })
+                    ),
+                    React.createElement("div", { style: { fontSize: ts("12"), color: "#68d391", fontStyle: "italic", lineHeight: "1.5" }}, call.example)
                   ),
                   // Expected Response
                   React.createElement("div", { style: { marginBottom: "12px" }},
-                    React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", textTransform: "uppercase", marginBottom: "4px" }}, "Expected Response"),
-                    React.createElement("div", { style: { fontSize: "12px", color: "#e2e8f0" }}, call.response)
+                    React.createElement("div", { style: { fontSize: ts("10"), color: "#a0aec0", textTransform: "uppercase", marginBottom: "4px" }}, "Expected Response"),
+                    React.createElement("div", { style: { fontSize: ts("12"), color: "#e2e8f0" }}, call.response)
                   ),
-                  // Tips
+                  // Tips with Enlarge button
                   React.createElement("div", { style: { 
                     background: "rgba(214,158,46,0.1)", 
                     padding: "12px", 
                     borderRadius: "8px",
                     border: "1px solid rgba(246,224,94,0.2)"
                   }},
-                    React.createElement("div", { style: { fontSize: "10px", color: "#f6e05e", textTransform: "uppercase", marginBottom: "8px" }}, "💡 Tips"),
+                    React.createElement("div", { style: { fontSize: ts("10"), color: "#f6e05e", textTransform: "uppercase", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}, 
+                      React.createElement("span", null, "💡 Tips"),
+                      React.createElement(EnlargeButton, { title: call.title + " - Tips", content: call.tips.join("\n• ") })
+                    ),
                     call.tips.map((tip, i) => 
-                      React.createElement("div", { key: i, style: { fontSize: "11px", color: "#e2e8f0", marginBottom: "4px", paddingLeft: "12px", position: "relative" }},
+                      React.createElement("div", { key: i, style: { fontSize: ts("11"), color: "#e2e8f0", marginBottom: "4px", paddingLeft: "12px", position: "relative" }},
                         React.createElement("span", { style: { position: "absolute", left: 0, color: "#f6e05e" }}, "•"),
                         tip
                       )
@@ -7784,6 +8300,7 @@ React.createElement(
     };
     
 const tabs = [
+      { id: "home", label: "Home", icon: "🏠", isHome: true },
       { id: "mission", label: "Mission", icon: "\u{1F4CB}" },
       { id: "times", label: "Times", icon: "\u23F1\uFE0F" },
       { id: "events", label: "Events", icon: "\u{1F4CD}" },
@@ -7809,11 +8326,31 @@ const tabs = [
     
     return /* @__PURE__ */ React.createElement("div", { style: styles.container }, 
       /* @__PURE__ */ React.createElement("header", { style: styles.header }, 
-        /* @__PURE__ */ React.createElement("div", { style: styles.logo }, 
-          /* @__PURE__ */ React.createElement("div", { style: styles.logoCircle }, "CAP"), 
-          /* @__PURE__ */ React.createElement("div", null, 
-            /* @__PURE__ */ React.createElement("div", { style: styles.title }, "CAP Observer Log"), 
-            /* @__PURE__ */ React.createElement("div", { style: styles.subtitle }, "CIVIL AIR PATROL")
+        /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "12px" } },
+          /* @__PURE__ */ React.createElement("button", { 
+            style: { 
+              background: activeTab === "home" ? "linear-gradient(135deg, #dd6b20, #c05621)" : "rgba(0,0,0,0.3)",
+              border: activeTab === "home" ? "2px solid #f6ad55" : "1px solid rgba(255,255,255,0.2)",
+              borderRadius: "10px",
+              padding: "10px 12px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "20px",
+              color: "#fff",
+              minWidth: "48px",
+              minHeight: "48px"
+            },
+            onClick: () => setActiveTab("home"),
+            title: "Go to Home Screen"
+          }, "🏠"),
+          /* @__PURE__ */ React.createElement("div", { style: { ...styles.logo, cursor: "pointer" }, onClick: () => setActiveTab("home") }, 
+            /* @__PURE__ */ React.createElement("div", { style: styles.logoCircle }, "CAP"), 
+            /* @__PURE__ */ React.createElement("div", null, 
+              /* @__PURE__ */ React.createElement("div", { style: styles.title }, "CAP Observer Log"), 
+              /* @__PURE__ */ React.createElement("div", { style: styles.subtitle }, "CIVIL AIR PATROL")
+            )
           )
         ), 
         /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px" }},
@@ -7849,11 +8386,29 @@ const tabs = [
             onClick: () => setNightMode(!nightMode),
             title: nightMode ? "Switch to Day Mode" : "Switch to Night Mode"
           }, nightMode ? "🌙" : "☀️"),
+          // Text Size Toggle
+          React.createElement("button", {
+            style: {
+              ...styles.zuluTime,
+              background: textSize !== 'normal' ? "rgba(99,179,237,0.3)" : "rgba(0,0,0,0.3)",
+              color: textSize !== 'normal' ? "#63b3ed" : "#a0aec0",
+              cursor: "pointer",
+              border: textSize !== 'normal' ? "1px solid #63b3ed" : "1px solid rgba(255,255,255,0.1)",
+              padding: "6px 10px",
+              fontSize: ts("12")
+            },
+            onClick: () => {
+              const sizes = ['normal', 'large', 'xlarge'];
+              const currentIndex = sizes.indexOf(textSize);
+              setTextSize(sizes[(currentIndex + 1) % sizes.length]);
+            },
+            title: `Text Size: ${textSize.toUpperCase()} - Click to change`
+          }, textSize === 'normal' ? "A" : textSize === 'large' ? "A+" : "A++"),
           // Zulu Clock
           React.createElement("div", { style: styles.zuluTime }, zuluClock, "Z")
         )
       ), 
-      /* @__PURE__ */ React.createElement("nav", { style: styles.tabs }, tabs.map((tab) => /* @__PURE__ */ React.createElement(
+      activeTab !== "home" && /* @__PURE__ */ React.createElement("nav", { style: styles.tabs }, tabs.filter(tab => tab.id !== "home").map((tab) => /* @__PURE__ */ React.createElement(
       "button",
       {
         key: tab.id,
@@ -7931,7 +8486,7 @@ const tabs = [
       tab.icon,
       " ",
       tab.label
-    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab()), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: () => setShowShareModal(true) }, "\u{1F4E4} Share"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")), renderShareModal());
+    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "home" && renderHomeTab(), activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab()), activeTab !== "home" && /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: () => setShowShareModal(true) }, "\u{1F4E4} Share"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")), renderShareModal(), renderEnlargeModal());
   };
   ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(CAPObserverLog, null));
 })();
