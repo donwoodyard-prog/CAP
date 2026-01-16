@@ -1188,6 +1188,445 @@ Example: "Amarillo Ground, CAP 42-39, at the ramp, taxi for VFR departure"`
         "Reduce altitude as you get closer to target"
       ]
     },
+    rhotheta: {
+      title: "Rhotheta RT-600 Direction Finder",
+      icon: "\u{1F4E1}",
+      overview: {
+        description: "The Rhotheta RT-600 (SAR-DF 517) is a wideband precision direction finder for locating ELT beacons. It provides relative bearing to transmitters on VHF, UHF, and 406 MHz COSPAS-SARSAT frequencies.",
+        components: [
+          { name: "Display Control Unit (DCU)", location: "Instrument panel" },
+          { name: "406 MHz Antenna Unit", location: "Aircraft belly (bottom-mounted)" },
+          { name: "121 MHz DF Antenna", location: "Aircraft exterior" }
+        ]
+      },
+      controls: {
+        knobs: [
+          { name: "VOL (Volume)", location: "Bottom-left", function: "Adjusts audio output (0-99). Recommended: 35" },
+          { name: "SQL (Squelch)", location: "Top-left", function: "Sets signal threshold (0-60%). Set just above noise level" },
+          { name: "PAGE", location: "Top-right", function: "Selects DF or MEM page. Also adjusts brightness with DIM button" },
+          { name: "FREQ (MHz)", location: "Bottom-left in MEM mode", function: "Adjusts frequency in 1 MHz steps" },
+          { name: "FREQ (kHz)", location: "Bottom-right", function: "Adjusts frequency in fine steps or selects COSPAS-SARSAT channels" }
+        ],
+        buttons: [
+          { name: "ON/OFF", location: "Center-bottom", function: "Power switch" },
+          { name: "CLR / F1", location: "Top-center-left", function: "Short press: F1 function (DECODE in 406 mode). Long press (3 sec): Clear averaging/timer" },
+          { name: "STORE / F2", location: "Top-center", function: "Short press: F2 function (quick switch to 121.5 MHz in 406 mode)" },
+          { name: "REP / DIM", location: "Top-center-right", function: "Short press: Enter brightness mode. Long press (3 sec): Repeat last bearing" }
+        ]
+      },
+      frequencies: {
+        bands: [
+          { range: "118.000-123.000 MHz", step: "8.33 kHz", use: "VHF Air Band (121.5 emergency)" },
+          { range: "156.000-162.025 MHz", step: "25 kHz", use: "Maritime VHF (Ch 16 = 156.8)" },
+          { range: "240.000-246.000 MHz", step: "8.33 kHz", use: "UHF Air Band (243.0 emergency)" },
+          { range: "406.022-406.076 MHz", step: "8.33 kHz", use: "COSPAS-SARSAT (Channels A-S)" }
+        ],
+        common: [
+          { freq: "121.500 MHz", name: "VHF Emergency", notes: "Primary ELT frequency" },
+          { freq: "121.775 MHz", name: "Practice Beacon", notes: "CAP training frequency" },
+          { freq: "243.000 MHz", name: "UHF Emergency", notes: "Military guard" },
+          { freq: "406.025 MHz", name: "SARSAT Primary", notes: "Most common 406 channel" }
+        ]
+      },
+      display: {
+        elements: [
+          { name: "Bearing Indicator", description: "Black dot shows relative direction to signal (0\u00b0 = nose, 180\u00b0 = tail)" },
+          { name: "Bearing Value", description: "Digital readout 000\u00b0-359\u00b0 relative to aircraft heading" },
+          { name: "Signal Strength Bar", description: "Left side bar graph (0-100%)" },
+          { name: "Squelch Marker", description: "Arrow on signal bar shows threshold. 'A' = Auto, 'X' = System controlled" },
+          { name: "LS Timer", description: "'Last Signal' - time since last valid signal (MM:SS)" },
+          { name: "Spread Indicator", description: "Shows bearing quality - narrower = better signal" },
+          { name: "Frequency Display", description: "Bottom-right shows active frequency" }
+        ]
+      },
+      setup406: {
+        title: "406 MHz COSPAS-SARSAT Setup",
+        steps: [
+          "Turn MISSION MASTER switch ON",
+          "Press ON/OFF button to power up Rhotheta",
+          "Wait for startup screen (5 seconds)",
+          "Press REP/DIM briefly, rotate PAGE knob to adjust brightness",
+          "Rotate PAGE knob until 'DF' is highlighted",
+          "Rotate bottom-right FREQ knob fully RIGHT to select 'CpSARSAT Scan'",
+          "Display shows 'SCAN' flashing - unit is scanning all 406 channels",
+          "Adjust SQL if needed (usually leave at Auto for 406)",
+          "Set volume to ~35"
+        ],
+        notes: "406 scan mode detects any active SARSAT beacon within 400ms. When signal found, unit auto-locks to that frequency."
+      },
+      setup121: {
+        title: "121.5 MHz VHF Setup",
+        steps: [
+          "Rotate PAGE knob until 'MEM' is highlighted",
+          "Rotate SQL knob to scroll through memory channels",
+          "Select memory with 121.500 MHz (or use AUX)",
+          "If needed, adjust frequency with bottom-left (MHz) and bottom-right (kHz) knobs",
+          "Rotate PAGE knob back to 'DF'",
+          "Adjust SQL: Turn until squelch marker is just ABOVE the noise level",
+          "Set volume to comfortable level (~35)"
+        ],
+        notes: "Also tune 121.5 on Com2 standby to hear the ELT warble tone through aircraft audio."
+      },
+      operation: {
+        title: "In-Flight Operation",
+        procedure: [
+          "Climb to 5,000' AGL for initial detection (best reception altitude)",
+          "Monitor display for black dot (bearing indicator) to appear",
+          "When dot appears, turn aircraft to put dot at 12 o'clock (top)",
+          "Keep dot centered at top by adjusting heading",
+          "As signal strengthens, note bearing value becoming stable",
+          "Descend as able while maintaining signal",
+          "When close, switch from 406 to 121.5 MHz for faster updates",
+          "On 406 mode: Press STORE/F2 to quick-switch to 121.5",
+          "Press STORE/F2 again to return to 406 if needed",
+          "When dot suddenly flips to 180\u00b0 (bottom), you passed over beacon",
+          "Mark GPS position and circle to confirm"
+        ]
+      },
+      decode406: {
+        title: "406 MHz Decode Function",
+        steps: [
+          "While receiving 406 signal, press CLR/F1 (DECODE)",
+          "Decode screen shows beacon information:",
+          "  - Country Code (3 digits)",
+          "  - 15-HEX-ID (beacon serial number)",
+          "  - GPS Position (if beacon has GPS)",
+          "  - Last Signal timer",
+          "Press CLR/F1 (EXIT) to return to bearing display"
+        ],
+        notes: "406 beacons transmit every ~50 seconds. Encoded position accuracy varies by beacon type."
+      },
+      detectionRange: {
+        title: "Expected Detection Ranges (Flat Terrain)",
+        ranges: [
+          { altitude: "2,000' AGL", range406: "~10 NM", range121: "~5 NM" },
+          { altitude: "4,000' AGL", range406: "~25 NM", range121: "~15 NM" },
+          { altitude: "5,000' AGL", range406: "~30 NM", range121: "~20 NM" },
+          { altitude: "6,000' AGL", range406: "~35 NM", range121: "~25 NM" },
+          { altitude: "8,000' AGL", range406: "~45 NM", range121: "~30 NM" },
+          { altitude: "10,000' AGL", range406: "~55 NM", range121: "~35 NM" }
+        ],
+        notes: "406 MHz has greater range due to higher transmit power (5W vs 0.1W for 121.5). Terrain and obstructions reduce these ranges significantly."
+      },
+      signalTypes: {
+        title: "Signal Characteristics",
+        types: [
+          { type: "406 MHz SARSAT", pattern: "Intermittent - transmits every ~50 seconds for 440-520ms", power: "5 Watts" },
+          { type: "121.5 MHz (older ELT)", pattern: "Continuous or 33% duty cycle sweep tone", power: "50-100 mW" },
+          { type: "121.5 MHz (from 406 beacon)", pattern: "Continuous or intermittent depending on beacon", power: "25-50 mW" }
+        ],
+        notes: "406 beacons detected at longer range but update slowly. Use 406 for initial detection, switch to 121.5 when closer for faster tracking."
+      },
+      troubleshooting: {
+        title: "Troubleshooting",
+        issues: [
+          { problem: "No bearing displayed", solutions: ["Check squelch not set too high", "Verify correct frequency selected", "Increase altitude for better reception", "Check antenna connections"] },
+          { problem: "Erratic bearing", solutions: ["Signal may be reflecting off terrain/structures", "Reduce altitude when close", "Use wing-shadow technique to verify", "Clear averaging buffer (hold CLR 3 sec)"] },
+          { problem: "Signal fades in/out", solutions: ["Normal for 406 (50 sec cycle)", "May be terrain masking", "Adjust altitude/position", "Check for intermittent ELT battery"] },
+          { problem: "Display shows error", solutions: ["Note error code and check manual", "Common: (12) VOLT.DU = low voltage", "(11) NO AU = antenna connection", "Cycle power if persistent"] }
+        ]
+      },
+      quickRef: {
+        title: "Quick Reference Card",
+        items: [
+          { action: "Power On", keys: "ON/OFF button" },
+          { action: "Adjust Brightness", keys: "REP/DIM (short) + PAGE knob" },
+          { action: "Select 406 Scan", keys: "PAGE to DF, FREQ knob full right" },
+          { action: "Select 121.5 MHz", keys: "PAGE to MEM, select freq, PAGE to DF" },
+          { action: "View 406 Decode", keys: "CLR/F1 (while on 406)" },
+          { action: "Quick Switch 406\u2194121.5", keys: "STORE/F2 (in SARSAT mode)" },
+          { action: "Clear Averaging", keys: "Hold CLR 3 seconds" },
+          { action: "Repeat Last Bearing", keys: "Hold REP/DIM 3 seconds" },
+          { action: "Adjust Squelch", keys: "SQL knob - set just above noise" }
+        ]
+      }
+    },
+    rhoOverview: {
+      title: "RT-600 Overview",
+      icon: "\u{1F4E1}",
+      description: "The Rhotheta RT-600 (SAR-DF 517) is a wideband precision direction finder for locating ELT beacons. It provides relative bearing to transmitters on VHF, UHF, and 406 MHz COSPAS-SARSAT frequencies.",
+      components: [
+        { name: "Display Control Unit (DCU)", location: "Instrument panel" },
+        { name: "406 MHz Antenna Unit", location: "Aircraft belly (bottom-mounted)" },
+        { name: "121 MHz DF Antenna", location: "Aircraft exterior" }
+      ]
+    },
+    rhoControls: {
+      title: "Controls & Buttons",
+      icon: "\u{1F39B}\uFE0F",
+      knobs: [
+        { name: "VOL (Volume)", location: "Bottom-left", function: "Adjusts audio output (0-99). Recommended: 35" },
+        { name: "SQL (Squelch)", location: "Top-left", function: "Sets signal threshold (0-60%). Set just above noise level" },
+        { name: "PAGE", location: "Top-right", function: "Selects DF or MEM page. Also adjusts brightness with DIM button" },
+        { name: "FREQ (MHz)", location: "Bottom-left in MEM mode", function: "Adjusts frequency in 1 MHz steps" },
+        { name: "FREQ (kHz)", location: "Bottom-right", function: "Adjusts frequency in fine steps or selects COSPAS-SARSAT channels" }
+      ],
+      buttons: [
+        { name: "ON/OFF", location: "Center-bottom", function: "Power switch" },
+        { name: "CLR / F1", location: "Top-center-left", function: "Short press: F1 function (DECODE in 406 mode). Long press (3 sec): Clear averaging/timer" },
+        { name: "STORE / F2", location: "Top-center", function: "Short press: F2 function (quick switch to 121.5 MHz in 406 mode)" },
+        { name: "REP / DIM", location: "Top-center-right", function: "Short press: Enter brightness mode. Long press (3 sec): Repeat last bearing" }
+      ]
+    },
+    rhoFrequencies: {
+      title: "Frequencies",
+      icon: "\u{1F4FB}",
+      bands: [
+        { range: "118.000-123.000 MHz", step: "8.33 kHz", use: "VHF Air Band (121.5 emergency)" },
+        { range: "156.000-162.025 MHz", step: "25 kHz", use: "Maritime VHF (Ch 16 = 156.8)" },
+        { range: "240.000-246.000 MHz", step: "8.33 kHz", use: "UHF Air Band (243.0 emergency)" },
+        { range: "406.022-406.076 MHz", step: "8.33 kHz", use: "COSPAS-SARSAT (Channels A-S)" }
+      ],
+      common: [
+        { freq: "121.500 MHz", name: "VHF Emergency", notes: "Primary ELT frequency" },
+        { freq: "121.775 MHz", name: "Practice Beacon", notes: "CAP training frequency" },
+        { freq: "243.000 MHz", name: "UHF Emergency", notes: "Military guard" },
+        { freq: "406.025 MHz", name: "SARSAT Primary", notes: "Most common 406 channel" }
+      ]
+    },
+    rhoDisplay: {
+      title: "Display Elements",
+      icon: "\u{1F5A5}\uFE0F",
+      elements: [
+        { name: "Bearing Indicator", description: "Black dot shows relative direction to signal (0\u00b0 = nose, 180\u00b0 = tail)" },
+        { name: "Bearing Value", description: "Digital readout 000\u00b0-359\u00b0 relative to aircraft heading" },
+        { name: "Signal Strength Bar", description: "Left side bar graph (0-100%)" },
+        { name: "Squelch Marker", description: "Arrow on signal bar shows threshold. 'A' = Auto, 'X' = System controlled" },
+        { name: "LS Timer", description: "'Last Signal' - time since last valid signal (MM:SS)" },
+        { name: "Spread Indicator", description: "Shows bearing quality - narrower = better signal" },
+        { name: "Frequency Display", description: "Bottom-right shows active frequency" }
+      ]
+    },
+    rhoSetup406: {
+      title: "406 MHz Setup",
+      icon: "\u{1F6F0}\uFE0F",
+      steps: [
+        "Turn MISSION MASTER switch ON",
+        "Press ON/OFF button to power up Rhotheta",
+        "Wait for startup screen (5 seconds)",
+        "Press REP/DIM briefly, rotate PAGE knob to adjust brightness",
+        "Rotate PAGE knob until 'DF' is highlighted",
+        "Rotate bottom-right FREQ knob fully RIGHT to select 'CpSARSAT Scan'",
+        "Display shows 'SCAN' flashing - unit is scanning all 406 channels",
+        "Adjust SQL if needed (usually leave at Auto for 406)",
+        "Set volume to ~35"
+      ],
+      notes: "406 scan mode detects any active SARSAT beacon within 400ms. When signal found, unit auto-locks to that frequency."
+    },
+    rhoSetup121: {
+      title: "121.5 MHz Setup",
+      icon: "\u{1F4CD}",
+      steps: [
+        "Rotate PAGE knob until 'MEM' is highlighted",
+        "Rotate SQL knob to scroll through memory channels",
+        "Select memory with 121.500 MHz (or use AUX)",
+        "If needed, adjust frequency with bottom-left (MHz) and bottom-right (kHz) knobs",
+        "Rotate PAGE knob back to 'DF'",
+        "Adjust SQL: Turn until squelch marker is just ABOVE the noise level",
+        "Set volume to comfortable level (~35)"
+      ],
+      notes: "Also tune 121.5 on Com2 standby to hear the ELT warble tone through aircraft audio."
+    },
+    rhoOperation: {
+      title: "In-Flight Operation",
+      icon: "\u2708\uFE0F",
+      procedure: [
+        "Climb to 5,000' AGL for initial detection (best reception altitude)",
+        "Monitor display for black dot (bearing indicator) to appear",
+        "When dot appears, turn aircraft to put dot at 12 o'clock (top)",
+        "Keep dot centered at top by adjusting heading",
+        "As signal strengthens, note bearing value becoming stable",
+        "Descend as able while maintaining signal",
+        "When close, switch from 406 to 121.5 MHz for faster updates",
+        "On 406 mode: Press STORE/F2 to quick-switch to 121.5",
+        "Press STORE/F2 again to return to 406 if needed",
+        "When dot suddenly flips to 180\u00b0 (bottom), you passed over beacon",
+        "Mark GPS position and circle to confirm"
+      ]
+    },
+    rhoDecode: {
+      title: "406 Decode Function",
+      icon: "\u{1F50D}",
+      steps: [
+        "While receiving 406 signal, press CLR/F1 (DECODE)",
+        "Decode screen shows beacon information:",
+        "  \u2022 Country Code (3 digits)",
+        "  \u2022 15-HEX-ID (beacon serial number)",
+        "  \u2022 GPS Position (if beacon has GPS)",
+        "  \u2022 Last Signal timer",
+        "Press CLR/F1 (EXIT) to return to bearing display"
+      ],
+      notes: "406 beacons transmit every ~50 seconds. Encoded position accuracy varies by beacon type."
+    },
+    rhoRange: {
+      title: "Detection Ranges",
+      icon: "\u{1F4CF}",
+      ranges: [
+        { altitude: "2,000' AGL", range406: "~10 NM", range121: "~5 NM" },
+        { altitude: "4,000' AGL", range406: "~25 NM", range121: "~15 NM" },
+        { altitude: "5,000' AGL", range406: "~30 NM", range121: "~20 NM", recommended: true },
+        { altitude: "6,000' AGL", range406: "~35 NM", range121: "~25 NM" },
+        { altitude: "8,000' AGL", range406: "~45 NM", range121: "~30 NM" },
+        { altitude: "10,000' AGL", range406: "~55 NM", range121: "~35 NM" }
+      ],
+      notes: "406 MHz has greater range due to higher transmit power (5W vs 0.1W for 121.5). Terrain and obstructions reduce these ranges significantly.",
+      signalTypes: [
+        { type: "406 MHz SARSAT", pattern: "Intermittent - transmits every ~50 seconds for 440-520ms", power: "5 Watts" },
+        { type: "121.5 MHz (older ELT)", pattern: "Continuous or 33% duty cycle sweep tone", power: "50-100 mW" },
+        { type: "121.5 MHz (from 406 beacon)", pattern: "Continuous or intermittent depending on beacon", power: "25-50 mW" }
+      ]
+    },
+    rhoTroubleshoot: {
+      title: "Troubleshooting",
+      icon: "\u{1F527}",
+      issues: [
+        { problem: "No bearing displayed", solutions: ["Check squelch not set too high", "Verify correct frequency selected", "Increase altitude for better reception", "Check antenna connections"] },
+        { problem: "Erratic bearing", solutions: ["Signal may be reflecting off terrain/structures", "Reduce altitude when close", "Use wing-shadow technique to verify", "Clear averaging buffer (hold CLR 3 sec)"] },
+        { problem: "Signal fades in/out", solutions: ["Normal for 406 (50 sec cycle)", "May be terrain masking", "Adjust altitude/position", "Check for intermittent ELT battery"] },
+        { problem: "Display shows error", solutions: ["Note error code and check manual", "Common: (12) VOLT.DU = low voltage", "(11) NO AU = antenna connection", "Cycle power if persistent"] }
+      ]
+    },
+    rhoQuickRef: {
+      title: "Quick Reference",
+      icon: "\u26A1",
+      items: [
+        { action: "Power On", keys: "ON/OFF button" },
+        { action: "Adjust Brightness", keys: "REP/DIM (short) + PAGE knob" },
+        { action: "Select 406 Scan", keys: "PAGE to DF, FREQ knob full right" },
+        { action: "Select 121.5 MHz", keys: "PAGE to MEM, select freq, PAGE to DF" },
+        { action: "View 406 Decode", keys: "CLR/F1 (while on 406)" },
+        { action: "Quick Switch 406\u2194121.5", keys: "STORE/F2 (in SARSAT mode)" },
+        { action: "Clear Averaging", keys: "Hold CLR 3 seconds" },
+        { action: "Repeat Last Bearing", keys: "Hold REP/DIM 3 seconds" },
+        { action: "Adjust Squelch", keys: "SQL knob - set just above noise" }
+      ]
+    },
+    calcGroundSpeed: {
+      title: "Ground Speed",
+      icon: "\u{1F680}",
+      formula: "Ground Speed = Distance \u00F7 Time",
+      description: "Calculate ground speed from distance traveled and time elapsed"
+    },
+    calcETE: {
+      title: "Estimated Time Enroute",
+      icon: "\u23F1\uFE0F",
+      formula: "ETE = Distance \u00F7 Ground Speed",
+      description: "Calculate time to travel a given distance at current ground speed"
+    },
+    calcFuelBurn: {
+      title: "Fuel Burn",
+      icon: "\u26FD",
+      formula: "Fuel Required = (Time \u00D7 GPH) or (Distance \u00F7 GS \u00D7 GPH)",
+      description: "Calculate fuel needed for flight time or distance"
+    },
+    calcDistance: {
+      title: "Distance",
+      icon: "\u{1F4CF}",
+      formula: "Distance = Ground Speed \u00D7 Time",
+      description: "Calculate distance traveled at a given speed and time"
+    },
+    calcHeadwind: {
+      title: "Headwind Component",
+      icon: "\u{1F32C}\uFE0F",
+      formula: "Headwind = Wind Speed \u00D7 cos(Wind Angle)",
+      description: "Calculate headwind or tailwind component"
+    },
+    calcCrosswind: {
+      title: "Crosswind Component",
+      icon: "\u2194\uFE0F",
+      formula: "Crosswind = Wind Speed \u00D7 sin(Wind Angle)",
+      description: "Calculate crosswind component for landing/takeoff"
+    },
+    calcPressureAlt: {
+      title: "Pressure Altitude",
+      icon: "\u{1F4CA}",
+      formula: "PA = (29.92 - Altimeter) \u00D7 1000 + Field Elevation",
+      description: "Calculate pressure altitude from field elevation and altimeter setting"
+    },
+    calcDensityAlt: {
+      title: "Density Altitude",
+      icon: "\u{1F321}\uFE0F",
+      formula: "DA = PA + [120 \u00D7 (OAT - ISA Temp)]",
+      description: "Calculate density altitude from pressure altitude and temperature"
+    },
+    calcTAS: {
+      title: "True Airspeed",
+      icon: "\u2708\uFE0F",
+      formula: "TAS = IAS + (IAS \u00D7 2% per 1,000 ft PA)",
+      description: "Calculate true airspeed from indicated airspeed and altitude"
+    },
+    calcGroundSpeed: {
+      title: "Ground Speed",
+      icon: "\u{1F680}",
+      formula: "Ground Speed = (Distance \u00F7 Time) \u00D7 60",
+      description: "Calculate ground speed from distance and time"
+    },
+    calcETE: {
+      title: "Time Enroute",
+      icon: "\u23F1\uFE0F",
+      formula: "ETE = Distance \u00F7 Ground Speed",
+      description: "Calculate estimated time enroute"
+    },
+    calcDistance: {
+      title: "Distance",
+      icon: "\u{1F4CF}",
+      formula: "Distance = Ground Speed \u00D7 (Time \u00F7 60)",
+      description: "Calculate distance from speed and time"
+    },
+    calcFuelBurn: {
+      title: "Fuel Burn",
+      icon: "\u26FD",
+      formula: "Fuel = (Time \u00F7 60) \u00D7 GPH",
+      description: "Calculate fuel required for flight"
+    },
+    calcHeadwind: {
+      title: "Headwind Component",
+      icon: "\u{1F32C}\uFE0F",
+      formula: "Headwind = Wind Speed \u00D7 cos(Wind Angle)",
+      description: "Calculate headwind or tailwind component"
+    },
+    calcCrosswind: {
+      title: "Crosswind Component",
+      icon: "\u2194\uFE0F",
+      formula: "Crosswind = Wind Speed \u00D7 sin(Wind Angle)",
+      description: "Calculate crosswind component"
+    },
+    calcWindCorrection: {
+      title: "Wind Correction",
+      icon: "\u{1F9ED}",
+      formula: "WCA = arcsin((Wind \u00D7 sin(Angle)) \u00F7 TAS)",
+      description: "Calculate wind correction angle and heading"
+    },
+    calcClimbGradient: {
+      title: "Climb Gradient",
+      icon: "\u2197\uFE0F",
+      formula: "FPM = (ft/NM) \u00D7 (GS \u00F7 60)",
+      description: "Convert climb gradient (ft/NM) to FPM"
+    },
+    calcDescentRate: {
+      title: "Descent Rate",
+      icon: "\u2B07\uFE0F",
+      formula: "FPM = (Alt \u00F7 Dist) \u00D7 (GS \u00F7 60)",
+      description: "Calculate descent rate to lose altitude over distance"
+    },
+    calcTOD: {
+      title: "Top of Descent",
+      icon: "\u{1F3AF}",
+      formula: "TOD = (Alt to lose in 1000s) \u00D7 3 NM",
+      description: "Calculate when to begin descent (3\u00B0 angle)"
+    },
+    calcGlideslope: {
+      title: "Glideslope Rate",
+      icon: "\u{1F6EC}",
+      formula: "FPM = (GS \u00D7 10) \u00F7 2  or  GS \u00D7 5",
+      description: "Calculate descent rate for 3\u00B0 glideslope"
+    },
+    calcKnotsToMph: {
+      title: "Knots \u2194 MPH",
+      icon: "\u{1F504}",
+      formula: "MPH = Knots \u00D7 1.15",
+      description: "Convert between knots and miles per hour"
+    },
     observerDuties: {
       title: "Observer Duties Checklist",
       icon: "\u2705",
@@ -2684,6 +3123,41 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
 const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     const [g1000RefTextSize, setG1000RefTextSize] = useState(1); // 0.85, 1, 1.2, 1.4
     
+    // Aviation Calculator states
+    const [calcState, setCalcState] = useState({
+      // Ground Speed
+      gsDistance: '', gsTime: '', gsResult: null,
+      // Time Enroute
+      eteDistance: '', eteGs: '', eteResult: null,
+      // Fuel Burn
+      fuelTime: '', fuelGph: '', fuelResult: null,
+      // Distance
+      distGs: '', distTime: '', distResult: null,
+      // Headwind
+      hwWindSpeed: '', hwWindDir: '', hwRunway: '', hwResult: null,
+      // Crosswind
+      xwWindSpeed: '', xwWindDir: '', xwRunway: '', xwResult: null,
+      // Density Altitude
+      daFieldElev: '', daAltSetting: '', daOAT: '', daResult: null,
+      // TAS
+      tasIAS: '', tasAlt: '', tasResult: null,
+      // Wind Correction
+      wcaTAS: '', wcaWindSpeed: '', wcaCourse: '', wcaWindDir: '', wcaResult: null,
+      // Descent Rate
+      drAltLose: '', drDistance: '', drGs: '', drResult: null,
+      // Climb Gradient
+      cgFtPerNm: '', cgGs: '', cgResult: null,
+      // Top of Descent
+      todCurrentAlt: '', todTargetAlt: '', todResult: null,
+      // Glideslope
+      glsGs: '', glsResult: null,
+      // Knots to MPH
+      ktsMph: '', ktsMphResult: null,
+      // Pressure Altitude
+      paFieldElev: '', paAltSetting: '', paResult: null
+    });
+    const updateCalc = (field, value) => setCalcState(prev => ({ ...prev, [field]: value }));
+    
     // Command Tools state
     const [cmdState, setCmdState] = useState({
       searchAreaMode: 'grid', // 'grid', 'point', 'route'
@@ -2820,11 +3294,15 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     const [crosshairPoints, setCrosshairPoints] = useState([]); // Unified point list - auto-detects paths
     const [crosshairResult, setCrosshairResult] = useState(null);
     const [crosshairAnalysis, setCrosshairAnalysis] = useState(null); // Stores path detection results
+    const [crosshairShowMap, setCrosshairShowMap] = useState(false); // Inline map display
+    const [crosshairMapHtml, setCrosshairMapHtml] = useState(''); // Generated map HTML
     const targetSeqRef = React.useRef(0); // per refresh
     // ELT Assist state
     const [eltObservations, setEltObservations] = useState([]);
     const [eltResult, setEltResult] = useState(null);
     const [eltShowMap, setEltShowMap] = useState(false);
+    const [eltMapHtml, setEltMapHtml] = useState(''); // Generated map HTML for inline display
+    const [eltShowMapModal, setEltShowMapModal] = useState(false); // Show inline map modal
     const [eltDiagramZoom, setEltDiagramZoom] = useState(1.0); // Zoom level for diagram (1.0 = fit all, higher = zoom in)
     const [showG1000Instructions, setShowG1000Instructions] = useState(false); // G1000 SAR programming guide
     const eltMapRef = React.useRef(null);
@@ -6967,8 +7445,8 @@ Events: ${events.length}`;
       // - Path 1: #0066cc (dark blue) 
       // - Path 2: #006600 (dark green)
       // - Data points: white fill with colored border
-      const viewOnMapWithTracks = () => {
-        if (!crosshairResult || !crosshairAnalysis) return;
+      const generateCrosshairMapHtml = () => {
+        if (!crosshairResult || !crosshairAnalysis) return '';
         
         const path1Coords = crosshairAnalysis.path1Points.map(p => [p.dd.lat, p.dd.lon]);
         const path2Coords = crosshairAnalysis.path2Points.map(p => [p.dd.lat, p.dd.lon]);
@@ -6993,16 +7471,17 @@ Events: ${events.length}`;
         // Quality color for UI elements (not map)
         const qualityColor = crosshairResult.qualityColor || '#f6e05e';
         
-        const mapHtml = [
+        return [
           '<!DOCTYPE html>',
-          '<html><head>',
+          '<html style="height:100%;margin:0"><head>',
           '<title>Target ' + crosshairResult.targetLabel + ' - ' + crosshairResult.capGrid + '</title>',
           '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
           '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>',
           '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></scr' + 'ipt>',
           '<style>',
-          'body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif}',
-          '#map{height:100vh;width:100%}',
+          'html,body{height:100%;margin:0;padding:0}',
+          'body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif}',
+          '#map{height:100%;width:100%}',
           '.info-panel{position:absolute;top:10px;right:10px;background:linear-gradient(135deg,rgba(26,32,44,0.95),rgba(45,55,72,0.95));color:#fff;padding:0;border-radius:12px;z-index:1000;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,0.4);border:2px solid ' + qualityColor + ';overflow:hidden}',
           '.info-header{background:linear-gradient(90deg,rgba(221,107,32,0.3),transparent);padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.1)}',
           '.info-header h3{margin:0;color:#f6e05e;font-size:16px}',
@@ -7082,11 +7561,22 @@ Events: ${events.length}`;
           '</scr' + 'ipt>',
           '</body></html>'
         ].join('\n');
-        
-        // Open in new window
+      };
+      
+      // Show map inline
+      const viewOnMapWithTracks = () => {
+        if (!crosshairResult || !crosshairAnalysis) return;
+        const html = generateCrosshairMapHtml();
+        setCrosshairMapHtml(html);
+        setCrosshairShowMap(true);
+      };
+      
+      // Pop out map to new window
+      const popOutCrosshairMap = () => {
+        const html = crosshairMapHtml || generateCrosshairMapHtml();
         const mapWindow = window.open('', '_blank');
         if (mapWindow) {
-          mapWindow.document.write(mapHtml);
+          mapWindow.document.write(html);
           mapWindow.document.close();
         } else {
           alert('Please allow popups to view the map.');
@@ -7565,14 +8055,10 @@ Events: ${events.length}`;
                 }, "\u{2708}\uFE0F FOREFLIGHT")
               ),
               
-              // Export buttons row 2
+              // View on Map button
               React.createElement("div", { style: { display: "flex", gap: "8px" } },
                 React.createElement("button", {
-                  onClick: () => {
-                    if (crosshairResult) {
-                      window.open("https://www.openstreetmap.org/?mlat=" + crosshairResult.latDD + "&mlon=" + crosshairResult.lonDD + "&zoom=15", "_blank");
-                    }
-                  },
+                  onClick: viewOnMapWithTracks,
                   style: {
                     flex: 1,
                     minHeight: "48px",
@@ -7587,26 +8073,53 @@ Events: ${events.length}`;
                     cursor: "pointer",
                     touchAction: "manipulation"
                   }
-                }, "\u{1F5FA}\uFE0F MAP"),
-                React.createElement("button", {
-                  onClick: viewOnMapWithTracks,
-                  style: {
-                    flex: 1,
-                    minHeight: "48px",
-                    padding: "12px",
-                    fontSize: ts("12"),
-                    fontWeight: "700",
-                    background: "linear-gradient(135deg, #805ad5, #6b46c1)",
-                    border: "2px solid #9f7aea",
-                    borderRadius: "10px",
-                    color: "#fff",
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                    touchAction: "manipulation"
-                  }
-                }, "\u{1F4CD} MAP+TRACKS")
+                }, "\u{1F5FA}\uFE0F VIEW MAP")
               )
             )
+          )
+        ),
+        // Inline Map Modal
+        crosshairShowMap && React.createElement("div", {
+          style: {
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.95)",
+            zIndex: 10000,
+            display: "flex",
+            flexDirection: "column"
+          }
+        },
+          // Modal header
+          React.createElement("div", {
+            style: {
+              padding: "12px 16px",
+              background: "linear-gradient(135deg, #1a202c, #2d3748)",
+              borderBottom: "2px solid #d69e2e",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px"
+            }
+          },
+            React.createElement("div", { style: { fontSize: "16px", fontWeight: "700", color: "#f6e05e" } }, "\u{1F3AF} Crosshair Target Map"),
+            React.createElement("div", { style: { display: "flex", gap: "8px" } },
+              React.createElement("button", {
+                onClick: popOutCrosshairMap,
+                style: { background: "rgba(49,130,206,0.3)", border: "2px solid #63b3ed", borderRadius: "8px", padding: "8px 16px", color: "#63b3ed", fontWeight: "700", cursor: "pointer", fontSize: "14px" }
+              }, "\u{1F5D7} Pop Out"),
+              React.createElement("button", {
+                onClick: () => setCrosshairShowMap(false),
+                style: { background: "rgba(229,62,62,0.3)", border: "2px solid #fc8181", borderRadius: "8px", padding: "8px 16px", color: "#fc8181", fontWeight: "700", cursor: "pointer", fontSize: "14px" }
+              }, "\u2715 Close")
+            )
+          ),
+          // Map iframe container
+          React.createElement("div", { style: { flex: 1, position: "relative", minHeight: 0 } },
+            React.createElement("iframe", {
+              srcDoc: crosshairMapHtml,
+              style: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" },
+              title: "Crosshair Target Map"
+            })
           )
         )
       );
@@ -7614,6 +8127,110 @@ Events: ${events.length}`;
 
     // ELT Assist Tab - ELT Signal Triangulation Tool
     const renderEltAssistTab = () => {
+      
+      // Generate ELT result map HTML
+      const generateEltMapHtml = () => {
+        if (!eltResult) return '';
+        
+        const centerLat = eltResult.centroid.lat;
+        const centerLon = eltResult.centroid.lon;
+        const observations = eltObservations.filter(o => o.lat && o.lon);
+        
+        return [
+          '<!DOCTYPE html>',
+          '<html style="height:100%;margin:0"><head>',
+          '<title>ELT Solution - ' + (eltResult.capGrid || 'Unknown Grid') + '</title>',
+          '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+          '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>',
+          '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></scr' + 'ipt>',
+          '<style>',
+          'html,body{height:100%;margin:0;padding:0}',
+          'body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif}',
+          '#map{height:100%;width:100%}',
+          '.info-panel{position:absolute;top:10px;right:10px;background:linear-gradient(135deg,rgba(26,32,44,0.95),rgba(45,55,72,0.95));color:#fff;padding:0;border-radius:12px;z-index:1000;max-width:300px;box-shadow:0 4px 20px rgba(0,0,0,0.4);border:2px solid #ed8936;overflow:hidden}',
+          '.info-header{background:linear-gradient(90deg,rgba(237,137,54,0.3),transparent);padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.1)}',
+          '.info-header h3{margin:0;color:#f6e05e;font-size:16px}',
+          '.info-body{padding:16px}',
+          '.cap-grid{background:rgba(0,0,0,0.4);padding:12px;border-radius:8px;text-align:center;margin-bottom:12px;border:2px solid #f6e05e}',
+          '.cap-grid-label{font-size:10px;color:#a0aec0;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}',
+          '.cap-grid-value{font-size:20px;font-weight:700;color:#f6e05e;font-family:monospace;letter-spacing:2px}',
+          '.coords{background:rgba(0,0,0,0.3);padding:10px;border-radius:6px;margin-bottom:12px}',
+          '.coord-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0}',
+          '.coord-label{color:#a0aec0}',
+          '.coord-value{color:#68d391;font-family:monospace}',
+          '.stats{background:rgba(0,0,0,0.3);padding:10px;border-radius:6px;font-size:11px}',
+          '.stat-row{display:flex;justify-content:space-between;padding:3px 0}',
+          '.stat-label{color:#a0aec0}',
+          '.stat-value{color:#ed8936;font-weight:600}',
+          '.legend{display:flex;gap:10px;justify-content:center;padding:10px;background:rgba(0,0,0,0.2);border-radius:6px;font-size:10px;margin-top:12px;flex-wrap:wrap}',
+          '.legend-item{display:flex;align-items:center;gap:4px}',
+          '.legend-dot{width:10px;height:10px;border-radius:50%}',
+          '@media(max-width:480px){.info-panel{top:auto;bottom:10px;right:10px;left:10px;max-width:none}}',
+          '</style>',
+          '</head><body>',
+          '<div id="map"></div>',
+          '<div class="info-panel">',
+          '<div class="info-header">',
+          '<h3>📡 ELT Triangulation Solution</h3>',
+          '</div>',
+          '<div class="info-body">',
+          '<div class="cap-grid">',
+          '<div class="cap-grid-label">Probable Location</div>',
+          '<div class="cap-grid-value">' + (eltResult.capGrid || 'N/A') + '</div>',
+          '</div>',
+          '<div class="coords">',
+          '<div class="coord-row"><span class="coord-label">Centroid</span><span class="coord-value">' + centerLat.toFixed(5) + ', ' + centerLon.toFixed(5) + '</span></div>',
+          '<div class="coord-row"><span class="coord-label">Uncertainty</span><span class="coord-value">±' + (eltResult.uncertainty ? eltResult.uncertainty.toFixed(1) : 'N/A') + ' nm</span></div>',
+          '</div>',
+          '<div class="stats">',
+          '<div class="stat-row"><span class="stat-label">Observations</span><span class="stat-value">' + observations.length + '</span></div>',
+          '<div class="stat-row"><span class="stat-label">Method</span><span class="stat-value">' + (eltResult.method || 'Triangulation') + '</span></div>',
+          '</div>',
+          '<div class="legend">',
+          '<div class="legend-item"><div class="legend-dot" style="background:#cc0000"></div> ELT Location</div>',
+          '<div class="legend-item"><div class="legend-dot" style="background:#3182ce"></div> Observations</div>',
+          '<div class="legend-item"><div class="legend-dot" style="background:rgba(0,0,0,0.3);border:2px dashed #000"></div> Uncertainty</div>',
+          '</div>',
+          '</div>',
+          '</div>',
+          '<scr' + 'ipt>',
+          'var map=L.map("map").setView([' + centerLat + ',' + centerLon + '],12);',
+          'L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"OpenStreetMap"}).addTo(map);',
+          // Uncertainty circle
+          'L.circle([' + centerLat + ',' + centerLon + '],{radius:' + ((eltResult.uncertainty || 2) * 1852) + ',color:"#000000",weight:2,fillColor:"#000000",fillOpacity:0.1,dashArray:"8,6"}).addTo(map);',
+          // Observation points
+          'var obs=' + JSON.stringify(observations.map(o => ({ lat: parseFloat(o.lat), lon: parseFloat(o.lon), label: o.label || 'Obs' }))) + ';',
+          'obs.forEach(function(o){L.circleMarker([o.lat,o.lon],{radius:8,color:"#3182ce",weight:3,fillColor:"#ffffff",fillOpacity:1.0}).bindPopup(o.label).addTo(map);});',
+          // ELT location marker
+          'var eltIcon=L.divIcon({className:"elt-marker",html:"<div style=\\"background:#cc0000;color:white;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.5);border:3px solid white\\">📡 ELT</div>",iconSize:[70,32],iconAnchor:[35,16]});',
+          'L.marker([' + centerLat + ',' + centerLon + '],{icon:eltIcon}).bindPopup("<b>Probable ELT Location</b><br>' + (eltResult.capGrid || '') + '<br>' + centerLat.toFixed(5) + ', ' + centerLon.toFixed(5) + '").addTo(map).openPopup();',
+          // Fit bounds
+          'var allPts=[[' + centerLat + ',' + centerLon + ']];obs.forEach(function(o){allPts.push([o.lat,o.lon]);});',
+          'if(allPts.length>1){map.fitBounds(allPts,{padding:[50,50]});}',
+          '</scr' + 'ipt>',
+          '</body></html>'
+        ].join('\n');
+      };
+      
+      // Show ELT map inline
+      const viewEltMap = () => {
+        if (!eltResult) return;
+        const html = generateEltMapHtml();
+        setEltMapHtml(html);
+        setEltShowMapModal(true);
+      };
+      
+      // Pop out ELT map to new window
+      const popOutEltMap = () => {
+        const html = eltMapHtml || generateEltMapHtml();
+        const mapWindow = window.open('', '_blank');
+        if (mapWindow) {
+          mapWindow.document.write(html);
+          mapWindow.document.close();
+        } else {
+          alert('Please allow popups to view the map.');
+        }
+      };
       
       // Import KML/KMZ file function
       const importKmlKmz = async (file) => {
@@ -9831,7 +10448,7 @@ Events: ${events.length}`;
                   }, "📋 LOG TO EVENTS"),
                   React.createElement("button", {
                     style: { ...styles.button, flex: 1, minWidth: "140px", background: "linear-gradient(135deg, #38a169, #2f855a)" },
-                    onClick: () => window.open(`https://www.openstreetmap.org/?mlat=${eltResult.centroid.lat}&mlon=${eltResult.centroid.lon}&zoom=14`, '_blank')
+                    onClick: viewEltMap
                   }, "🗺️ VIEW MAP")
                 ),
                 // G1000 SAR Programming Guide Button
@@ -9946,6 +10563,50 @@ Events: ${events.length}`;
             eltSolutions.length > 10 && React.createElement("div", { style: { textAlign: "center", fontSize: "10px", color: "#718096", marginTop: "8px" }},
               `+ ${eltSolutions.length - 10} more solutions...`
             )
+          )
+        ),
+        // Inline Map Modal
+        eltShowMapModal && React.createElement("div", {
+          style: {
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.95)",
+            zIndex: 10000,
+            display: "flex",
+            flexDirection: "column"
+          }
+        },
+          // Modal header
+          React.createElement("div", {
+            style: {
+              padding: "12px 16px",
+              background: "linear-gradient(135deg, #1a202c, #2d3748)",
+              borderBottom: "2px solid #ed8936",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px"
+            }
+          },
+            React.createElement("div", { style: { fontSize: "16px", fontWeight: "700", color: "#f6e05e" } }, "\u{1F4E1} ELT Triangulation Map"),
+            React.createElement("div", { style: { display: "flex", gap: "8px" } },
+              React.createElement("button", {
+                onClick: popOutEltMap,
+                style: { background: "rgba(49,130,206,0.3)", border: "2px solid #63b3ed", borderRadius: "8px", padding: "8px 16px", color: "#63b3ed", fontWeight: "700", cursor: "pointer", fontSize: "14px" }
+              }, "\u{1F5D7} Pop Out"),
+              React.createElement("button", {
+                onClick: () => setEltShowMapModal(false),
+                style: { background: "rgba(229,62,62,0.3)", border: "2px solid #fc8181", borderRadius: "8px", padding: "8px 16px", color: "#fc8181", fontWeight: "700", cursor: "pointer", fontSize: "14px" }
+              }, "\u2715 Close")
+            )
+          ),
+          // Map iframe container
+          React.createElement("div", { style: { flex: 1, position: "relative", minHeight: 0 } },
+            React.createElement("iframe", {
+              srcDoc: eltMapHtml,
+              style: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" },
+              title: "ELT Triangulation Map"
+            })
           )
         )
       );
@@ -10370,12 +11031,16 @@ Events: ${events.length}`;
       setCrosshairPoints([]);
       setCrosshairResult(null);
       setCrosshairAnalysis(null);
+      setCrosshairShowMap(false);
+      setCrosshairMapHtml('');
       targetSeqRef.current = 0;
       
       // Clear ELT Assist
       setEltObservations([]);
       setEltResult(null);
       setEltShowMap(false);
+      setEltShowMapModal(false);
+      setEltMapHtml('');
       setEltSolutions([]);
       eltSolutionSeqRef.current = 0;
       eltObsSeqRef.current = 0;
@@ -11762,172 +12427,275 @@ Events: ${events.length}`;
       };
 
       // Calculate coverage for all grids
-      const calculateCoverage = () => {
-        if (cmdState.selectedGrids.length === 0 || cmdState.flights.length === 0) return;
-        
-        const coverageWidth = cmdState.coverageWidth;
-        const nmToLat = 1 / 60;
-        const buffer = coverageWidth * nmToLat * 2;
-        
-        // Calculate the combined bounding box of all search grids (with buffer)
-        let gridMinLat = Infinity, gridMaxLat = -Infinity;
-        let gridMinLon = Infinity, gridMaxLon = -Infinity;
-        
-        cmdState.selectedGrids.forEach(gridInfo => {
-          const corners = gridInfo.corners;
-          gridMinLat = Math.min(gridMinLat, corners.sw.lat, corners.se.lat);
-          gridMaxLat = Math.max(gridMaxLat, corners.nw.lat, corners.ne.lat);
-          gridMinLon = Math.min(gridMinLon, corners.nw.lon, corners.sw.lon);
-          gridMaxLon = Math.max(gridMaxLon, corners.ne.lon, corners.se.lon);
-        });
-        
-        // Count points inside and outside the search area
-        let totalFlightPoints = 0;
-        let pointsInsideArea = 0;
-        let pointsOutsideArea = 0;
-        
-        cmdState.flights.forEach(flight => {
-          flight.coordinates.forEach(coord => {
-            totalFlightPoints++;
-            const insideArea = coord.lat >= gridMinLat - buffer && coord.lat <= gridMaxLat + buffer &&
-                              coord.lon >= gridMinLon - buffer && coord.lon <= gridMaxLon + buffer;
-            if (insideArea) {
-              pointsInsideArea++;
-            } else {
-              pointsOutsideArea++;
-            }
+      const calculateCoverage = (showMapAfter = false) => {
+        // Use setCmdState callback to access current state (avoids stale closure issues)
+        setCmdState(currentState => {
+          if (currentState.selectedGrids.length === 0 || currentState.flights.length === 0) {
+            return currentState; // No changes if no data
+          }
+          
+          const coverageWidth = currentState.coverageWidth;
+          const nmToLat = 1 / 60;
+          const buffer = coverageWidth * nmToLat * 2;
+          
+          // Calculate the combined bounding box of all search grids (with buffer)
+          let gridMinLat = Infinity, gridMaxLat = -Infinity;
+          let gridMinLon = Infinity, gridMaxLon = -Infinity;
+          
+          currentState.selectedGrids.forEach(gridInfo => {
+            const corners = gridInfo.corners;
+            gridMinLat = Math.min(gridMinLat, corners.sw.lat, corners.se.lat);
+            gridMaxLat = Math.max(gridMaxLat, corners.nw.lat, corners.ne.lat);
+            gridMinLon = Math.min(gridMinLon, corners.nw.lon, corners.sw.lon);
+            gridMaxLon = Math.max(gridMaxLon, corners.ne.lon, corners.se.lon);
           });
-        });
-        
-        // Determine warning state
-        const allPointsOutside = pointsInsideArea === 0 && totalFlightPoints > 0;
-        const somePointsOutside = pointsOutsideArea > 0 && pointsInsideArea > 0;
-        
-        const updatedGrids = cmdState.selectedGrids.map(gridInfo => {
-          const corners = gridInfo.corners;
-          const minLat = Math.min(corners.sw.lat, corners.se.lat);
-          const maxLat = Math.max(corners.nw.lat, corners.ne.lat);
-          const minLon = Math.min(corners.nw.lon, corners.sw.lon);
-          const maxLon = Math.max(corners.ne.lon, corners.se.lon);
-          const midLat = (minLat + maxLat) / 2;
           
-          const cellSize = 0.1;
-          const latStep = cellSize * nmToLat;
-          const lonStep = cellSize * nmToLat / Math.cos(midLat * Math.PI / 180);
-          const numLatCells = Math.ceil((maxLat - minLat) / latStep);
-          const numLonCells = Math.ceil((maxLon - minLon) / lonStep);
+          // Count points inside and outside the search area
+          let totalFlightPoints = 0;
+          let pointsInsideArea = 0;
+          let pointsOutsideArea = 0;
           
-          const coverageGrid = Array(numLatCells).fill(null).map(() => Array(numLonCells).fill(false));
-          
-          // Count how many flight points are within or near this specific grid
-          let pointsNearGrid = 0;
-          
-          cmdState.flights.forEach(flight => {
+          currentState.flights.forEach(flight => {
             flight.coordinates.forEach(coord => {
-              // Check if this point is near this grid (within buffer)
-              const nearGrid = coord.lat >= minLat - buffer && coord.lat <= maxLat + buffer &&
-                              coord.lon >= minLon - buffer && coord.lon <= maxLon + buffer;
-              
-              // Only process points that are near the grid
-              if (!nearGrid) return;
-              
-              pointsNearGrid++;
-              
-              const latIdx = Math.floor((coord.lat - minLat) / latStep);
-              const lonIdx = Math.floor((coord.lon - minLon) / lonStep);
-              const radiusCells = Math.ceil(coverageWidth / cellSize) + 1;
-              
-              for (let di = -radiusCells; di <= radiusCells; di++) {
-                for (let dj = -radiusCells; dj <= radiusCells; dj++) {
-                  const i = latIdx + di;
-                  const j = lonIdx + dj;
-                  
-                  if (i >= 0 && i < numLatCells && j >= 0 && j < numLonCells) {
-                    const cellLat = minLat + (i + 0.5) * latStep;
-                    const cellLon = minLon + (j + 0.5) * lonStep;
-                    const dLat = (cellLat - coord.lat) / nmToLat;
-                    const dLon = (cellLon - coord.lon) * Math.cos(coord.lat * Math.PI / 180) / nmToLat;
-                    const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+              totalFlightPoints++;
+              const insideArea = coord.lat >= gridMinLat - buffer && coord.lat <= gridMaxLat + buffer &&
+                                coord.lon >= gridMinLon - buffer && coord.lon <= gridMaxLon + buffer;
+              if (insideArea) {
+                pointsInsideArea++;
+              } else {
+                pointsOutsideArea++;
+              }
+            });
+          });
+          
+          // Determine warning state
+          const allPointsOutside = pointsInsideArea === 0 && totalFlightPoints > 0;
+          const somePointsOutside = pointsOutsideArea > 0 && pointsInsideArea > 0;
+          
+          const updatedGrids = currentState.selectedGrids.map(gridInfo => {
+            const corners = gridInfo.corners;
+            const minLat = Math.min(corners.sw.lat, corners.se.lat);
+            const maxLat = Math.max(corners.nw.lat, corners.ne.lat);
+            const minLon = Math.min(corners.nw.lon, corners.sw.lon);
+            const maxLon = Math.max(corners.ne.lon, corners.se.lon);
+            const midLat = (minLat + maxLat) / 2;
+            
+            const cellSize = 0.1;
+            const latStep = cellSize * nmToLat;
+            const lonStep = cellSize * nmToLat / Math.cos(midLat * Math.PI / 180);
+            const numLatCells = Math.ceil((maxLat - minLat) / latStep);
+            const numLonCells = Math.ceil((maxLon - minLon) / lonStep);
+            
+            const coverageGrid = Array(numLatCells).fill(null).map(() => Array(numLonCells).fill(false));
+            
+            // Count how many flight points are within or near this specific grid
+            let pointsNearGrid = 0;
+            
+            currentState.flights.forEach(flight => {
+              flight.coordinates.forEach(coord => {
+                // Check if this point is near this grid (within buffer)
+                const nearGrid = coord.lat >= minLat - buffer && coord.lat <= maxLat + buffer &&
+                                coord.lon >= minLon - buffer && coord.lon <= maxLon + buffer;
+                
+                // Only process points that are near the grid
+                if (!nearGrid) return;
+                
+                pointsNearGrid++;
+                
+                const latIdx = Math.floor((coord.lat - minLat) / latStep);
+                const lonIdx = Math.floor((coord.lon - minLon) / lonStep);
+                const radiusCells = Math.ceil(coverageWidth / cellSize) + 1;
+                
+                for (let di = -radiusCells; di <= radiusCells; di++) {
+                  for (let dj = -radiusCells; dj <= radiusCells; dj++) {
+                    const i = latIdx + di;
+                    const j = lonIdx + dj;
                     
-                    if (dist <= coverageWidth) {
-                      coverageGrid[i][j] = true;
+                    if (i >= 0 && i < numLatCells && j >= 0 && j < numLonCells) {
+                      const cellLat = minLat + (i + 0.5) * latStep;
+                      const cellLon = minLon + (j + 0.5) * lonStep;
+                      const dLat = (cellLat - coord.lat) / nmToLat;
+                      const dLon = (cellLon - coord.lon) * Math.cos(coord.lat * Math.PI / 180) / nmToLat;
+                      const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+                      
+                      if (dist <= coverageWidth) {
+                        coverageGrid[i][j] = true;
+                      }
                     }
                   }
                 }
-              }
+              });
             });
+            
+            let totalCovered = 0;
+            let totalCells = 0;
+            const quadrantCounts = { A: { covered: 0, total: 0 }, B: { covered: 0, total: 0 }, C: { covered: 0, total: 0 }, D: { covered: 0, total: 0 } };
+            
+            // Collect uncovered cells for map visualization
+            const uncoveredCells = [];
+            
+            for (let i = 0; i < numLatCells; i++) {
+              for (let j = 0; j < numLonCells; j++) {
+                totalCells++;
+                if (coverageGrid[i][j]) {
+                  totalCovered++;
+                } else {
+                  // Store uncovered cell coordinates for map
+                  uncoveredCells.push({
+                    lat: minLat + (i + 0.5) * latStep,
+                    lon: minLon + (j + 0.5) * lonStep,
+                    latStep: latStep,
+                    lonStep: lonStep
+                  });
+                }
+                const isNorth = i >= numLatCells / 2;
+                const isEast = j >= numLonCells / 2;
+                let quad = isNorth ? (isEast ? 'B' : 'A') : (isEast ? 'D' : 'C');
+                quadrantCounts[quad].total++;
+                if (coverageGrid[i][j]) quadrantCounts[quad].covered++;
+              }
+            }
+            
+            return {
+              ...gridInfo,
+              coverage: {
+                total: totalCells > 0 ? Math.round((totalCovered / totalCells) * 100) : 0,
+                A: quadrantCounts.A.total > 0 ? Math.round((quadrantCounts.A.covered / quadrantCounts.A.total) * 100) : 0,
+                B: quadrantCounts.B.total > 0 ? Math.round((quadrantCounts.B.covered / quadrantCounts.B.total) * 100) : 0,
+                C: quadrantCounts.C.total > 0 ? Math.round((quadrantCounts.C.covered / quadrantCounts.C.total) * 100) : 0,
+                D: quadrantCounts.D.total > 0 ? Math.round((quadrantCounts.D.covered / quadrantCounts.D.total) * 100) : 0
+              },
+              uncoveredCells: uncoveredCells,
+              gridBounds: { minLat, maxLat, minLon, maxLon },
+              pointsNearGrid: pointsNearGrid
+            };
           });
           
-          let totalCovered = 0;
-          let totalCells = 0;
-          const quadrantCounts = { A: { covered: 0, total: 0 }, B: { covered: 0, total: 0 }, C: { covered: 0, total: 0 }, D: { covered: 0, total: 0 } };
-          
-          // Collect uncovered cells for map visualization
-          const uncoveredCells = [];
-          
-          for (let i = 0; i < numLatCells; i++) {
-            for (let j = 0; j < numLonCells; j++) {
-              totalCells++;
-              if (coverageGrid[i][j]) {
-                totalCovered++;
-              } else {
-                // Store uncovered cell coordinates for map
-                uncoveredCells.push({
-                  lat: minLat + (i + 0.5) * latStep,
-                  lon: minLon + (j + 0.5) * lonStep,
-                  latStep: latStep,
-                  lonStep: lonStep
-                });
-              }
-              const isNorth = i >= numLatCells / 2;
-              const isEast = j >= numLonCells / 2;
-              let quad = isNorth ? (isEast ? 'B' : 'A') : (isEast ? 'D' : 'C');
-              quadrantCounts[quad].total++;
-              if (coverageGrid[i][j]) quadrantCounts[quad].covered++;
+          // Detect the grid where most flight data is (for helpful message when all points outside)
+          let detectedFlightGrid = null;
+          if (allPointsOutside && totalFlightPoints > 0) {
+            // Find center of all flight tracks
+            let sumLat = 0, sumLon = 0, count = 0;
+            currentState.flights.forEach(flight => {
+              flight.coordinates.forEach(coord => {
+                sumLat += coord.lat;
+                sumLon += coord.lon;
+                count++;
+              });
+            });
+            if (count > 0) {
+              detectedFlightGrid = spDetectCapGrid(sumLat / count, sumLon / count);
             }
           }
           
-          return {
-            ...gridInfo,
-            coverage: {
-              total: totalCells > 0 ? Math.round((totalCovered / totalCells) * 100) : 0,
-              A: quadrantCounts.A.total > 0 ? Math.round((quadrantCounts.A.covered / quadrantCounts.A.total) * 100) : 0,
-              B: quadrantCounts.B.total > 0 ? Math.round((quadrantCounts.B.covered / quadrantCounts.B.total) * 100) : 0,
-              C: quadrantCounts.C.total > 0 ? Math.round((quadrantCounts.C.covered / quadrantCounts.C.total) * 100) : 0,
-              D: quadrantCounts.D.total > 0 ? Math.round((quadrantCounts.D.covered / quadrantCounts.D.total) * 100) : 0
-            },
-            uncoveredCells: uncoveredCells,
-            gridBounds: { minLat, maxLat, minLon, maxLon },
-            pointsNearGrid: pointsNearGrid
+          return { 
+            ...currentState, 
+            selectedGrids: updatedGrids,
+            flightsOutsideArea: allPointsOutside,
+            someFlightsOutside: somePointsOutside,
+            pointsInsideArea: pointsInsideArea,
+            pointsOutsideArea: pointsOutsideArea,
+            detectedFlightGrid: detectedFlightGrid ? detectedFlightGrid.gridId.replace(/[ABCD]$/, '').trim() : null,
+            ...(showMapAfter ? { showMap: true, mapKey: currentState.mapKey + 1 } : {})
           };
         });
-        
-        // Detect the grid where most flight data is (for helpful message when all points outside)
-        let detectedFlightGrid = null;
-        if (allPointsOutside && totalFlightPoints > 0) {
-          // Find center of all flight tracks
-          let sumLat = 0, sumLon = 0, count = 0;
-          cmdState.flights.forEach(flight => {
-            flight.coordinates.forEach(coord => {
-              sumLat += coord.lat;
-              sumLon += coord.lon;
-              count++;
-            });
-          });
-          if (count > 0) {
-            detectedFlightGrid = spDetectCapGrid(sumLat / count, sumLon / count);
+      };
+
+      // Pop out coverage map to new window
+      const popOutCoverageMap = () => {
+        // Calculate bounds from GRIDS ONLY (not flight paths)
+        let gridLats = [], gridLons = [];
+        cmdState.selectedGrids.forEach(g => {
+          if (g.gridBounds) {
+            gridLats.push(g.gridBounds.minLat, g.gridBounds.maxLat);
+            gridLons.push(g.gridBounds.minLon, g.gridBounds.maxLon);
+          } else if (g.corners) {
+            gridLats.push(g.corners.nw.lat, g.corners.sw.lat);
+            gridLons.push(g.corners.nw.lon, g.corners.ne.lon);
           }
-        }
+        });
         
-        setCmdState(prev => ({ 
-          ...prev, 
-          selectedGrids: updatedGrids,
-          flightsOutsideArea: allPointsOutside,
-          someFlightsOutside: somePointsOutside,
-          pointsInsideArea: pointsInsideArea,
-          pointsOutsideArea: pointsOutsideArea,
-          detectedFlightGrid: detectedFlightGrid ? detectedFlightGrid.gridId.replace(/[ABCD]$/, '').trim() : null
-        }));
+        const centerLat = gridLats.length > 0 ? (Math.min(...gridLats) + Math.max(...gridLats)) / 2 : 39;
+        const centerLon = gridLons.length > 0 ? (Math.min(...gridLons) + Math.max(...gridLons)) / 2 : -105;
+        const padding = 0.02;
+        const bounds = gridLats.length > 0 ? [[Math.min(...gridLats) - padding, Math.min(...gridLons) - padding], [Math.max(...gridLats) + padding, Math.max(...gridLons) + padding]] : null;
+        
+        // Build grid data for the map
+        const gridsJson = JSON.stringify(cmdState.selectedGrids.map(g => ({
+          grid: g.grid,
+          coverage: g.coverage?.total || 0,
+          bounds: g.gridBounds || (g.corners ? { minLat: g.corners.sw.lat, maxLat: g.corners.nw.lat, minLon: g.corners.nw.lon, maxLon: g.corners.ne.lon } : null),
+          uncoveredCells: (g.uncoveredCells || []).slice(0, 500) // Limit for performance
+        })));
+        
+        // Build flight tracks data
+        const flightsJson = JSON.stringify(cmdState.flights.map(f => ({
+          callsign: f.callsign,
+          coordinates: f.coordinates
+        })));
+        
+        const avgCoverage = cmdState.selectedGrids.length > 0 
+          ? Math.round(cmdState.selectedGrids.reduce((sum, g) => sum + (g.coverage?.total || 0), 0) / cmdState.selectedGrids.length)
+          : 0;
+        
+        const mapHtml = [
+          '<!DOCTYPE html>',
+          '<html style="height:100%;margin:0"><head>',
+          '<title>Coverage Analysis Map - ' + avgCoverage + '% Average</title>',
+          '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+          '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>',
+          '<scr' + 'ipt src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></scr' + 'ipt>',
+          '<style>',
+          'html,body{height:100%;margin:0;padding:0}',
+          'body{font-family:-apple-system,BlinkMacSystemFont,sans-serif}',
+          '#map{height:100%;width:100%}',
+          '.info-panel{position:absolute;top:10px;right:10px;background:rgba(26,32,44,0.95);color:#fff;padding:16px;border-radius:12px;z-index:1000;min-width:200px;border:2px solid #4a5568}',
+          '.legend{margin-top:12px;font-size:12px}',
+          '.legend-item{display:flex;align-items:center;gap:8px;margin:6px 0}',
+          '.legend-color{width:20px;height:12px;border-radius:2px}',
+          '</style>',
+          '</head><body>',
+          '<div id="map"></div>',
+          '<div class="info-panel">',
+          '<div style="font-size:18px;font-weight:700;color:#f6e05e;margin-bottom:8px">Coverage Analysis</div>',
+          '<div style="font-size:24px;font-weight:700;color:' + (avgCoverage >= 80 ? '#68d391' : avgCoverage >= 50 ? '#f6e05e' : '#fc8181') + '">' + avgCoverage + '% Average</div>',
+          '<div style="font-size:12px;color:#a0aec0;margin-top:4px">' + cmdState.flights.length + ' aircraft, ' + cmdState.selectedGrids.length + ' grids</div>',
+          '<div class="legend">',
+          '<div class="legend-item"><div class="legend-color" style="background:#ff00ff"></div> Grid Boundary</div>',
+          '<div class="legend-item"><div class="legend-color" style="background:#000;border:1px solid #fff"></div> Flight Tracks</div>',
+          '<div class="legend-item"><div class="legend-color" style="background:rgba(229,62,62,0.6)"></div> Missing Coverage</div>',
+          '</div>',
+          '</div>',
+          '<scr' + 'ipt>',
+          'var map=L.map("map").setView([' + centerLat + ',' + centerLon + '],11);',
+          'L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"OpenStreetMap"}).addTo(map);',
+          'var grids=' + gridsJson + ';',
+          'var flights=' + flightsJson + ';',
+          'grids.forEach(function(g){',
+          '  if(g.bounds){',
+          '    L.rectangle([[g.bounds.minLat,g.bounds.minLon],[g.bounds.maxLat,g.bounds.maxLon]],{color:"#ff00ff",weight:5,fillOpacity:0.05,dashArray:"10,5"}).addTo(map).bindPopup(g.grid+" - "+g.coverage+"% covered");',
+          '    g.uncoveredCells.forEach(function(c){',
+          '      var h=c.latStep/2,w=c.lonStep/2;',
+          '      L.rectangle([[c.lat-h,c.lon-w],[c.lat+h,c.lon+w]],{color:"#e53e3e",weight:0,fillColor:"#e53e3e",fillOpacity:0.5}).addTo(map);',
+          '    });',
+          '  }',
+          '});',
+          'flights.forEach(function(f){',
+          '  var coords=f.coordinates.map(function(c){return[c.lat,c.lon];});',
+          '  if(coords.length>0){L.polyline(coords,{color:"#000",weight:3,opacity:1}).addTo(map).bindPopup(f.callsign);}',
+          '});',
+          bounds ? 'map.fitBounds(' + JSON.stringify(bounds) + ');' : '',
+          '</scr' + 'ipt>',
+          '</body></html>'
+        ].join('\\n');
+        
+        const mapWindow = window.open('', '_blank');
+        if (mapWindow) {
+          mapWindow.document.write(mapHtml);
+          mapWindow.document.close();
+        } else {
+          alert('Please allow popups to view the map.');
+        }
       };
 
       // Generate mission recommendation for uncovered areas
@@ -12130,7 +12898,7 @@ Events: ${events.length}`;
               React.createElement("input", { type: "range", min: "0.1", max: "2.0", step: "0.1", value: cmdState.coverageWidth, onChange: (e) => setCmdState(prev => ({ ...prev, coverageWidth: parseFloat(e.target.value) })), style: { width: "100%", accentColor: "#68d391" } }),
               React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#a0aec0" } }, React.createElement("span", null, "0.1 NM"), React.createElement("span", null, "2.0 NM"))
             ),
-            React.createElement("button", { onClick: calculateCoverage, disabled: cmdState.selectedGrids.length === 0 || cmdState.flights.length === 0, style: { ...cmdStyles.btn, width: "100%", marginTop: "16px", padding: "16px", fontSize: "16px", background: cmdState.selectedGrids.length > 0 && cmdState.flights.length > 0 ? "linear-gradient(135deg, #38a169, #2f855a)" : "rgba(100,100,100,0.3)", color: cmdState.selectedGrids.length > 0 && cmdState.flights.length > 0 ? "#fff" : "#a0aec0", cursor: cmdState.selectedGrids.length > 0 && cmdState.flights.length > 0 ? "pointer" : "not-allowed" } }, "\u{1F4CA} Analyze Coverage")
+            React.createElement("button", { onClick: () => calculateCoverage(true), disabled: cmdState.selectedGrids.length === 0 || cmdState.flights.length === 0, style: { ...cmdStyles.btn, width: "100%", marginTop: "16px", padding: "16px", fontSize: "16px", background: cmdState.selectedGrids.length > 0 && cmdState.flights.length > 0 ? "linear-gradient(135deg, #38a169, #2f855a)" : "rgba(100,100,100,0.3)", color: cmdState.selectedGrids.length > 0 && cmdState.flights.length > 0 ? "#fff" : "#a0aec0", cursor: cmdState.selectedGrids.length > 0 && cmdState.flights.length > 0 ? "pointer" : "not-allowed" } }, "\u{1F4CA} Analyze Coverage")
           )
         ),
         cmdState.selectedGrids.some(g => g.coverage !== undefined) && React.createElement("div", { style: cmdStyles.section },
@@ -12234,10 +13002,16 @@ Events: ${events.length}`;
             }
           },
             React.createElement("div", { style: { fontSize: "16px", fontWeight: "700", color: "#f6e05e" } }, "\u{1F5FA}\uFE0F Coverage Analysis Map"),
-            React.createElement("button", {
-              onClick: () => setCmdState(prev => ({ ...prev, showMap: false })),
-              style: { background: "rgba(229,62,62,0.3)", border: "2px solid #fc8181", borderRadius: "8px", padding: "8px 16px", color: "#fc8181", fontWeight: "700", cursor: "pointer", fontSize: "14px" }
-            }, "\u2715 Close")
+            React.createElement("div", { style: { display: "flex", gap: "8px" } },
+              React.createElement("button", {
+                onClick: popOutCoverageMap,
+                style: { background: "rgba(49,130,206,0.3)", border: "2px solid #63b3ed", borderRadius: "8px", padding: "8px 16px", color: "#63b3ed", fontWeight: "700", cursor: "pointer", fontSize: "14px" }
+              }, "\u{1F5D7} Pop Out"),
+              React.createElement("button", {
+                onClick: () => setCmdState(prev => ({ ...prev, showMap: false })),
+                style: { background: "rgba(229,62,62,0.3)", border: "2px solid #fc8181", borderRadius: "8px", padding: "8px 16px", color: "#fc8181", fontWeight: "700", cursor: "pointer", fontSize: "14px" }
+              }, "\u2715 Close")
+            )
           ),
           // Legend
           React.createElement("div", {
@@ -12275,26 +13049,20 @@ Events: ${events.length}`;
                 
                 // Small delay to ensure DOM is ready
                 setTimeout(() => {
-                  // Calculate bounds from all grids
-                  let allLats = [], allLons = [];
+                  // Calculate bounds from GRIDS ONLY (not flight paths)
+                  let gridLats = [], gridLons = [];
                   cmdState.selectedGrids.forEach(g => {
                     if (g.gridBounds) {
-                      allLats.push(g.gridBounds.minLat, g.gridBounds.maxLat);
-                      allLons.push(g.gridBounds.minLon, g.gridBounds.maxLon);
+                      gridLats.push(g.gridBounds.minLat, g.gridBounds.maxLat);
+                      gridLons.push(g.gridBounds.minLon, g.gridBounds.maxLon);
                     } else if (g.corners) {
-                      allLats.push(g.corners.nw.lat, g.corners.sw.lat);
-                      allLons.push(g.corners.nw.lon, g.corners.ne.lon);
+                      gridLats.push(g.corners.nw.lat, g.corners.sw.lat);
+                      gridLons.push(g.corners.nw.lon, g.corners.ne.lon);
                     }
                   });
-                  cmdState.flights.forEach(f => {
-                    f.coordinates.forEach(c => {
-                      allLats.push(c.lat);
-                      allLons.push(c.lon);
-                    });
-                  });
                   
-                  const centerLat = allLats.length > 0 ? (Math.min(...allLats) + Math.max(...allLats)) / 2 : 39;
-                  const centerLon = allLons.length > 0 ? (Math.min(...allLons) + Math.max(...allLons)) / 2 : -105;
+                  const centerLat = gridLats.length > 0 ? (Math.min(...gridLats) + Math.max(...gridLats)) / 2 : 39;
+                  const centerLon = gridLons.length > 0 ? (Math.min(...gridLons) + Math.max(...gridLons)) / 2 : -105;
                   
                   const map = L.map(el).setView([centerLat, centerLon], 11);
                   el._leafletMap = map; // Store reference for cleanup
@@ -12340,12 +13108,12 @@ Events: ${events.length}`;
                     }
                   });
                   
-                  // Fit bounds
-                  if (allLats.length > 0 && allLons.length > 0) {
+                  // Fit bounds to GRIDS ONLY (user can zoom out to see full flight paths)
+                  if (gridLats.length > 0 && gridLons.length > 0) {
                     const padding = 0.02;
                     map.fitBounds([
-                      [Math.min(...allLats) - padding, Math.min(...allLons) - padding],
-                      [Math.max(...allLats) + padding, Math.max(...allLons) + padding]
+                      [Math.min(...gridLats) - padding, Math.min(...gridLons) - padding],
+                      [Math.max(...gridLats) + padding, Math.max(...gridLons) + padding]
                     ]);
                   }
                 }, 100);
@@ -12531,10 +13299,35 @@ Events: ${events.length}`;
         { id: "observerDuties", label: "Duties" },
         { id: "sterileCockpit", label: "Sterile" },
         { id: "emergencies", label: "Emergency" },
-        { id: "densityAltitude", label: "Density Alt" },
         { id: "gridSystem", label: "Grid System" },
         { id: "timeConversion", label: "Time Zones" },
         { id: "distressSignals", label: "Signals" },
+        { id: "calcPressureAlt", label: "\u{1F4CA} Pressure Alt", isCalc: true },
+        { id: "calcDensityAlt", label: "\u{1F321}\uFE0F Density Alt", isCalc: true },
+        { id: "calcTAS", label: "\u2708\uFE0F TAS", isCalc: true },
+        { id: "calcGroundSpeed", label: "\u{1F680} Ground Speed", isCalc: true },
+        { id: "calcETE", label: "\u23F1\uFE0F Time Enroute", isCalc: true },
+        { id: "calcDistance", label: "\u{1F4CF} Distance", isCalc: true },
+        { id: "calcFuelBurn", label: "\u26FD Fuel Burn", isCalc: true },
+        { id: "calcHeadwind", label: "\u{1F32C}\uFE0F Headwind", isCalc: true },
+        { id: "calcCrosswind", label: "\u2194\uFE0F Crosswind", isCalc: true },
+        { id: "calcWindCorrection", label: "\u{1F9ED} Wind Correction", isCalc: true },
+        { id: "calcClimbGradient", label: "\u2197\uFE0F Climb Gradient", isCalc: true },
+        { id: "calcDescentRate", label: "\u2B07\uFE0F Descent Rate", isCalc: true },
+        { id: "calcTOD", label: "\u{1F3AF} Top of Descent", isCalc: true },
+        { id: "calcGlideslope", label: "\u{1F6EC} Glideslope", isCalc: true },
+        { id: "calcKnotsToMph", label: "\u{1F504} Knots\u2194MPH", isCalc: true },
+        { id: "rhoOverview", label: "\u{1F4E1} Overview", isRhotheta: true },
+        { id: "rhoControls", label: "\u{1F39B}\uFE0F Controls", isRhotheta: true },
+        { id: "rhoFrequencies", label: "\u{1F4FB} Frequencies", isRhotheta: true },
+        { id: "rhoDisplay", label: "\u{1F5A5}\uFE0F Display", isRhotheta: true },
+        { id: "rhoSetup406", label: "\u{1F6F0}\uFE0F 406 Setup", isRhotheta: true },
+        { id: "rhoSetup121", label: "\u{1F4CD} 121.5 Setup", isRhotheta: true },
+        { id: "rhoOperation", label: "\u2708\uFE0F Operation", isRhotheta: true },
+        { id: "rhoDecode", label: "\u{1F50D} 406 Decode", isRhotheta: true },
+        { id: "rhoRange", label: "\u{1F4CF} Range", isRhotheta: true },
+        { id: "rhoTroubleshoot", label: "\u{1F527} Troubleshoot", isRhotheta: true },
+        { id: "rhoQuickRef", label: "\u26A1 Quick Ref", isRhotheta: true },
         { id: "g1000Setup", label: "\u{1F5A5}\uFE0F G1000 Setup", isG1000: true },
         { id: "g1000Waypoints", label: "\u{1F4CD} Waypoints", isG1000: true },
         { id: "g1000FlightPlan", label: "\u2708\uFE0F Flight Plans", isG1000: true },
@@ -12569,6 +13362,704 @@ Events: ${events.length}`;
             return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "8px" } }, "Alphabet"), /* @__PURE__ */ React.createElement("table", { style: { ...styles.refTable, marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("tbody", null, data.alphabet.map((row, i) => /* @__PURE__ */ React.createElement("tr", { key: i }, /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, fontWeight: "700", color: "#68d391" } }, row[0]), /* @__PURE__ */ React.createElement("td", { style: styles.refTd }, row[1]), /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, fontWeight: "700", color: "#68d391" } }, row[2]), /* @__PURE__ */ React.createElement("td", { style: styles.refTd }, row[3]))))), /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "8px" } }, "Numbers"), /* @__PURE__ */ React.createElement("table", { style: styles.refTable }, /* @__PURE__ */ React.createElement("tbody", null, data.numbers.map((row, i) => /* @__PURE__ */ React.createElement("tr", { key: i }, /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, fontWeight: "700", color: "#68d391" } }, row[0]), /* @__PURE__ */ React.createElement("td", { style: styles.refTd }, row[1]), /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, fontWeight: "700", color: "#68d391" } }, row[2]), /* @__PURE__ */ React.createElement("td", { style: styles.refTd }, row[3]))))));
           case "eltSearch":
             return /* @__PURE__ */ React.createElement("div", null, data.methods.map((method, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "12px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "700", color: "#f6e05e", marginBottom: "4px" } }, method.name), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginBottom: "8px" } }, method.description), /* @__PURE__ */ React.createElement("ol", { style: { margin: 0, paddingLeft: "20px", fontSize: "12px" } }, method.steps.map((step, j) => /* @__PURE__ */ React.createElement("li", { key: j, style: { marginBottom: "4px" } }, step))))), /* @__PURE__ */ React.createElement("div", { style: { ...styles.refCard, background: "rgba(221,107,32,0.1)", borderColor: "rgba(221,107,32,0.3)" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "8px" } }, "Tips"), /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: "20px", fontSize: "12px" } }, data.tips.map((tip, i) => /* @__PURE__ */ React.createElement("li", { key: i, style: { marginBottom: "4px" } }, tip)))));
+          case "rhoOverview":
+            return React.createElement("div", null,
+              React.createElement("div", { style: { ...styles.refCard, marginBottom: "12px", background: "rgba(246,224,94,0.1)", borderColor: "rgba(246,224,94,0.3)" } },
+                React.createElement("div", { style: { fontSize: ts(13), color: "#e2e8f0", lineHeight: "1.6" } }, data.description)
+              ),
+              React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "8px", fontSize: ts(13) } }, "System Components"),
+              React.createElement("table", { style: styles.refTable },
+                React.createElement("thead", null,
+                  React.createElement("tr", null,
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(12) } }, "Component"),
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(12) } }, "Location")
+                  )
+                ),
+                React.createElement("tbody", null,
+                  data.components.map((c, i) => 
+                    React.createElement("tr", { key: i },
+                      React.createElement("td", { style: { ...styles.refTd, fontWeight: "600", color: "#68d391", fontSize: ts(12) } }, c.name),
+                      React.createElement("td", { style: { ...styles.refTd, fontSize: ts(12) } }, c.location)
+                    )
+                  )
+                )
+              )
+            );
+          case "rhoControls":
+            return React.createElement("div", null,
+              React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "10px", fontSize: ts(14) } }, "\u{1F39B}\uFE0F Knobs"),
+              data.knobs.map((k, i) =>
+                React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "8px", padding: "10px" } },
+                  React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" } },
+                    React.createElement("span", { style: { fontWeight: "700", color: "#68d391", fontSize: ts(13) } }, k.name),
+                    React.createElement("span", { style: { fontSize: ts(11), color: "#a0aec0", background: "rgba(0,0,0,0.3)", padding: "2px 8px", borderRadius: "4px" } }, k.location)
+                  ),
+                  React.createElement("div", { style: { fontSize: ts(12), color: "#e2e8f0" } }, k.function)
+                )
+              ),
+              React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "10px", marginTop: "16px", fontSize: ts(14) } }, "\u{1F518} Buttons"),
+              data.buttons.map((b, i) =>
+                React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "8px", padding: "10px" } },
+                  React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" } },
+                    React.createElement("span", { style: { fontWeight: "700", color: "#63b3ed", fontSize: ts(13) } }, b.name),
+                    React.createElement("span", { style: { fontSize: ts(11), color: "#a0aec0", background: "rgba(0,0,0,0.3)", padding: "2px 8px", borderRadius: "4px" } }, b.location)
+                  ),
+                  React.createElement("div", { style: { fontSize: ts(12), color: "#e2e8f0" } }, b.function)
+                )
+              )
+            );
+          case "rhoFrequencies":
+            return React.createElement("div", null,
+              React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "10px", fontSize: ts(14) } }, "Frequency Bands"),
+              React.createElement("table", { style: { ...styles.refTable, marginBottom: "16px" } },
+                React.createElement("thead", null,
+                  React.createElement("tr", null,
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11) } }, "Range"),
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11) } }, "Step"),
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11) } }, "Use")
+                  )
+                ),
+                React.createElement("tbody", null,
+                  data.bands.map((b, i) =>
+                    React.createElement("tr", { key: i },
+                      React.createElement("td", { style: { ...styles.refTd, fontFamily: "monospace", color: "#68d391", fontSize: ts(11) } }, b.range),
+                      React.createElement("td", { style: { ...styles.refTd, fontSize: ts(11) } }, b.step),
+                      React.createElement("td", { style: { ...styles.refTd, fontSize: ts(11) } }, b.use)
+                    )
+                  )
+                )
+              ),
+              React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "10px", fontSize: ts(14) } }, "Common Frequencies"),
+              React.createElement("table", { style: styles.refTable },
+                React.createElement("thead", null,
+                  React.createElement("tr", null,
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11) } }, "Frequency"),
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11) } }, "Name"),
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11) } }, "Notes")
+                  )
+                ),
+                React.createElement("tbody", null,
+                  data.common.map((f, i) =>
+                    React.createElement("tr", { key: i },
+                      React.createElement("td", { style: { ...styles.refTd, fontFamily: "monospace", fontWeight: "700", color: "#fc8181", fontSize: ts(12) } }, f.freq),
+                      React.createElement("td", { style: { ...styles.refTd, fontWeight: "600", fontSize: ts(11) } }, f.name),
+                      React.createElement("td", { style: { ...styles.refTd, color: "#a0aec0", fontSize: ts(11) } }, f.notes)
+                    )
+                  )
+                )
+              )
+            );
+          case "rhoDisplay":
+            return React.createElement("div", null,
+              data.elements.map((e, i) =>
+                React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "8px", padding: "10px" } },
+                  React.createElement("div", { style: { fontWeight: "700", color: "#68d391", marginBottom: "4px", fontSize: ts(13) } }, e.name),
+                  React.createElement("div", { style: { fontSize: ts(12), color: "#e2e8f0" } }, e.description)
+                )
+              )
+            );
+          case "rhoSetup406":
+            const formatRhoStep406 = (step) => step.replace(/\b(PAGE|SQL|FREQ|ON\/OFF|CLR|STORE|REP|DIM|MEM|DF)\b/g, '<span style="display:inline-block;padding:1px 6px;background:linear-gradient(180deg, #4a5568, #2d3748);border-radius:3px;font-family:monospace;font-weight:700;color:#f6e05e;border:1px solid #718096;margin:0 2px;font-size:11px">$1</span>');
+            return React.createElement("div", null,
+              React.createElement("ol", { style: { margin: 0, paddingLeft: "24px", fontSize: ts(13), lineHeight: "2.0" } },
+                data.steps.map((step, i) =>
+                  React.createElement("li", { key: i, style: { marginBottom: "8px", color: "#e2e8f0" } },
+                    React.createElement("span", { dangerouslySetInnerHTML: { __html: formatRhoStep406(step) } })
+                  )
+                )
+              ),
+              React.createElement("div", { style: { ...styles.refCard, marginTop: "12px", background: "rgba(104,211,145,0.1)", borderColor: "rgba(104,211,145,0.3)" } },
+                React.createElement("div", { style: { fontSize: ts(12), color: "#68d391" } }, "\u{1F4A1} ", data.notes)
+              )
+            );
+          case "rhoSetup121":
+            const formatRhoStep121 = (step) => step.replace(/\b(PAGE|SQL|FREQ|ON\/OFF|CLR|STORE|REP|DIM|MEM|DF|AUX|MHz|kHz)\b/g, '<span style="display:inline-block;padding:1px 6px;background:linear-gradient(180deg, #4a5568, #2d3748);border-radius:3px;font-family:monospace;font-weight:700;color:#f6e05e;border:1px solid #718096;margin:0 2px;font-size:11px">$1</span>');
+            return React.createElement("div", null,
+              React.createElement("ol", { style: { margin: 0, paddingLeft: "24px", fontSize: ts(13), lineHeight: "2.0" } },
+                data.steps.map((step, i) =>
+                  React.createElement("li", { key: i, style: { marginBottom: "8px", color: "#e2e8f0" } },
+                    React.createElement("span", { dangerouslySetInnerHTML: { __html: formatRhoStep121(step) } })
+                  )
+                )
+              ),
+              React.createElement("div", { style: { ...styles.refCard, marginTop: "12px", background: "rgba(104,211,145,0.1)", borderColor: "rgba(104,211,145,0.3)" } },
+                React.createElement("div", { style: { fontSize: ts(12), color: "#68d391" } }, "\u{1F4A1} ", data.notes)
+              )
+            );
+          case "rhoOperation":
+            const formatRhoOp = (step) => {
+              let s = step.replace(/\b(STORE|F2|CLR|F1)\b/g, '<span style="display:inline-block;padding:1px 6px;background:linear-gradient(180deg, #4a5568, #2d3748);border-radius:3px;font-family:monospace;font-weight:700;color:#f6e05e;border:1px solid #718096;margin:0 2px;font-size:11px">$1</span>');
+              s = s.replace(/(\d+,?\d*' AGL|12 o'clock|180\u00b0)/g, '<span style="color:#fc8181;font-weight:600">$1</span>');
+              s = s.replace(/(121\.5|406)/g, '<span style="color:#68d391;font-weight:600">$1</span>');
+              return s;
+            };
+            return React.createElement("div", null,
+              React.createElement("ol", { style: { margin: 0, paddingLeft: "24px", fontSize: ts(13), lineHeight: "1.9" } },
+                data.procedure.map((step, i) =>
+                  React.createElement("li", { key: i, style: { marginBottom: "10px", color: "#e2e8f0" } },
+                    React.createElement("span", { dangerouslySetInnerHTML: { __html: formatRhoOp(step) } })
+                  )
+                )
+              )
+            );
+          case "rhoDecode":
+            const formatRhoDec = (step) => step.replace(/\b(CLR|F1|DECODE|EXIT)\b/g, '<span style="display:inline-block;padding:1px 6px;background:linear-gradient(180deg, #4a5568, #2d3748);border-radius:3px;font-family:monospace;font-weight:700;color:#f6e05e;border:1px solid #718096;margin:0 2px;font-size:11px">$1</span>');
+            return React.createElement("div", null,
+              React.createElement("ol", { style: { margin: 0, paddingLeft: "24px", fontSize: ts(13), lineHeight: "1.9" } },
+                data.steps.map((step, i) =>
+                  React.createElement("li", { key: i, style: { marginBottom: "6px", color: "#e2e8f0" } },
+                    React.createElement("span", { dangerouslySetInnerHTML: { __html: formatRhoDec(step) } })
+                  )
+                )
+              ),
+              React.createElement("div", { style: { ...styles.refCard, marginTop: "12px", background: "rgba(104,211,145,0.1)", borderColor: "rgba(104,211,145,0.3)" } },
+                React.createElement("div", { style: { fontSize: ts(12), color: "#68d391" } }, "\u{1F4A1} ", data.notes)
+              )
+            );
+          case "rhoRange":
+            return React.createElement("div", null,
+              React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "10px", fontSize: ts(14) } }, "Detection Ranges (Flat Terrain)"),
+              React.createElement("table", { style: styles.refTable },
+                React.createElement("thead", null,
+                  React.createElement("tr", null,
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11) } }, "Altitude"),
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11), color: "#f6e05e" } }, "406 MHz"),
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11), color: "#63b3ed" } }, "121.5 MHz")
+                  )
+                ),
+                React.createElement("tbody", null,
+                  data.ranges.map((r, i) =>
+                    React.createElement("tr", { key: i, style: { background: r.recommended ? "rgba(104,211,145,0.15)" : "transparent" } },
+                      React.createElement("td", { style: { ...styles.refTd, fontWeight: "600", fontSize: ts(12) } }, r.altitude, r.recommended ? " \u2605" : ""),
+                      React.createElement("td", { style: { ...styles.refTd, color: "#f6e05e", fontWeight: "600", fontSize: ts(12) } }, r.range406),
+                      React.createElement("td", { style: { ...styles.refTd, color: "#63b3ed", fontSize: ts(12) } }, r.range121)
+                    )
+                  )
+                )
+              ),
+              React.createElement("div", { style: { ...styles.refCard, marginTop: "12px", background: "rgba(221,107,32,0.1)", borderColor: "rgba(221,107,32,0.3)" } },
+                React.createElement("div", { style: { fontSize: ts(11), color: "#ed8936" } }, "\u26A0\uFE0F ", data.notes)
+              ),
+              React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "10px", marginTop: "16px", fontSize: ts(14) } }, "Signal Characteristics"),
+              data.signalTypes.map((t, i) =>
+                React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "8px", padding: "10px" } },
+                  React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" } },
+                    React.createElement("span", { style: { fontWeight: "700", color: "#68d391", fontSize: ts(12) } }, t.type),
+                    React.createElement("span", { style: { fontSize: ts(11), color: "#fc8181", fontWeight: "600" } }, t.power)
+                  ),
+                  React.createElement("div", { style: { fontSize: ts(11), color: "#a0aec0" } }, t.pattern)
+                )
+              )
+            );
+          case "rhoTroubleshoot":
+            return React.createElement("div", null,
+              data.issues.map((issue, i) =>
+                React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "10px", padding: "12px" } },
+                  React.createElement("div", { style: { fontWeight: "700", color: "#fc8181", marginBottom: "8px", fontSize: ts(13) } }, "\u26A0\uFE0F ", issue.problem),
+                  React.createElement("ul", { style: { margin: 0, paddingLeft: "20px", fontSize: ts(12) } },
+                    issue.solutions.map((s, j) =>
+                      React.createElement("li", { key: j, style: { marginBottom: "4px", color: "#68d391" } }, s)
+                    )
+                  )
+                )
+              )
+            );
+          case "rhoQuickRef":
+            const formatRhoQR = (keys) => keys.replace(/\b(PAGE|SQL|FREQ|ON\/OFF|CLR|STORE|REP|DIM|MEM|DF|F1|F2)\b/g, '<span style="display:inline-block;padding:1px 5px;background:linear-gradient(180deg, #4a5568, #2d3748);border-radius:3px;font-family:monospace;font-weight:700;color:#f6e05e;border:1px solid #718096;margin:0 1px;font-size:10px">$1</span>');
+            return React.createElement("div", null,
+              React.createElement("table", { style: styles.refTable },
+                React.createElement("thead", null,
+                  React.createElement("tr", null,
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11) } }, "Action"),
+                    React.createElement("th", { style: { ...styles.refTh, fontSize: ts(11) } }, "Button/Knob")
+                  )
+                ),
+                React.createElement("tbody", null,
+                  data.items.map((item, i) =>
+                    React.createElement("tr", { key: i },
+                      React.createElement("td", { style: { ...styles.refTd, fontWeight: "600", fontSize: ts(12) } }, item.action),
+                      React.createElement("td", { style: { ...styles.refTd, fontSize: ts(12) } },
+                        React.createElement("span", { dangerouslySetInnerHTML: { __html: formatRhoQR(item.keys) } })
+                      )
+                    )
+                  )
+                )
+              )
+            );
+          // AVIATION CALCULATOR CASES
+          case "calcPressureAlt":
+            const calcPA = () => {
+              const fe = parseFloat(calcState.paFieldElev);
+              const alt = parseFloat(calcState.paAltSetting);
+              if (!isNaN(fe) && !isNaN(alt)) {
+                const pa = Math.round((29.92 - alt) * 1000 + fe);
+                updateCalc('paResult', pa);
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "PA = (29.92 - Altimeter Setting) × 1,000 + Field Elevation"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Field Elevation (ft MSL)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.paFieldElev, onChange: (e) => updateCalc('paFieldElev', e.target.value), placeholder: "e.g., 5000", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Altimeter Setting (inHg)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", step: "0.01", value: calcState.paAltSetting, onChange: (e) => updateCalc('paAltSetting', e.target.value), placeholder: "e.g., 29.92", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcPA, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE PRESSURE ALTITUDE"),
+              calcState.paResult !== null && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "Pressure Altitude"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#68d391" } }, calcState.paResult.toLocaleString(), " ft")
+              ),
+              React.createElement("div", { style: { marginTop: "16px", padding: "12px", background: "rgba(246,224,94,0.1)", borderRadius: "8px", fontSize: ts(11), color: "#f6e05e" } }, 
+                "💡 Tip: Set altimeter to 29.92 to read PA directly on your altimeter"
+              )
+            );
+          case "calcDensityAlt":
+            const calcDA = () => {
+              const pa = parseFloat(calcState.daFieldElev);
+              const oat = parseFloat(calcState.daOAT);
+              if (!isNaN(pa) && !isNaN(oat)) {
+                const isa = 15 - (pa / 1000) * 2;
+                const da = Math.round(pa + (120 * (oat - isa)));
+                updateCalc('daResult', { da, isa: isa.toFixed(1), diff: (oat - isa).toFixed(1) });
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "DA = PA + [120 × (OAT - Standard Temp)]"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Pressure Altitude (ft)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.daFieldElev, onChange: (e) => updateCalc('daFieldElev', e.target.value), placeholder: "Enter pressure altitude", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Outside Air Temp (°C)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.daOAT, onChange: (e) => updateCalc('daOAT', e.target.value), placeholder: "Enter OAT", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcDA, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE DENSITY ALTITUDE"),
+              calcState.daResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "Density Altitude"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: calcState.daResult.da > parseFloat(calcState.daFieldElev) + 2000 ? "#fc8181" : "#68d391" } }, calcState.daResult.da.toLocaleString(), " ft"),
+                React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginTop: "8px" } }, "ISA at this altitude: ", calcState.daResult.isa, "°C | Deviation: ", calcState.daResult.diff, "°C")
+              )
+            );
+          case "calcTAS":
+            const calcTAS = () => {
+              const ias = parseFloat(calcState.tasIAS);
+              const alt = parseFloat(calcState.tasAlt);
+              if (ias > 0 && alt >= 0) {
+                const tas = Math.round(ias + (ias * 0.02 * (alt / 1000)));
+                updateCalc('tasResult', tas);
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "TAS = IAS + (IAS × 2% per 1,000 ft PA)"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Indicated Airspeed (kts)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.tasIAS, onChange: (e) => updateCalc('tasIAS', e.target.value), placeholder: "Enter IAS", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Pressure Altitude (ft)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.tasAlt, onChange: (e) => updateCalc('tasAlt', e.target.value), placeholder: "Enter altitude", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcTAS, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE TAS"),
+              calcState.tasResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "True Airspeed"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#68d391" } }, calcState.tasResult, " kts")
+              )
+            );
+          case "calcGroundSpeed":
+            const calcGS = () => {
+              const dist = parseFloat(calcState.gsDistance);
+              const time = parseFloat(calcState.gsTime);
+              if (dist > 0 && time > 0) {
+                const gs = Math.round((dist / time) * 60);
+                updateCalc('gsResult', gs);
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "Ground Speed = (Distance ÷ Time) × 60"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Distance (NM)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.gsDistance, onChange: (e) => updateCalc('gsDistance', e.target.value), placeholder: "Enter distance", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Time (minutes)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.gsTime, onChange: (e) => updateCalc('gsTime', e.target.value), placeholder: "Enter time", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcGS, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE GROUND SPEED"),
+              calcState.gsResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "Ground Speed"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#68d391" } }, calcState.gsResult, " kts")
+              )
+            );
+          case "calcETE":
+            const calcETE = () => {
+              const dist = parseFloat(calcState.eteDistance);
+              const gs = parseFloat(calcState.eteGs);
+              if (dist > 0 && gs > 0) {
+                const timeHrs = dist / gs;
+                const hrs = Math.floor(timeHrs);
+                const mins = Math.round((timeHrs - hrs) * 60);
+                updateCalc('eteResult', { hrs, mins, total: Math.round(timeHrs * 60) });
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "ETE = Distance ÷ Ground Speed"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Distance (NM)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.eteDistance, onChange: (e) => updateCalc('eteDistance', e.target.value), placeholder: "Enter distance", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Ground Speed (kts)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.eteGs, onChange: (e) => updateCalc('eteGs', e.target.value), placeholder: "Enter ground speed", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcETE, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE TIME ENROUTE"),
+              calcState.eteResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "Estimated Time Enroute"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#68d391" } }, calcState.eteResult.hrs, ":", calcState.eteResult.mins.toString().padStart(2, '0')),
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginTop: "4px" } }, "(", calcState.eteResult.total, " minutes)")
+              )
+            );
+          case "calcDistance":
+            const calcDist = () => {
+              const gs = parseFloat(calcState.distGs);
+              const time = parseFloat(calcState.distTime);
+              if (gs > 0 && time > 0) {
+                const dist = (gs * time / 60).toFixed(1);
+                updateCalc('distResult', dist);
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "Distance = Ground Speed × (Time ÷ 60)"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Ground Speed (kts)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.distGs, onChange: (e) => updateCalc('distGs', e.target.value), placeholder: "Enter ground speed", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Time (minutes)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.distTime, onChange: (e) => updateCalc('distTime', e.target.value), placeholder: "Enter time", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcDist, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE DISTANCE"),
+              calcState.distResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "Distance"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#68d391" } }, calcState.distResult, " NM")
+              )
+            );
+          case "calcFuelBurn":
+            const calcFuel = () => {
+              const time = parseFloat(calcState.fuelTime);
+              const gph = parseFloat(calcState.fuelGph);
+              if (time > 0 && gph > 0) {
+                const fuel = ((time / 60) * gph).toFixed(1);
+                updateCalc('fuelResult', fuel);
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "Fuel = (Time ÷ 60) × GPH"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Flight Time (minutes)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.fuelTime, onChange: (e) => updateCalc('fuelTime', e.target.value), placeholder: "Enter time", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Fuel Burn Rate (GPH)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.fuelGph, onChange: (e) => updateCalc('fuelGph', e.target.value), placeholder: "Enter GPH", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcFuel, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE FUEL REQUIRED"),
+              calcState.fuelResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "Fuel Required"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#68d391" } }, calcState.fuelResult, " gal")
+              )
+            );
+          case "calcHeadwind":
+            const calcHW = () => {
+              const ws = parseFloat(calcState.hwWindSpeed);
+              const wd = parseFloat(calcState.hwWindDir);
+              const rwy = parseFloat(calcState.hwRunway) * 10;
+              if (ws > 0 && !isNaN(wd) && !isNaN(rwy)) {
+                const angle = (wd - rwy) * (Math.PI / 180);
+                const hw = ws * Math.cos(angle);
+                updateCalc('hwResult', { value: Math.abs(hw).toFixed(0), type: hw >= 0 ? "Headwind" : "Tailwind" });
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "Headwind = Wind Speed × cos(Wind Angle)"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Wind Speed (kts)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.hwWindSpeed, onChange: (e) => updateCalc('hwWindSpeed', e.target.value), placeholder: "Enter wind speed", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Wind Direction (°)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.hwWindDir, onChange: (e) => updateCalc('hwWindDir', e.target.value), placeholder: "e.g., 270", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Runway (e.g., 27 for Rwy 27)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.hwRunway, onChange: (e) => updateCalc('hwRunway', e.target.value), placeholder: "Enter runway number", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcHW, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE HEADWIND"),
+              calcState.hwResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, calcState.hwResult.type),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: calcState.hwResult.type === "Headwind" ? "#68d391" : "#fc8181" } }, calcState.hwResult.value, " kts")
+              )
+            );
+          case "calcCrosswind":
+            const calcXW = () => {
+              const ws = parseFloat(calcState.xwWindSpeed);
+              const wd = parseFloat(calcState.xwWindDir);
+              const rwy = parseFloat(calcState.xwRunway) * 10;
+              if (ws > 0 && !isNaN(wd) && !isNaN(rwy)) {
+                const angle = (wd - rwy) * (Math.PI / 180);
+                const xw = ws * Math.sin(angle);
+                updateCalc('xwResult', { value: Math.abs(xw).toFixed(0), dir: xw > 0 ? "from Right" : "from Left" });
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "Crosswind = Wind Speed × sin(Wind Angle)"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Wind Speed (kts)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.xwWindSpeed, onChange: (e) => updateCalc('xwWindSpeed', e.target.value), placeholder: "Enter wind speed", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Wind Direction (°)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.xwWindDir, onChange: (e) => updateCalc('xwWindDir', e.target.value), placeholder: "e.g., 270", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Runway (e.g., 27 for Rwy 27)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.xwRunway, onChange: (e) => updateCalc('xwRunway', e.target.value), placeholder: "Enter runway number", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcXW, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE CROSSWIND"),
+              calcState.xwResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "Crosswind ", calcState.xwResult.dir),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#f6e05e" } }, calcState.xwResult.value, " kts")
+              )
+            );
+          case "calcWindCorrection":
+            const calcWCA = () => {
+              const tas = parseFloat(calcState.wcaTAS);
+              const ws = parseFloat(calcState.wcaWindSpeed);
+              const course = parseFloat(calcState.wcaCourse);
+              const wd = parseFloat(calcState.wcaWindDir);
+              if (tas > 0 && ws >= 0 && !isNaN(course) && !isNaN(wd)) {
+                const windAngle = (wd - course) * (Math.PI / 180);
+                const sinWCA = (ws * Math.sin(windAngle)) / tas;
+                const wca = Math.asin(Math.max(-1, Math.min(1, sinWCA))) * (180 / Math.PI);
+                const heading = (course - wca + 360) % 360;
+                const gs = Math.round(tas * Math.cos(wca * Math.PI / 180) - ws * Math.cos(windAngle));
+                updateCalc('wcaResult', { wca: Math.abs(wca).toFixed(0), dir: wca > 0 ? "Left" : "Right", heading: Math.round(heading), gs: Math.abs(gs) });
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(11), color: "#a0aec0" } }, 
+                "WCA = arcsin((Wind × sin(Angle)) ÷ TAS)"
+              ),
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" } },
+                React.createElement("div", null,
+                  React.createElement("label", { style: { display: "block", marginBottom: "6px", fontSize: ts(13), fontWeight: "600", color: "#e2e8f0" } }, "TAS (kts)"),
+                  React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.wcaTAS, onChange: (e) => updateCalc('wcaTAS', e.target.value), placeholder: "TAS", style: { width: "100%", padding: "14px", fontSize: "20px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { display: "block", marginBottom: "6px", fontSize: ts(13), fontWeight: "600", color: "#e2e8f0" } }, "Course (°)"),
+                  React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.wcaCourse, onChange: (e) => updateCalc('wcaCourse', e.target.value), placeholder: "Course", style: { width: "100%", padding: "14px", fontSize: "20px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { display: "block", marginBottom: "6px", fontSize: ts(13), fontWeight: "600", color: "#e2e8f0" } }, "Wind (kts)"),
+                  React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.wcaWindSpeed, onChange: (e) => updateCalc('wcaWindSpeed', e.target.value), placeholder: "Wind", style: { width: "100%", padding: "14px", fontSize: "20px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+                ),
+                React.createElement("div", null,
+                  React.createElement("label", { style: { display: "block", marginBottom: "6px", fontSize: ts(13), fontWeight: "600", color: "#e2e8f0" } }, "Wind From (°)"),
+                  React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.wcaWindDir, onChange: (e) => updateCalc('wcaWindDir', e.target.value), placeholder: "From", style: { width: "100%", padding: "14px", fontSize: "20px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+                )
+              ),
+              React.createElement("button", { onClick: calcWCA, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE WIND CORRECTION"),
+              calcState.wcaResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0" } }, "WCA (", calcState.wcaResult.dir, ")"),
+                    React.createElement("div", { style: { fontSize: "28px", fontWeight: "700", color: "#f6e05e" } }, calcState.wcaResult.wca, "°")
+                  ),
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0" } }, "Heading"),
+                    React.createElement("div", { style: { fontSize: "28px", fontWeight: "700", color: "#68d391" } }, calcState.wcaResult.heading, "°")
+                  ),
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0" } }, "Ground Speed"),
+                    React.createElement("div", { style: { fontSize: "28px", fontWeight: "700", color: "#63b3ed" } }, calcState.wcaResult.gs, " kts")
+                  )
+                )
+              )
+            );
+          case "calcClimbGradient":
+            const calcCG = () => {
+              const ftNm = parseFloat(calcState.cgFtPerNm);
+              const gs = parseFloat(calcState.cgGs);
+              if (ftNm > 0 && gs > 0) {
+                const nmPerMin = gs / 60;
+                const fpm = Math.round(ftNm * nmPerMin);
+                updateCalc('cgResult', { fpm, nmPerMin: nmPerMin.toFixed(2) });
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "FPM = (ft/NM requirement) × (GS ÷ 60)"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Required Climb (ft/NM)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.cgFtPerNm, onChange: (e) => updateCalc('cgFtPerNm', e.target.value), placeholder: "e.g., 300", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Ground Speed (kts)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.cgGs, onChange: (e) => updateCalc('cgGs', e.target.value), placeholder: "Enter ground speed", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcCG, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE CLIMB RATE"),
+              calcState.cgResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "Required Climb Rate"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#68d391" } }, calcState.cgResult.fpm.toLocaleString(), " FPM"),
+                React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginTop: "8px" } }, "At ", calcState.cgResult.nmPerMin, " NM/min")
+              )
+            );
+          case "calcDescentRate":
+            const calcDR = () => {
+              const altLose = parseFloat(calcState.drAltLose);
+              const dist = parseFloat(calcState.drDistance);
+              const gs = parseFloat(calcState.drGs);
+              if (altLose > 0 && dist > 0 && gs > 0) {
+                const ftPerNm = altLose / dist;
+                const nmPerMin = gs / 60;
+                const fpm = Math.round(ftPerNm * nmPerMin);
+                updateCalc('drResult', { fpm, ftPerNm: Math.round(ftPerNm), nmPerMin: nmPerMin.toFixed(2) });
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "FPM = (Alt ÷ Dist) × (GS ÷ 60)"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Altitude to Lose (ft)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.drAltLose, onChange: (e) => updateCalc('drAltLose', e.target.value), placeholder: "e.g., 6000", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Distance to Descend (NM)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.drDistance, onChange: (e) => updateCalc('drDistance', e.target.value), placeholder: "e.g., 20", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Ground Speed (kts)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.drGs, onChange: (e) => updateCalc('drGs', e.target.value), placeholder: "Enter ground speed", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcDR, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE DESCENT RATE"),
+              calcState.drResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "Required Descent Rate"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#68d391" } }, calcState.drResult.fpm.toLocaleString(), " FPM"),
+                React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginTop: "8px" } }, calcState.drResult.ftPerNm, " ft/NM at ", calcState.drResult.nmPerMin, " NM/min")
+              )
+            );
+          case "calcTOD":
+            const calcTOD = () => {
+              const current = parseFloat(calcState.todCurrentAlt);
+              const target = parseFloat(calcState.todTargetAlt);
+              if (current > target) {
+                const altLose = (current - target) / 1000;
+                const todNm = Math.round(altLose * 3);
+                const todWithBuffer = todNm + 3;
+                updateCalc('todResult', { todNm, todWithBuffer, altLose: Math.round(altLose * 1000) });
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "TOD = (Alt to lose in 1000s) × 3 NM"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Current Altitude (ft)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.todCurrentAlt, onChange: (e) => updateCalc('todCurrentAlt', e.target.value), placeholder: "e.g., 9000", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Target Altitude (ft)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.todTargetAlt, onChange: (e) => updateCalc('todTargetAlt', e.target.value), placeholder: "e.g., 1000", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcTOD, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE TOP OF DESCENT"),
+              calcState.todResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "Begin Descent"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#68d391" } }, calcState.todResult.todNm, " NM out"),
+                React.createElement("div", { style: { fontSize: "16px", color: "#f6e05e", marginTop: "8px", fontWeight: "600" } }, "With 3 NM buffer: ", calcState.todResult.todWithBuffer, " NM"),
+                React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginTop: "4px" } }, "Descending ", calcState.todResult.altLose.toLocaleString(), " ft at 3° angle")
+              ),
+              React.createElement("div", { style: { marginTop: "12px", padding: "12px", background: "rgba(246,224,94,0.1)", borderRadius: "8px", fontSize: ts(11), color: "#f6e05e" } }, 
+                "💡 Tip: Add 3 NM to arrive level before your target (e.g., traffic pattern)"
+              )
+            );
+          case "calcGlideslope":
+            const calcGLS = () => {
+              const gs = parseFloat(calcState.glsGs);
+              if (gs > 0) {
+                const fpm = Math.round((gs * 10) / 2);
+                const fpmAlt = Math.round(gs * 5);
+                updateCalc('glsResult', { fpm, fpmAlt });
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "3° Glideslope FPM = (GS × 10) ÷ 2  OR  GS × 5"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Ground Speed (kts)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.glsGs, onChange: (e) => updateCalc('glsGs', e.target.value), placeholder: "Enter ground speed", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcGLS, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CALCULATE GLIDESLOPE RATE"),
+              calcState.glsResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "3° Glideslope Descent Rate"),
+                React.createElement("div", { style: { fontSize: "40px", fontWeight: "700", color: "#68d391" } }, calcState.glsResult.fpm, " FPM")
+              ),
+              React.createElement("div", { style: { marginTop: "12px", padding: "12px", background: "rgba(246,224,94,0.1)", borderRadius: "8px", fontSize: ts(11), color: "#f6e05e" } }, 
+                "💡 Quick mental math: GS × 5 = FPM for 3° glideslope"
+              )
+            );
+          case "calcKnotsToMph":
+            const calcKM = () => {
+              const kts = parseFloat(calcState.ktsMph);
+              if (kts > 0) {
+                const mph = (kts * 1.15).toFixed(1);
+                const ktsFromMph = (kts / 1.15).toFixed(1);
+                updateCalc('ktsMphResult', { mph, ktsFromMph });
+              }
+            };
+            return React.createElement("div", null,
+              React.createElement("div", { style: { padding: "12px", background: "rgba(99,179,237,0.1)", borderRadius: "8px", marginBottom: "16px", fontSize: ts(12), color: "#a0aec0" } }, 
+                "MPH = Knots × 1.15  |  Knots = MPH ÷ 1.15"
+              ),
+              React.createElement("div", { style: { marginBottom: "16px" } },
+                React.createElement("label", { style: { display: "block", marginBottom: "8px", fontSize: ts(14), fontWeight: "600", color: "#e2e8f0" } }, "Enter Speed (Knots OR MPH)"),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: calcState.ktsMph, onChange: (e) => updateCalc('ktsMph', e.target.value), placeholder: "Enter speed", style: { width: "100%", padding: "16px", fontSize: "22px", fontWeight: "700", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(99,179,237,0.4)", borderRadius: "8px", color: "#fff", textAlign: "center" } })
+              ),
+              React.createElement("button", { onClick: calcKM, style: { width: "100%", padding: "20px", fontSize: "18px", fontWeight: "700", background: "linear-gradient(135deg, #38a169, #2f855a)", border: "none", borderRadius: "8px", color: "#fff", cursor: "pointer" } }, "CONVERT"),
+              calcState.ktsMphResult && React.createElement("div", { style: { marginTop: "16px", padding: "20px", background: "rgba(104,211,145,0.2)", borderRadius: "8px", border: "2px solid rgba(104,211,145,0.5)", textAlign: "center" } },
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" } },
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginBottom: "4px" } }, "If input is Knots:"),
+                    React.createElement("div", { style: { fontSize: "32px", fontWeight: "700", color: "#68d391" } }, calcState.ktsMphResult.mph, " MPH")
+                  ),
+                  React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginBottom: "4px" } }, "If input is MPH:"),
+                    React.createElement("div", { style: { fontSize: "32px", fontWeight: "700", color: "#63b3ed" } }, calcState.ktsMphResult.ktsFromMph, " kts")
+                  )
+                )
+              )
+            );
           case "observerDuties":
             return /* @__PURE__ */ React.createElement("div", null, data.phases.map((phase, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "12px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "700", color: "#f6e05e", marginBottom: "8px" } }, phase.phase), /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: "20px", fontSize: "12px" } }, phase.duties.map((duty, j) => /* @__PURE__ */ React.createElement("li", { key: j, style: { marginBottom: "4px" } }, duty))))));
           case "emergencies":
@@ -12826,7 +14317,56 @@ Events: ${events.length}`;
             return /* @__PURE__ */ React.createElement("div", { style: { color: "#a0aec0" } }, "Select a reference section");
         }
       };
-      return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4DA} Quick Reference Guide"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: styles.refNav }, refSections.filter((s) => !s.isG1000).map((section) => /* @__PURE__ */ React.createElement("button", { key: section.id, style: { ...styles.refNavBtn, ...activeRefSection === section.id ? styles.refNavActive : styles.refNavInactive }, onClick: () => setActiveRefSection(section.id) }, section.label))), /* @__PURE__ */ React.createElement("div", { style: { margin: "12px 0", padding: "8px 0", borderTop: "1px solid rgba(99,179,237,0.3)", borderBottom: "1px solid rgba(99,179,237,0.3)" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: "#63b3ed", fontWeight: "600", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "14px" } }, "\u{1F5A5}\uFE0F"), " GARMIN G1000 QUICK REFERENCE"), /* @__PURE__ */ React.createElement("div", { style: styles.refNav }, refSections.filter((s) => s.isG1000).map((section) => /* @__PURE__ */ React.createElement("button", { key: section.id, style: { ...styles.refNavBtn, ...activeRefSection === section.id ? { ...styles.refNavActive, background: "linear-gradient(135deg, rgba(49,130,206,0.4), rgba(56,178,172,0.3))", borderColor: "rgba(99,179,237,0.5)" } : { ...styles.refNavInactive, borderColor: "rgba(99,179,237,0.2)" } }, onClick: () => setActiveRefSection(section.id) }, section.label)))), /* @__PURE__ */ React.createElement("div", { style: { ...styles.section, marginBottom: 0 } }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, referenceData[activeRefSection]?.icon, " ", referenceData[activeRefSection]?.title), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, renderRefContent())))));
+      return /* @__PURE__ */ React.createElement("div", null, 
+        // GENERAL QUICK REFERENCE SECTION
+        /* @__PURE__ */ React.createElement("div", { style: styles.section }, 
+          /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F4DA} Quick Reference Guide"), 
+          /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, 
+            /* @__PURE__ */ React.createElement("div", { style: styles.refNav }, refSections.filter((s) => !s.isG1000 && !s.isRhotheta && !s.isCalc).map((section) => /* @__PURE__ */ React.createElement("button", { key: section.id, style: { ...styles.refNavBtn, ...activeRefSection === section.id ? styles.refNavActive : styles.refNavInactive }, onClick: () => setActiveRefSection(section.id) }, section.label))),
+            // Show content here if a general section is selected
+            !refSections.find(s => s.id === activeRefSection)?.isG1000 && !refSections.find(s => s.id === activeRefSection)?.isRhotheta && !refSections.find(s => s.id === activeRefSection)?.isCalc && /* @__PURE__ */ React.createElement("div", { style: { ...styles.section, marginBottom: 0, marginTop: "12px" } }, 
+              /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, referenceData[activeRefSection]?.icon, " ", referenceData[activeRefSection]?.title), 
+              /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, renderRefContent())
+            )
+          )
+        ),
+        // AVIATION CALCULATIONS SECTION
+        /* @__PURE__ */ React.createElement("div", { style: { ...styles.section, marginTop: "16px" } }, 
+          /* @__PURE__ */ React.createElement("div", { style: { ...styles.sectionHeader, background: "linear-gradient(135deg, rgba(104,211,145,0.2), rgba(56,178,172,0.15))", borderColor: "rgba(104,211,145,0.4)" } }, "\u{1F9EE} Aviation Calculations"), 
+          /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, 
+            /* @__PURE__ */ React.createElement("div", { style: styles.refNav }, refSections.filter((s) => s.isCalc).map((section) => /* @__PURE__ */ React.createElement("button", { key: section.id, style: { ...styles.refNavBtn, ...activeRefSection === section.id ? { ...styles.refNavActive, background: "linear-gradient(135deg, rgba(104,211,145,0.4), rgba(56,178,172,0.3))", borderColor: "rgba(104,211,145,0.5)" } : { ...styles.refNavInactive, borderColor: "rgba(104,211,145,0.2)" } }, onClick: () => setActiveRefSection(section.id) }, section.label))),
+            // Show content here if a Calc section is selected
+            refSections.find(s => s.id === activeRefSection)?.isCalc && /* @__PURE__ */ React.createElement("div", { style: { ...styles.section, marginBottom: 0, marginTop: "12px" } }, 
+              /* @__PURE__ */ React.createElement("div", { style: { ...styles.sectionHeader, background: "linear-gradient(135deg, rgba(104,211,145,0.15), rgba(56,178,172,0.1))", borderColor: "rgba(104,211,145,0.3)" } }, referenceData[activeRefSection]?.icon, " ", referenceData[activeRefSection]?.title), 
+              /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, renderRefContent())
+            )
+          )
+        ),
+        // RHOTHETA RT-600 SECTION
+        /* @__PURE__ */ React.createElement("div", { style: { ...styles.section, marginTop: "16px" } }, 
+          /* @__PURE__ */ React.createElement("div", { style: { ...styles.sectionHeader, background: "linear-gradient(135deg, rgba(246,224,94,0.2), rgba(237,137,54,0.15))", borderColor: "rgba(246,224,94,0.4)" } }, "\u{1F4E1} Rhotheta RT-600 Direction Finder"), 
+          /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, 
+            /* @__PURE__ */ React.createElement("div", { style: styles.refNav }, refSections.filter((s) => s.isRhotheta).map((section) => /* @__PURE__ */ React.createElement("button", { key: section.id, style: { ...styles.refNavBtn, ...activeRefSection === section.id ? { ...styles.refNavActive, background: "linear-gradient(135deg, rgba(246,224,94,0.4), rgba(237,137,54,0.3))", borderColor: "rgba(246,224,94,0.5)" } : { ...styles.refNavInactive, borderColor: "rgba(246,224,94,0.2)" } }, onClick: () => setActiveRefSection(section.id) }, section.label))),
+            // Show content here if a Rhotheta section is selected
+            refSections.find(s => s.id === activeRefSection)?.isRhotheta && /* @__PURE__ */ React.createElement("div", { style: { ...styles.section, marginBottom: 0, marginTop: "12px" } }, 
+              /* @__PURE__ */ React.createElement("div", { style: { ...styles.sectionHeader, background: "linear-gradient(135deg, rgba(246,224,94,0.15), rgba(237,137,54,0.1))", borderColor: "rgba(246,224,94,0.3)" } }, referenceData[activeRefSection]?.icon, " ", referenceData[activeRefSection]?.title), 
+              /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, renderRefContent())
+            )
+          )
+        ),
+        // GARMIN G1000 SECTION
+        /* @__PURE__ */ React.createElement("div", { style: { ...styles.section, marginTop: "16px" } }, 
+          /* @__PURE__ */ React.createElement("div", { style: { ...styles.sectionHeader, background: "linear-gradient(135deg, rgba(49,130,206,0.2), rgba(56,178,172,0.15))", borderColor: "rgba(99,179,237,0.4)" } }, "\u{1F5A5}\uFE0F Garmin G1000 Quick Reference"), 
+          /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, 
+            /* @__PURE__ */ React.createElement("div", { style: styles.refNav }, refSections.filter((s) => s.isG1000).map((section) => /* @__PURE__ */ React.createElement("button", { key: section.id, style: { ...styles.refNavBtn, ...activeRefSection === section.id ? { ...styles.refNavActive, background: "linear-gradient(135deg, rgba(49,130,206,0.4), rgba(56,178,172,0.3))", borderColor: "rgba(99,179,237,0.5)" } : { ...styles.refNavInactive, borderColor: "rgba(99,179,237,0.2)" } }, onClick: () => setActiveRefSection(section.id) }, section.label))),
+            // Show content here if a G1000 section is selected
+            refSections.find(s => s.id === activeRefSection)?.isG1000 && /* @__PURE__ */ React.createElement("div", { style: { ...styles.section, marginBottom: 0, marginTop: "12px" } }, 
+              /* @__PURE__ */ React.createElement("div", { style: { ...styles.sectionHeader, background: "linear-gradient(135deg, rgba(49,130,206,0.15), rgba(56,178,172,0.1))", borderColor: "rgba(99,179,237,0.3)" } }, referenceData[activeRefSection]?.icon, " ", referenceData[activeRefSection]?.title), 
+              /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, renderRefContent())
+            )
+          )
+        )
+      );
     };
     const renderCoCommsTab = () => {
       const stateData = stateCommsData.states["CO"];
