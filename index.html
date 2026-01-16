@@ -9626,6 +9626,107 @@ React.createElement(
         }));
       };
 
+      // Generate mission recommendation for uncovered areas
+      const generateMissionRecommendation = () => {
+        // Collect all uncovered cells from all grids
+        let allUncoveredCells = [];
+        cmdState.selectedGrids.forEach(g => {
+          if (g.uncoveredCells && g.uncoveredCells.length > 0) {
+            allUncoveredCells = allUncoveredCells.concat(g.uncoveredCells);
+          }
+        });
+        
+        if (allUncoveredCells.length === 0) {
+          alert('No uncovered areas to search - coverage is 100%!');
+          return;
+        }
+        
+        // Find the bounding box of uncovered areas
+        let minLat = Infinity, maxLat = -Infinity;
+        let minLon = Infinity, maxLon = -Infinity;
+        
+        allUncoveredCells.forEach(cell => {
+          minLat = Math.min(minLat, cell.lat);
+          maxLat = Math.max(maxLat, cell.lat);
+          minLon = Math.min(minLon, cell.lon);
+          maxLon = Math.max(maxLon, cell.lon);
+        });
+        
+        // Calculate center point (POI)
+        const centerLat = (minLat + maxLat) / 2;
+        const centerLon = (minLon + maxLon) / 2;
+        
+        // Calculate dimensions in NM
+        const nmToLat = 1 / 60;
+        const midLat = centerLat;
+        const latSpanNM = (maxLat - minLat) / nmToLat;
+        const lonSpanNM = (maxLon - minLon) * Math.cos(midLat * Math.PI / 180) / nmToLat;
+        
+        // Determine search orientation (align legs with longer dimension)
+        const isNorthSouth = latSpanNM > lonSpanNM;
+        const legLength = Math.max(isNorthSouth ? latSpanNM : lonSpanNM, 2); // Minimum 2 NM
+        const searchWidth = isNorthSouth ? lonSpanNM : latSpanNM;
+        
+        // Calculate track spacing based on visibility conditions
+        // Default to 0.5 NM for good visibility (can be adjusted)
+        const trackSpacing = 0.5;
+        const numLegs = Math.ceil(searchWidth / trackSpacing) + 1;
+        
+        // Calculate estimated search time (assuming 90 knots ground speed)
+        const groundSpeed = 90;
+        const totalTrackNM = legLength * numLegs;
+        const searchTimeHours = totalTrackNM / groundSpeed;
+        const searchTimeMinutes = Math.round(searchTimeHours * 60);
+        
+        // Detect grid for the center point
+        const gridInfo = spDetectCapGrid(centerLat, centerLon);
+        const gridId = gridInfo ? gridInfo.gridId : 'Unknown';
+        
+        // Format coordinates
+        const formatCoord = (lat, lon) => {
+          const latDir = lat >= 0 ? 'N' : 'S';
+          const lonDir = lon >= 0 ? 'E' : 'W';
+          const latDeg = Math.floor(Math.abs(lat));
+          const latMin = ((Math.abs(lat) - latDeg) * 60).toFixed(2);
+          const lonDeg = Math.floor(Math.abs(lon));
+          const lonMin = ((Math.abs(lon) - lonDeg) * 60).toFixed(2);
+          return latDeg + '° ' + latMin + "' " + latDir + ', ' + lonDeg + '° ' + lonMin + "' " + lonDir;
+        };
+        
+        // Calculate corner waypoints for the search box
+        const corners = {
+          nw: { lat: maxLat, lon: minLon },
+          ne: { lat: maxLat, lon: maxLon },
+          sw: { lat: minLat, lon: minLon },
+          se: { lat: minLat, lon: maxLon }
+        };
+        
+        // Build recommendation object
+        const recommendation = {
+          searchType: 'Parallel Track',
+          poi: { lat: centerLat, lon: centerLon, formatted: formatCoord(centerLat, centerLon) },
+          gridId: gridId,
+          orientation: isNorthSouth ? 'North-South legs' : 'East-West legs',
+          initialTrack: isNorthSouth ? '360°/180°' : '090°/270°',
+          legLength: legLength.toFixed(1),
+          trackSpacing: trackSpacing.toFixed(1),
+          numLegs: numLegs,
+          searchAreaNM: (legLength * searchWidth).toFixed(1),
+          estimatedTime: searchTimeMinutes,
+          corners: corners,
+          turnDirection: 'Alternate (standard parallel)',
+          altitude: 'AGL per mission brief',
+          notes: [
+            'POI centered on largest gap in coverage',
+            'Track spacing assumes ' + (trackSpacing * 2).toFixed(1) + ' NM total sweep width',
+            'Adjust track spacing based on actual visibility and target size',
+            'Consider wind direction when selecting initial track'
+          ]
+        };
+        
+        setCmdState(prev => ({ ...prev, missionRecommendation: recommendation, showMissionModal: true }));
+      };
+
       const getCoverageColor = (pct) => {
         if (pct >= 90) return '#38a169';
         if (pct >= 70) return '#68d391';
@@ -9782,8 +9883,13 @@ React.createElement(
             // View on Map button
             React.createElement("button", { 
               onClick: () => setCmdState(prev => ({ ...prev, showMap: true, mapKey: prev.mapKey + 1 })),
-              style: { ...cmdStyles.btn, width: "100%", marginBottom: "16px", padding: "14px", fontSize: "15px", background: "linear-gradient(135deg, #3182ce, #2b6cb0)", color: "#fff" }
+              style: { ...cmdStyles.btn, width: "100%", marginBottom: "8px", padding: "14px", fontSize: "15px", background: "linear-gradient(135deg, #3182ce, #2b6cb0)", color: "#fff" }
             }, "\u{1F5FA}\uFE0F View Coverage Map"),
+            // Recommend Mission button (only show if coverage < 100%)
+            avgCoverage < 100 && !cmdState.flightsOutsideArea && React.createElement("button", { 
+              onClick: generateMissionRecommendation,
+              style: { ...cmdStyles.btn, width: "100%", marginBottom: "16px", padding: "14px", fontSize: "15px", background: "linear-gradient(135deg, #805ad5, #6b46c1)", color: "#fff" }
+            }, "\u{1F9ED} Recommend Mission for Gaps"),
             cmdState.selectedGrids.map((g, i) => React.createElement("div", { key: i, style: { ...cmdStyles.gridCard, marginBottom: "16px" } },
               React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" } },
                 React.createElement("span", { style: { fontSize: "18px", fontWeight: "700", color: "#f6e05e" } }, g.grid),
@@ -9942,6 +10048,167 @@ React.createElement(
               }
             }
           })
+        ),
+        // Mission Recommendation Modal
+        cmdState.showMissionModal && cmdState.missionRecommendation && React.createElement("div", {
+          style: {
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.9)",
+            zIndex: 10000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px"
+          }
+        },
+          React.createElement("div", {
+            style: {
+              background: "linear-gradient(135deg, #1a202c, #2d3748)",
+              borderRadius: "16px",
+              border: "2px solid #4a5568",
+              maxWidth: "600px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflow: "auto"
+            }
+          },
+            // Modal Header
+            React.createElement("div", {
+              style: {
+                padding: "16px 20px",
+                borderBottom: "2px solid #4a5568",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }
+            },
+              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "10px" } },
+                React.createElement("span", { style: { fontSize: "24px" } }, "\u{1F9ED}"),
+                React.createElement("span", { style: { fontSize: "18px", fontWeight: "700", color: "#f6e05e" } }, "Recommended Search Mission")
+              ),
+              React.createElement("button", {
+                onClick: () => setCmdState(prev => ({ ...prev, showMissionModal: false })),
+                style: { background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", fontSize: "20px", cursor: "pointer", padding: "8px 12px", borderRadius: "8px" }
+              }, "\u2715")
+            ),
+            // Modal Body
+            React.createElement("div", { style: { padding: "20px" } },
+              // Search Type Badge
+              React.createElement("div", { style: { display: "inline-block", padding: "6px 14px", background: "linear-gradient(135deg, #805ad5, #6b46c1)", borderRadius: "20px", fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "16px" } },
+                cmdState.missionRecommendation.searchType + " Search"
+              ),
+              // POI Section
+              React.createElement("div", { style: { background: "rgba(0,0,0,0.3)", borderRadius: "12px", padding: "16px", marginBottom: "16px" } },
+                React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "1px" } }, "Point of Interest (POI)"),
+                React.createElement("div", { style: { fontSize: "18px", fontWeight: "700", color: "#68d391", marginBottom: "4px" } }, cmdState.missionRecommendation.poi.formatted),
+                React.createElement("div", { style: { fontSize: "13px", color: "#63b3ed" } }, "Grid: " + cmdState.missionRecommendation.gridId)
+              ),
+              // Search Parameters Grid
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginBottom: "16px" } },
+                React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "10px", padding: "14px" } },
+                  React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "4px" } }, "TRACK SPACING"),
+                  React.createElement("div", { style: { fontSize: "22px", fontWeight: "700", color: "#f6e05e" } }, cmdState.missionRecommendation.trackSpacing + " NM")
+                ),
+                React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "10px", padding: "14px" } },
+                  React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "4px" } }, "LEG LENGTH"),
+                  React.createElement("div", { style: { fontSize: "22px", fontWeight: "700", color: "#f6e05e" } }, cmdState.missionRecommendation.legLength + " NM")
+                ),
+                React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "10px", padding: "14px" } },
+                  React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "4px" } }, "NUMBER OF LEGS"),
+                  React.createElement("div", { style: { fontSize: "22px", fontWeight: "700", color: "#63b3ed" } }, cmdState.missionRecommendation.numLegs)
+                ),
+                React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "10px", padding: "14px" } },
+                  React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "4px" } }, "EST. SEARCH TIME"),
+                  React.createElement("div", { style: { fontSize: "22px", fontWeight: "700", color: "#fc8181" } }, cmdState.missionRecommendation.estimatedTime + " min")
+                )
+              ),
+              // Orientation & Track
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginBottom: "16px" } },
+                React.createElement("div", { style: { background: "rgba(99,179,237,0.15)", border: "1px solid rgba(99,179,237,0.3)", borderRadius: "10px", padding: "14px" } },
+                  React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "4px" } }, "ORIENTATION"),
+                  React.createElement("div", { style: { fontSize: "15px", fontWeight: "600", color: "#63b3ed" } }, cmdState.missionRecommendation.orientation)
+                ),
+                React.createElement("div", { style: { background: "rgba(99,179,237,0.15)", border: "1px solid rgba(99,179,237,0.3)", borderRadius: "10px", padding: "14px" } },
+                  React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "4px" } }, "INITIAL TRACK"),
+                  React.createElement("div", { style: { fontSize: "15px", fontWeight: "600", color: "#63b3ed" } }, cmdState.missionRecommendation.initialTrack)
+                )
+              ),
+              // Search Box Corners
+              React.createElement("div", { style: { background: "rgba(0,0,0,0.3)", borderRadius: "12px", padding: "16px", marginBottom: "16px" } },
+                React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "1px" } }, "Search Box Corners"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px", fontSize: "12px" } },
+                  React.createElement("div", null,
+                    React.createElement("span", { style: { color: "#a0aec0" } }, "NW: "),
+                    React.createElement("span", { style: { color: "#e2e8f0" } }, cmdState.missionRecommendation.corners.nw.lat.toFixed(4) + ", " + cmdState.missionRecommendation.corners.nw.lon.toFixed(4))
+                  ),
+                  React.createElement("div", null,
+                    React.createElement("span", { style: { color: "#a0aec0" } }, "NE: "),
+                    React.createElement("span", { style: { color: "#e2e8f0" } }, cmdState.missionRecommendation.corners.ne.lat.toFixed(4) + ", " + cmdState.missionRecommendation.corners.ne.lon.toFixed(4))
+                  ),
+                  React.createElement("div", null,
+                    React.createElement("span", { style: { color: "#a0aec0" } }, "SW: "),
+                    React.createElement("span", { style: { color: "#e2e8f0" } }, cmdState.missionRecommendation.corners.sw.lat.toFixed(4) + ", " + cmdState.missionRecommendation.corners.sw.lon.toFixed(4))
+                  ),
+                  React.createElement("div", null,
+                    React.createElement("span", { style: { color: "#a0aec0" } }, "SE: "),
+                    React.createElement("span", { style: { color: "#e2e8f0" } }, cmdState.missionRecommendation.corners.se.lat.toFixed(4) + ", " + cmdState.missionRecommendation.corners.se.lon.toFixed(4))
+                  )
+                )
+              ),
+              // Notes
+              React.createElement("div", { style: { background: "rgba(246,224,94,0.1)", border: "1px solid rgba(246,224,94,0.3)", borderRadius: "10px", padding: "14px" } },
+                React.createElement("div", { style: { fontSize: "12px", color: "#f6e05e", fontWeight: "600", marginBottom: "8px" } }, "\u{1F4DD} Planning Notes"),
+                React.createElement("ul", { style: { margin: 0, paddingLeft: "18px", fontSize: "12px", color: "#e2e8f0", lineHeight: "1.6" } },
+                  cmdState.missionRecommendation.notes.map((note, i) => React.createElement("li", { key: i }, note))
+                )
+              ),
+              // Action Buttons
+              React.createElement("div", { style: { display: "flex", gap: "12px", marginTop: "20px" } },
+                React.createElement("button", {
+                  onClick: () => {
+                    // Copy to clipboard
+                    const rec = cmdState.missionRecommendation;
+                    const text = "SEARCH MISSION PARAMETERS\\n" +
+                      "========================\\n" +
+                      "Type: " + rec.searchType + "\\n" +
+                      "POI: " + rec.poi.formatted + "\\n" +
+                      "Grid: " + rec.gridId + "\\n" +
+                      "Track Spacing: " + rec.trackSpacing + " NM\\n" +
+                      "Leg Length: " + rec.legLength + " NM\\n" +
+                      "Number of Legs: " + rec.numLegs + "\\n" +
+                      "Initial Track: " + rec.initialTrack + "\\n" +
+                      "Est. Time: " + rec.estimatedTime + " min\\n" +
+                      "\\nCorners:\\n" +
+                      "NW: " + rec.corners.nw.lat.toFixed(4) + ", " + rec.corners.nw.lon.toFixed(4) + "\\n" +
+                      "NE: " + rec.corners.ne.lat.toFixed(4) + ", " + rec.corners.ne.lon.toFixed(4) + "\\n" +
+                      "SW: " + rec.corners.sw.lat.toFixed(4) + ", " + rec.corners.sw.lon.toFixed(4) + "\\n" +
+                      "SE: " + rec.corners.se.lat.toFixed(4) + ", " + rec.corners.se.lon.toFixed(4);
+                    navigator.clipboard.writeText(text).then(() => alert('Mission parameters copied to clipboard!'));
+                  },
+                  style: { ...cmdStyles.btn, flex: 1, padding: "14px", background: "linear-gradient(135deg, #38a169, #2f855a)", color: "#fff" }
+                }, "\u{1F4CB} Copy to Clipboard"),
+                React.createElement("button", {
+                  onClick: () => {
+                    // Switch to Search Tools tab and populate with recommendation
+                    const rec = cmdState.missionRecommendation;
+                    setActiveTab("searchTools");
+                    setSearchToolsData(prev => ({
+                      ...prev,
+                      poiLat: rec.poi.lat.toFixed(6),
+                      poiLon: rec.poi.lon.toFixed(6),
+                      trackSpacing: rec.trackSpacing,
+                      legLength: rec.legLength,
+                      numLegs: rec.numLegs.toString(),
+                      searchType: 'parallel'
+                    }));
+                    setCmdState(prev => ({ ...prev, showMissionModal: false }));
+                  },
+                  style: { ...cmdStyles.btn, flex: 1, padding: "14px", background: "linear-gradient(135deg, #805ad5, #6b46c1)", color: "#fff" }
+                }, "\u{1F9ED} Open in Search Tools")
+              )
+            )
+          )
         )
       );
     };
