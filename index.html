@@ -38,6 +38,7 @@
   <div id="root"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="demo-data.js"></script>
   <script>
     // Verify Leaflet loaded
     if (typeof L === 'undefined') {
@@ -51,6 +52,11 @@
       console.warn('JSZip failed to load - KMZ support may be limited');
     } else {
       console.log('JSZip loaded successfully');
+    }
+    // Verify Demo Data loaded
+    if (typeof window.DEMO_DATA === 'undefined') {
+      console.warn('Demo data not loaded - demos may require web server');
+      window.DEMO_DATA = {};
     }
   </script>
   <script>
@@ -2690,6 +2696,65 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
     });
     const cmdFlightColors = ['#f6e05e', '#68d391', '#63b3ed', '#fc8181', '#b794f4', '#f687b3'];
     
+    // Demo configuration - add new demos here
+    const demoConfigs = [
+      {
+        id: 'sar-coverage-1',
+        title: 'SAR Coverage Analysis',
+        subtitle: 'Multi-Aircraft Grid Coverage',
+        description: 'Analyze flight track coverage over ICT 142 and ICT 143 grids. Demonstrates loading multiple KMZ flight tracks and calculating visual coverage percentages.',
+        module: 'commandTools',
+        icon: '\u{1F4CA}',
+        color: '#805ad5',
+        dataFiles: [
+          'demo/FlightAware___CAP546_20-Mar-2021__KPUB-KPUB_.kmz',
+          'demo/FlightAware___CAP552_20-Mar-2021__KAPA-KAPA_.kmz',
+          'demo/FlightAware___CAP510_20-Mar-2021__KCOS-KCOS_.kmz',
+          'demo/FlightAware___CAP526_20-Mar-2021__KAPA-KAPA_.kmz'
+        ],
+        grids: ['ICT 142', 'ICT 143']
+      },
+      {
+        id: 'elt-missing-aircraft-1',
+        title: 'ELT & Missing Aircraft',
+        subtitle: 'SARSAT Pings + Last Known Track',
+        description: 'Analyze SARSAT transponder detections and last known ADS-B track for a missing aircraft. Demonstrates importing ELT data, viewing error rings, and correlating with flight track.',
+        module: 'eltAssist',
+        icon: '\u{1F4E1}',
+        color: '#ed8936',
+        dataFiles: [
+          'demo/Transponder_Pings.kmz',
+          'demo/FlightAware_N434MA_KCFO_INVALID_20210403.kml'
+        ],
+        scenario: {
+          aircraft: 'N434MA',
+          departed: 'KCFO (Colorado Air and Space Port)',
+          lastContact: '03 Apr 2021, ~2323Z',
+          description: 'Aircraft departed KCFO, radar contact lost. Multiple SARSAT detections received.'
+        }
+      },
+      {
+        id: 'elt-df-training-1',
+        title: 'ELT DF Training Exercise',
+        subtitle: 'Audio Signal + DF Bearing Data',
+        description: 'Practice ELT triangulation using realistic Mission Observer data. Fly a search pattern while recording signal strength and DF bearings, then calculate the probable ELT location.',
+        module: 'eltAssistNative',
+        icon: '\u{1F9ED}',
+        color: '#38a169',
+        scenario: {
+          aircraft: 'CAP497 (C-182)',
+          departed: 'Training Exercise',
+          lastContact: '15 Apr 2024, 1430-1515Z',
+          description: '45-minute ELT search mission with 14 observation points. Includes signal strength and DF bearing data recorded by Mission Observer.'
+        },
+        dataPoints: 14,
+        hasGroundTruth: true
+      }
+    ];
+    
+    const [demoLoading, setDemoLoading] = useState(false);
+    const [demoLoadStatus, setDemoLoadStatus] = useState('');
+    
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedAircraft, setSelectedAircraft] = useState("C182T");
     const [selectedEmergencyCategory, setSelectedEmergencyCategory] = useState("engine");
@@ -5251,7 +5316,8 @@ Events: ${events.length}`;
         { id: "radio", icon: "📢", label: "Radio Calls", desc: "CAP radio call templates", color: "#3182ce" },
         { id: "coComms", icon: "📻", label: "CO Comms", desc: "Colorado frequencies & callsigns", color: "#2b6cb0" },
         { id: "emergency", icon: "🚨", label: "Emergency", desc: "Emergency procedures & checklists", color: "#c53030" },
-        { id: "reference", icon: "📚", label: "Reference", desc: "Charts, conversions, guides", color: "#718096" }
+        { id: "reference", icon: "📚", label: "Reference", desc: "Charts, conversions, guides", color: "#718096" },
+        { id: "demo", icon: "🎬", label: "Demos", desc: "Interactive examples & tutorials", color: "#805ad5" }
       ];
       
       const homeStyles = {
@@ -9102,6 +9168,779 @@ React.createElement(
       );
     };
 
+    // Parse KML/KMZ file content (defined early for demo loading)
+    const parseKML = (kmlText) => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(kmlText, "text/xml");
+      
+      // Get callsign from track name
+      const trackPlacemark = Array.from(doc.getElementsByTagName('Placemark')).find(p => {
+        return p.getElementsByTagName('gx:Track').length > 0;
+      });
+      
+      let callsign = 'Unknown';
+      if (trackPlacemark) {
+        const nameEl = trackPlacemark.getElementsByTagName('n')[0] || trackPlacemark.getElementsByTagName('name')[0];
+        if (nameEl) callsign = nameEl.textContent;
+      }
+      
+      // Get coordinates
+      const coords = [];
+      const gxCoords = doc.getElementsByTagNameNS('http://www.google.com/kml/ext/2.2', 'coord');
+      const whenElements = doc.getElementsByTagName('when');
+      
+      for (let i = 0; i < gxCoords.length; i++) {
+        const parts = gxCoords[i].textContent.trim().split(/\s+/);
+        if (parts.length >= 2) {
+          coords.push({
+            lon: parseFloat(parts[0]),
+            lat: parseFloat(parts[1]),
+            alt: parts[2] ? parseFloat(parts[2]) : 0,
+            time: whenElements[i] ? whenElements[i].textContent : null
+          });
+        }
+      }
+      
+      return { callsign, coordinates: coords };
+    };
+
+    // Demo Tab - Load example data for various modules
+    const loadDemo = async (demoId) => {
+      const demo = demoConfigs.find(d => d.id === demoId);
+      if (!demo) return;
+      
+      setDemoLoading(true);
+      setDemoLoadStatus('Initializing demo...');
+      
+      try {
+        if (demo.module === 'commandTools') {
+          // Clear existing command tools data
+          setCmdState(prev => ({
+            ...prev,
+            selectedGrids: [],
+            flights: [],
+            routePoints: [],
+            flightsOutsideArea: false,
+            someFlightsOutside: false,
+            missionRecommendation: null
+          }));
+          
+          // Load grids
+          setDemoLoadStatus('Loading search grids...');
+          await new Promise(r => setTimeout(r, 100)); // Allow UI to update
+          
+          for (const gridStr of demo.grids) {
+            // Parse grid string like "ICT 142"
+            const gridMatch = gridStr.match(/^([A-Z]{3})\s*(\d+)$/i);
+            if (gridMatch) {
+              const sectionalId = gridMatch[1].toUpperCase();
+              const gridNum = parseInt(gridMatch[2]);
+              
+              // Calculate a center point for this grid to use with spDetectCapGrid
+              const sectionals = [
+                { id: "ICT", north: 40, south: 36, west: 104, east: 97 },
+                { id: "DEN", north: 40, south: 35.75, west: 111, east: 104 }
+              ];
+              
+              const sectional = sectionals.find(s => s.id === sectionalId);
+              if (sectional) {
+                const gridsPerRow = Math.round((sectional.west - sectional.east) / 0.25);
+                const row = Math.floor((gridNum - 1) / gridsPerRow);
+                const col = (gridNum - 1) % gridsPerRow;
+                const gridNorth = sectional.north - row * 0.25;
+                const gridWest = sectional.west - col * 0.25;
+                const centerLat = gridNorth - 0.125;
+                const centerLon = -(gridWest - 0.125);
+                
+                const gridInfo = spDetectCapGrid(centerLat, centerLon);
+                if (gridInfo) {
+                  const baseGrid = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
+                  const qc = gridInfo.corners;
+                  const quad = gridInfo.quarterGrid;
+                  const qs = 0.125;
+                  
+                  let fullNorth, fullSouth, fullWest, fullEast;
+                  if (quad === 'A') {
+                    fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - qs;
+                    fullWest = qc.nw.lon - qs; fullEast = qc.ne.lon;
+                  } else if (quad === 'B') {
+                    fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - qs;
+                    fullWest = qc.nw.lon; fullEast = qc.ne.lon + qs;
+                  } else if (quad === 'C') {
+                    fullNorth = qc.nw.lat + qs; fullSouth = qc.sw.lat;
+                    fullWest = qc.nw.lon - qs; fullEast = qc.ne.lon;
+                  } else {
+                    fullNorth = qc.nw.lat + qs; fullSouth = qc.sw.lat;
+                    fullWest = qc.nw.lon; fullEast = qc.ne.lon + qs;
+                  }
+                  
+                  const fullGridCorners = {
+                    nw: { lat: fullNorth, lon: fullWest },
+                    ne: { lat: fullNorth, lon: fullEast },
+                    sw: { lat: fullSouth, lon: fullWest },
+                    se: { lat: fullSouth, lon: fullEast }
+                  };
+                  
+                  setCmdState(prev => ({
+                    ...prev,
+                    selectedGrids: [...prev.selectedGrids, {
+                      grid: baseGrid,
+                      subgrids: ['A', 'B', 'C', 'D'],
+                      corners: fullGridCorners,
+                      quadrantCorners: qc,
+                      detectedQuadrant: quad,
+                      gridInfo: gridInfo,
+                      coverage: { total: 0, A: 0, B: 0, C: 0, D: 0 }
+                    }]
+                  }));
+                }
+              }
+            }
+          }
+          
+          // Load KMZ files
+          setDemoLoadStatus('Loading flight tracks (0/' + demo.dataFiles.length + ')...');
+          await new Promise(r => setTimeout(r, 100));
+          
+          let loadedCount = 0;
+          let failedFiles = [];
+          
+          // Check if embedded demo data is available
+          const embeddedData = window.DEMO_DATA && window.DEMO_DATA[demo.id] ? window.DEMO_DATA[demo.id].files : null;
+          console.log('Embedded demo data available:', !!embeddedData);
+          
+          for (let i = 0; i < demo.dataFiles.length; i++) {
+            const filename = demo.dataFiles[i];
+            const baseFilename = filename.split('/').pop();
+            setDemoLoadStatus('Loading: ' + baseFilename + ' (' + (i + 1) + '/' + demo.dataFiles.length + ')');
+            
+            try {
+              let arrayBuffer;
+              
+              // Try embedded data first (works with file:// protocol)
+              if (embeddedData && embeddedData[baseFilename]) {
+                console.log('Using embedded data for:', baseFilename);
+                const base64 = embeddedData[baseFilename];
+                const binaryString = atob(base64);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let j = 0; j < binaryString.length; j++) {
+                  bytes[j] = binaryString.charCodeAt(j);
+                }
+                arrayBuffer = bytes.buffer;
+                console.log('Decoded from base64, size:', arrayBuffer.byteLength);
+              } else {
+                // Fall back to fetch (requires web server)
+                console.log('Fetching demo file:', filename);
+                const response = await fetch(filename);
+                console.log('Fetch response:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                  console.warn('Could not load demo file:', filename, response.status);
+                  failedFiles.push(baseFilename);
+                  continue;
+                }
+                
+                arrayBuffer = await response.arrayBuffer();
+                console.log('Got arrayBuffer from fetch, size:', arrayBuffer.byteLength);
+              }
+              
+              let kmlText;
+              
+              if (filename.toLowerCase().endsWith('.kmz')) {
+                // Extract KML from KMZ
+                if (typeof JSZip !== 'undefined') {
+                  console.log('Using JSZip to extract KML');
+                  const zip = await JSZip.loadAsync(arrayBuffer);
+                  const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
+                  console.log('Found KML file in zip:', kmlFile);
+                  if (kmlFile) {
+                    kmlText = await zip.files[kmlFile].async('string');
+                    console.log('Extracted KML text, length:', kmlText.length);
+                  }
+                } else {
+                  console.log('JSZip not available, using fallback');
+                  // Fallback extraction
+                  const bytes = new Uint8Array(arrayBuffer);
+                  const decoder = new TextDecoder('utf-8', { fatal: false });
+                  const fullText = decoder.decode(bytes);
+                  const xmlIdx = fullText.indexOf('<?xml');
+                  const kmlIdx = fullText.indexOf('<kml');
+                  const startIdx = Math.min(xmlIdx >= 0 ? xmlIdx : Infinity, kmlIdx >= 0 ? kmlIdx : Infinity);
+                  if (startIdx < Infinity) {
+                    const endIdx = fullText.indexOf('</kml>', startIdx);
+                    if (endIdx > startIdx) {
+                      kmlText = fullText.substring(startIdx, endIdx + 6);
+                    }
+                  }
+                }
+              } else {
+                kmlText = new TextDecoder().decode(arrayBuffer);
+              }
+              
+              if (kmlText) {
+                const parsed = parseKML(kmlText);
+                console.log('Parsed KML, coordinates:', parsed.coordinates.length, 'callsign:', parsed.callsign);
+                if (parsed.coordinates.length > 0) {
+                  loadedCount++;
+                  setCmdState(prev => ({
+                    ...prev,
+                    flights: [...prev.flights, {
+                      id: Date.now() + i,
+                      callsign: parsed.callsign,
+                      filename: baseFilename,
+                      coordinates: parsed.coordinates,
+                      color: cmdFlightColors[prev.flights.length % cmdFlightColors.length],
+                      pointCount: parsed.coordinates.length
+                    }]
+                  }));
+                } else {
+                  console.warn('No coordinates found in:', filename);
+                  failedFiles.push(baseFilename + ' (no coords)');
+                }
+              } else {
+                console.warn('Could not extract KML from:', filename);
+                failedFiles.push(baseFilename + ' (extract failed)');
+              }
+            } catch (err) {
+              console.error('Error loading demo file:', filename, err);
+              failedFiles.push(baseFilename + ' (' + err.message + ')');
+            }
+            
+            await new Promise(r => setTimeout(r, 50)); // Small delay between files
+          }
+          
+          if (failedFiles.length > 0) {
+            setDemoLoadStatus('Loaded ' + loadedCount + '/' + demo.dataFiles.length + ' files. Failed: ' + failedFiles.join(', '));
+            await new Promise(r => setTimeout(r, 2000));
+          } else {
+            setDemoLoadStatus('Demo loaded! Switching to Command Tools...');
+            await new Promise(r => setTimeout(r, 500));
+          }
+          
+          // Switch to Command Tools tab
+          setActiveTab('commandTools');
+        }
+        
+        // ELT Assist demo
+        if (demo.module === 'eltAssist') {
+          // Clear existing ELT data
+          setEltObservations([]);
+          setEltResult(null);
+          
+          setDemoLoadStatus('Loading ELT data...');
+          await new Promise(r => setTimeout(r, 100));
+          
+          // Check if embedded demo data is available
+          const embeddedData = window.DEMO_DATA && window.DEMO_DATA[demo.id] ? window.DEMO_DATA[demo.id].files : null;
+          console.log('Embedded ELT demo data available:', !!embeddedData);
+          
+          let loadedCount = 0;
+          let failedFiles = [];
+          const importedObservations = [];
+          let lastKnownTrack = null;
+          
+          for (let i = 0; i < demo.dataFiles.length; i++) {
+            const filename = demo.dataFiles[i];
+            const baseFilename = filename.split('/').pop();
+            setDemoLoadStatus('Loading: ' + baseFilename + ' (' + (i + 1) + '/' + demo.dataFiles.length + ')');
+            
+            try {
+              let arrayBuffer;
+              
+              // Try embedded data first
+              if (embeddedData && embeddedData[baseFilename]) {
+                console.log('Using embedded data for:', baseFilename);
+                const base64 = embeddedData[baseFilename];
+                const binaryString = atob(base64);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let j = 0; j < binaryString.length; j++) {
+                  bytes[j] = binaryString.charCodeAt(j);
+                }
+                arrayBuffer = bytes.buffer;
+              } else {
+                // Fall back to fetch
+                const response = await fetch(filename);
+                if (!response.ok) {
+                  failedFiles.push(baseFilename);
+                  continue;
+                }
+                arrayBuffer = await response.arrayBuffer();
+              }
+              
+              let kmlText;
+              
+              if (baseFilename.toLowerCase().endsWith('.kmz')) {
+                if (typeof JSZip !== 'undefined') {
+                  const zip = await JSZip.loadAsync(arrayBuffer);
+                  const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
+                  if (kmlFile) {
+                    kmlText = await zip.files[kmlFile].async('string');
+                  }
+                }
+              } else {
+                kmlText = new TextDecoder().decode(arrayBuffer);
+              }
+              
+              if (!kmlText) {
+                failedFiles.push(baseFilename + ' (extract failed)');
+                continue;
+              }
+              
+              const parser = new DOMParser();
+              const kml = parser.parseFromString(kmlText, 'text/xml');
+              
+              // Check if this is a transponder pings file (has D_Sol style)
+              const styleUrls = kml.querySelectorAll('styleUrl');
+              const hasDetectionPoints = Array.from(styleUrls).some(s => 
+                s.textContent.includes('D_Sol') || s.textContent.includes('Sol0')
+              );
+              
+              if (hasDetectionPoints) {
+                // Parse SARSAT detection points
+                const placemarks = kml.querySelectorAll('Placemark');
+                let obsNum = 0;
+                
+                placemarks.forEach((pm) => {
+                  const styleUrl = pm.querySelector('styleUrl');
+                  if (!styleUrl) return;
+                  
+                  const style = styleUrl.textContent;
+                  if (!style.includes('D_Sol') && !style.includes('Sol0')) return;
+                  if (style.includes('R_RINGS')) return;
+                  
+                  const point = pm.querySelector('Point coordinates');
+                  if (!point) return;
+                  
+                  const coords = point.textContent.trim().split(',');
+                  if (coords.length < 2) return;
+                  
+                  const lon = parseFloat(coords[0]);
+                  const lat = parseFloat(coords[1]);
+                  
+                  let detectTime = '';
+                  let errorNm = '';
+                  let msgNum = '';
+                  
+                  const dataElements = pm.querySelectorAll('ExtendedData Data');
+                  dataElements.forEach(d => {
+                    const name = d.getAttribute('name');
+                    const value = d.querySelector('value');
+                    if (!value) return;
+                    
+                    if (name === 'DETECT TIME') {
+                      detectTime = value.textContent.trim().replace('Z', '');
+                    } else if (name === 'ERROR') {
+                      const match = value.textContent.match(/(\d+)/);
+                      if (match) errorNm = match[1];
+                    } else if (name === 'USMCC MESSAGE NUMBER') {
+                      msgNum = value.textContent.trim();
+                    }
+                  });
+                  
+                  const timestamp = pm.querySelector('TimeStamp when');
+                  if (timestamp && !detectTime) {
+                    const ts = timestamp.textContent;
+                    const match = ts.match(/T(\d{2}):(\d{2})/);
+                    if (match) {
+                      detectTime = match[1] + match[2];
+                    }
+                  }
+                  
+                  // Convert to DDM
+                  const latDeg = Math.floor(Math.abs(lat));
+                  const latMin = (Math.abs(lat) - latDeg) * 60;
+                  const lonDeg = Math.floor(Math.abs(lon));
+                  const lonMin = (Math.abs(lon) - lonDeg) * 60;
+                  
+                  obsNum++;
+                  importedObservations.push({
+                    id: Date.now() + Math.random() + obsNum,
+                    obsNum: obsNum,
+                    timeZ: detectTime || '',
+                    source: 'sarsat',
+                    latDeg: latDeg.toString(),
+                    latMin: latMin.toFixed(3),
+                    lonDeg: lonDeg.toString(),
+                    lonMin: lonMin.toFixed(3),
+                    altMSL: '',
+                    altAGL: '30000',
+                    strength: 5,
+                    directRange: errorNm || '',
+                    rangeAccuracy: errorNm ? (parseFloat(errorNm) * 0.3).toFixed(1) : '',
+                    dfBearing: '',
+                    bearingRef: 'TRUE',
+                    bearingAccuracy: '20',
+                    notes: 'SARSAT Demo' + (msgNum ? ' - MSG#' + msgNum : ''),
+                    useInCalc: true
+                  });
+                });
+                
+                console.log('Imported', importedObservations.length, 'SARSAT detections');
+                loadedCount++;
+              } else {
+                // Check if it's a flight track (gx:Track)
+                const track = kml.querySelector('Track') || kml.getElementsByTagName('gx:Track')[0];
+                if (track) {
+                  const coordElements = track.querySelectorAll('coord') || track.getElementsByTagName('gx:coord');
+                  const whenElements = track.querySelectorAll('when') || track.getElementsByTagName('when');
+                  
+                  lastKnownTrack = {
+                    callsign: 'N434MA',
+                    coordinates: Array.from(coordElements).map((c, idx) => {
+                      const parts = c.textContent.trim().split(/\s+/);
+                      return {
+                        lon: parseFloat(parts[0]),
+                        lat: parseFloat(parts[1]),
+                        alt: parts[2] ? parseFloat(parts[2]) : 0,
+                        time: whenElements[idx] ? whenElements[idx].textContent : null
+                      };
+                    })
+                  };
+                  console.log('Loaded flight track with', lastKnownTrack.coordinates.length, 'points');
+                  loadedCount++;
+                }
+              }
+              
+            } catch (err) {
+              console.error('Error loading ELT demo file:', filename, err);
+              failedFiles.push(baseFilename + ' (' + err.message + ')');
+            }
+            
+            await new Promise(r => setTimeout(r, 50));
+          }
+          
+          // Set the observations
+          if (importedObservations.length > 0) {
+            setEltObservations(importedObservations);
+          }
+          
+          // Store last known track in a way the ELT tab can use (via notes or separate state)
+          // For now we'll add the last known position as an observation
+          if (lastKnownTrack && lastKnownTrack.coordinates.length > 0) {
+            const lastPos = lastKnownTrack.coordinates[lastKnownTrack.coordinates.length - 1];
+            const latDeg = Math.floor(Math.abs(lastPos.lat));
+            const latMin = (Math.abs(lastPos.lat) - latDeg) * 60;
+            const lonDeg = Math.floor(Math.abs(lastPos.lon));
+            const lonMin = (Math.abs(lastPos.lon) - lonDeg) * 60;
+            
+            // Add last known position as first observation
+            setEltObservations(prev => [{
+              id: Date.now() + 999,
+              obsNum: 0,
+              timeZ: '2323',
+              source: 'adsb',
+              latDeg: latDeg.toString(),
+              latMin: latMin.toFixed(3),
+              lonDeg: lonDeg.toString(),
+              lonMin: lonMin.toFixed(3),
+              altMSL: Math.round(lastPos.alt * 3.28084).toString(),
+              altAGL: '',
+              strength: 5,
+              directRange: '',
+              rangeAccuracy: '',
+              dfBearing: '',
+              bearingRef: 'TRUE',
+              bearingAccuracy: '',
+              notes: 'Last ADS-B position - ' + lastKnownTrack.callsign,
+              useInCalc: false
+            }, ...prev]);
+          }
+          
+          if (failedFiles.length > 0) {
+            setDemoLoadStatus('Loaded ' + loadedCount + '/' + demo.dataFiles.length + ' files. Failed: ' + failedFiles.join(', '));
+            await new Promise(r => setTimeout(r, 2000));
+          } else {
+            setDemoLoadStatus('Demo loaded! Switching to ELT Assist...');
+            await new Promise(r => setTimeout(r, 500));
+          }
+          
+          // Switch to ELT Assist tab
+          setActiveTab('eltAssist');
+        }
+        
+        // ELT Assist Native Demo (pre-formatted JS data - no parsing needed)
+        if (demo.module === 'eltAssistNative') {
+          // Clear existing ELT data and events
+          setEltObservations([]);
+          setEltResult(null);
+          setEvents([]);
+          eventSeqRef.current = 0;
+          
+          setDemoLoadStatus('Loading training data...');
+          await new Promise(r => setTimeout(r, 200));
+          
+          // Get the native demo data
+          const demoData = window.DEMO_DATA && window.DEMO_DATA[demo.id];
+          if (!demoData || !demoData.observations) {
+            setDemoLoadStatus('Error: Demo data not found');
+            await new Promise(r => setTimeout(r, 2000));
+            setDemoLoading(false);
+            return;
+          }
+          
+          const observations = demoData.observations;
+          const importedObservations = [];
+          const importedEvents = [];
+          
+          // Process each observation
+          for (let i = 0; i < observations.length; i++) {
+            const obs = observations[i];
+            setDemoLoadStatus('Loading observation ' + (i + 1) + '/' + observations.length + '...');
+            
+            // Convert decimal degrees to DDM
+            const latDeg = Math.floor(Math.abs(obs.lat));
+            const latMin = (Math.abs(obs.lat) - latDeg) * 60;
+            const lonDeg = Math.floor(Math.abs(obs.lon));
+            const lonMin = (Math.abs(obs.lon) - lonDeg) * 60;
+            
+            // Create observation record
+            const obsRecord = {
+              id: Date.now() + Math.random() + i,
+              obsNum: obs.obsNum,
+              timeZ: obs.timeZ,
+              source: obs.source || 'df',
+              latDeg: latDeg.toString(),
+              latMin: latMin.toFixed(3),
+              lonDeg: lonDeg.toString(),
+              lonMin: lonMin.toFixed(3),
+              altMSL: obs.altMSL ? obs.altMSL.toString() : '',
+              altAGL: obs.altAGL ? obs.altAGL.toString() : '',
+              strength: obs.strength,
+              directRange: '',
+              rangeAccuracy: '',
+              dfBearing: obs.dfBearing ? obs.dfBearing.toString() : '',
+              bearingRef: 'MAG',
+              bearingAccuracy: obs.bearingAcc ? obs.bearingAcc.toString() : '20',
+              notes: '',
+              useInCalc: true
+            };
+            importedObservations.push(obsRecord);
+            
+            // Create corresponding event log entry
+            eventSeqRef.current++;
+            const eventRecord = {
+              id: Date.now() + Math.random() + i + 1000,
+              eventNum: eventSeqRef.current,
+              eventType: 'ELT Signal',
+              timeZ: obs.timeZ,
+              latDeg: latDeg.toString(),
+              latMin: latMin.toFixed(3),
+              longDeg: lonDeg.toString(),
+              longMin: lonMin.toFixed(3),
+              altMSL: obs.altMSL ? obs.altMSL.toString() : '',
+              altAGL: obs.altAGL ? obs.altAGL.toString() : '',
+              heading: obs.dfBearing ? obs.dfBearing.toString() : '',
+              airspeed: '',
+              groundSpeed: '',
+              capGrid: '',
+              notes: 'ELT OBS #' + obs.obsNum + ' | Strength: ' + obs.strength + '/10 | DF: ' + obs.dfBearing + '° MAG ±' + obs.bearingAcc + '° | AGL: ' + obs.altAGL + ' ft'
+            };
+            importedEvents.push(eventRecord);
+            
+            await new Promise(r => setTimeout(r, 30));
+          }
+          
+          // Set all observations at once
+          setEltObservations(importedObservations);
+          setEvents(importedEvents);
+          
+          setDemoLoadStatus('Loaded ' + observations.length + ' observations! Switching to ELT Assist...');
+          await new Promise(r => setTimeout(r, 800));
+          
+          // Switch to ELT Assist tab
+          setActiveTab('eltAssist');
+        }
+        
+      } catch (err) {
+        console.error('Error loading demo:', err);
+        setDemoLoadStatus('Error loading demo: ' + err.message);
+      }
+      
+      setDemoLoading(false);
+      setDemoLoadStatus('');
+    };
+
+    const renderDemoTab = () => {
+      return React.createElement("div", null,
+        // Header
+        React.createElement("div", { 
+          style: { 
+            background: "linear-gradient(135deg, rgba(128,90,213,0.3), rgba(107,70,193,0.2))", 
+            borderRadius: "12px", 
+            padding: "20px", 
+            marginBottom: "20px",
+            border: "1px solid rgba(128,90,213,0.4)"
+          } 
+        },
+          React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" } },
+            React.createElement("span", { style: { fontSize: ts(28) } }, "\u{1F3AC}"),
+            React.createElement("span", { style: { fontSize: ts(22), fontWeight: "700", color: "#b794f4" } }, "Interactive Demos")
+          ),
+          React.createElement("div", { style: { fontSize: ts(14), color: "#e2e8f0", lineHeight: "1.5" } },
+            "Load pre-configured examples to explore the application's capabilities. Each demo includes sample data and walks you through a specific workflow."
+          )
+        ),
+        
+        // Loading indicator
+        demoLoading && React.createElement("div", {
+          style: {
+            background: "rgba(0,0,0,0.4)",
+            borderRadius: "12px",
+            padding: "20px",
+            marginBottom: "20px",
+            textAlign: "center",
+            border: "2px solid #805ad5"
+          }
+        },
+          React.createElement("div", { style: { fontSize: ts(24), marginBottom: "10px" } }, "\u23F3"),
+          React.createElement("div", { style: { fontSize: ts(16), fontWeight: "600", color: "#b794f4" } }, demoLoadStatus)
+        ),
+        
+        // Demo Cards
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "16px" } },
+          demoConfigs.map(demo => React.createElement("div", {
+            key: demo.id,
+            style: {
+              background: "linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,0,0,0.2))",
+              borderRadius: "12px",
+              border: "2px solid " + demo.color + "40",
+              overflow: "hidden",
+              opacity: demoLoading ? 0.5 : 1,
+              pointerEvents: demoLoading ? "none" : "auto"
+            }
+          },
+            // Demo Header
+            React.createElement("div", {
+              style: {
+                background: "linear-gradient(135deg, " + demo.color + "30, " + demo.color + "15)",
+                padding: "16px",
+                borderBottom: "1px solid " + demo.color + "40"
+              }
+            },
+              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" } },
+                React.createElement("span", { style: { fontSize: ts(22) } }, demo.icon),
+                React.createElement("span", { style: { fontSize: ts(18), fontWeight: "700", color: "#fff" } }, demo.title)
+              ),
+              React.createElement("div", { style: { fontSize: ts(13), color: "#a0aec0", fontWeight: "500" } }, demo.subtitle)
+            ),
+            // Demo Body
+            React.createElement("div", { style: { padding: "16px" } },
+              React.createElement("div", { style: { fontSize: ts(13), color: "#e2e8f0", lineHeight: "1.5", marginBottom: "16px" } }, demo.description),
+              // Scenario info for ELT demos
+              demo.scenario && React.createElement("div", { 
+                style: { 
+                  background: "rgba(237,137,54,0.15)", 
+                  border: "1px solid rgba(237,137,54,0.3)", 
+                  borderRadius: "8px", 
+                  padding: "12px", 
+                  marginBottom: "16px" 
+                } 
+              },
+                React.createElement("div", { style: { fontSize: ts(12), fontWeight: "600", color: "#ed8936", marginBottom: "8px" } }, "\u{1F6A8} Scenario"),
+                React.createElement("div", { style: { fontSize: ts(12), color: "#e2e8f0", lineHeight: "1.5" } },
+                  React.createElement("div", null, "\u2708\uFE0F Aircraft: ", React.createElement("strong", null, demo.scenario.aircraft)),
+                  React.createElement("div", null, "\u{1F6EB} Departed: ", demo.scenario.departed),
+                  React.createElement("div", null, "\u{1F4CD} Last Contact: ", demo.scenario.lastContact),
+                  demo.scenario.description && React.createElement("div", { style: { marginTop: "6px", fontStyle: "italic", color: "#a0aec0", fontSize: ts(11) } }, demo.scenario.description)
+                )
+              ),
+              // Data info
+              React.createElement("div", { style: { display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" } },
+                demo.grids && React.createElement("div", { style: { background: "rgba(99,179,237,0.15)", padding: "6px 12px", borderRadius: "6px", fontSize: ts(12), color: "#63b3ed" } },
+                  "\u{1F4CD} Grids: " + demo.grids.join(", ")
+                ),
+                demo.module === 'commandTools' && demo.dataFiles && React.createElement("div", { style: { background: "rgba(104,211,145,0.15)", padding: "6px 12px", borderRadius: "6px", fontSize: ts(12), color: "#68d391" } },
+                  "\u2708\uFE0F " + demo.dataFiles.length + " flight tracks"
+                ),
+                demo.module === 'eltAssist' && React.createElement("div", { style: { background: "rgba(237,137,54,0.15)", padding: "6px 12px", borderRadius: "6px", fontSize: ts(12), color: "#ed8936" } },
+                  "\u{1F4E1} SARSAT data + ADS-B track"
+                ),
+                demo.module === 'eltAssistNative' && React.createElement("div", { style: { background: "rgba(56,161,105,0.15)", padding: "6px 12px", borderRadius: "6px", fontSize: ts(12), color: "#68d391" } },
+                  "\u{1F9ED} " + demo.dataPoints + " DF observations"
+                )
+              ),
+              // Ground Truth Reveal (for training demos)
+              demo.hasGroundTruth && window.DEMO_DATA && window.DEMO_DATA[demo.id] && window.DEMO_DATA[demo.id].groundTruth && React.createElement("details", {
+                style: {
+                  marginBottom: "16px",
+                  background: "rgba(0,0,0,0.3)",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255,255,255,0.1)"
+                }
+              },
+                React.createElement("summary", {
+                  style: {
+                    padding: "10px 14px",
+                    cursor: "pointer",
+                    fontSize: ts(12),
+                    color: "#a0aec0",
+                    fontWeight: "600",
+                    userSelect: "none"
+                  }
+                }, "\u{1F512} Reveal Ground Truth (Training Answer)"),
+                React.createElement("div", {
+                  style: {
+                    padding: "12px 14px",
+                    borderTop: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(229,62,62,0.1)"
+                  }
+                },
+                  React.createElement("div", { style: { fontSize: ts(11), color: "#fc8181", marginBottom: "6px", fontWeight: "600" } }, "ACTUAL ELT LOCATION"),
+                  React.createElement("div", { style: { fontSize: ts(14), color: "#fff", fontWeight: "700" } },
+                    "N " + window.DEMO_DATA[demo.id].groundTruth.latDeg + "\u00B0 " + window.DEMO_DATA[demo.id].groundTruth.latMin.toFixed(3) + "' " +
+                    "W " + window.DEMO_DATA[demo.id].groundTruth.lonDeg + "\u00B0 " + window.DEMO_DATA[demo.id].groundTruth.lonMin.toFixed(3) + "'"
+                  ),
+                  React.createElement("div", { style: { fontSize: ts(11), color: "#a0aec0", marginTop: "6px" } },
+                    "Decimal: " + window.DEMO_DATA[demo.id].groundTruth.lat.toFixed(6) + ", " + window.DEMO_DATA[demo.id].groundTruth.lon.toFixed(6)
+                  )
+                )
+              ),
+              // Load Button
+              React.createElement("button", {
+                onClick: () => loadDemo(demo.id),
+                disabled: demoLoading,
+                style: {
+                  width: "100%",
+                  padding: "14px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "linear-gradient(135deg, " + demo.color + ", " + demo.color + "cc)",
+                  color: "#fff",
+                  fontSize: ts(15),
+                  fontWeight: "700",
+                  cursor: demoLoading ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px"
+                }
+              },
+                React.createElement("span", null, "\u25B6\uFE0F"),
+                "Load Demo"
+              )
+            )
+          ))
+        ),
+        
+        // Demo info note
+        React.createElement("div", { 
+          style: { 
+            marginTop: "24px", 
+            padding: "16px", 
+            background: "rgba(0,0,0,0.2)", 
+            borderRadius: "10px",
+            border: "1px dashed rgba(255,255,255,0.2)",
+            textAlign: "center"
+          } 
+        },
+          React.createElement("div", { style: { fontSize: ts(13), color: "#718096" } }, 
+            "\u{1F4A1} Demos work offline - no server required. Data is embedded directly in the application."
+          )
+        )
+      );
+    };
+
     // Command Tools Tab - Coverage Analysis for IC/Planners
     const renderCommandToolsTab = () => {
       const cmdStyles = {
@@ -9118,42 +9957,6 @@ React.createElement(
         statLabel: { fontSize: "11px", color: "#a0aec0", textTransform: "uppercase" },
         coverageBar: { height: "24px", borderRadius: "4px", background: "rgba(0,0,0,0.4)", overflow: "hidden", marginTop: "8px" },
         coverageFill: { height: "100%", borderRadius: "4px", transition: "width 0.3s" }
-      };
-
-      // Parse KML file and extract flight track
-      const parseKML = (kmlText) => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(kmlText, "text/xml");
-        
-        // Get callsign from track name
-        const trackPlacemark = Array.from(doc.getElementsByTagName('Placemark')).find(p => {
-          return p.getElementsByTagName('gx:Track').length > 0;
-        });
-        
-        let callsign = 'Unknown';
-        if (trackPlacemark) {
-          const nameEl = trackPlacemark.getElementsByTagName('n')[0] || trackPlacemark.getElementsByTagName('name')[0];
-          if (nameEl) callsign = nameEl.textContent;
-        }
-        
-        // Get coordinates
-        const coords = [];
-        const gxCoords = doc.getElementsByTagNameNS('http://www.google.com/kml/ext/2.2', 'coord');
-        const whenElements = doc.getElementsByTagName('when');
-        
-        for (let i = 0; i < gxCoords.length; i++) {
-          const parts = gxCoords[i].textContent.trim().split(/\s+/);
-          if (parts.length >= 2) {
-            coords.push({
-              lon: parseFloat(parts[0]),
-              lat: parseFloat(parts[1]),
-              alt: parts[2] ? parseFloat(parts[2]) : 0,
-              time: whenElements[i] ? whenElements[i].textContent : null
-            });
-          }
-        }
-        
-        return { callsign, coordinates: coords };
       };
 
       // Handle KML file upload
@@ -11966,7 +12769,8 @@ const tabs = [
       { id: "radio", label: "Radio", icon: "\u{1F4E2}", isRadio: true },
       { id: "coComms", label: "CO Comms", icon: "\u{1F4E1}", isComms: true },
       { id: "emergency", label: "Emergency", icon: "\u{1F6A8}", isEmergency: true },
-      { id: "reference", label: "Reference", icon: "\u{1F4DA}" }
+      { id: "reference", label: "Reference", icon: "\u{1F4DA}" },
+      { id: "demo", label: "Demos", icon: "\u{1F3AC}", isDemo: true }
     ];
     
     // Format ops timer remaining
@@ -12148,7 +12952,7 @@ const tabs = [
       tab.icon,
       " ",
       tab.label
-    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "home" && renderHomeTab(), activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab(), activeTab === "commandTools" && renderCommandToolsTab()), activeTab !== "home" && /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: () => setShowShareModal(true) }, "\u{1F4E4} Share"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")), renderShareModal(), renderEnlargeModal());
+    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "home" && renderHomeTab(), activeTab === "demo" && renderDemoTab(), activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab(), activeTab === "commandTools" && renderCommandToolsTab()), activeTab !== "home" && activeTab !== "demo" && /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: () => setShowShareModal(true) }, "\u{1F4E4} Share"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")), renderShareModal(), renderEnlargeModal());
   };
   ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(CAPObserverLog, null));
 })();
