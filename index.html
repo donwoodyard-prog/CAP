@@ -2749,11 +2749,23 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
         },
         dataPoints: 14,
         hasGroundTruth: true
+      },
+      {
+        id: 'crosshair-target-1',
+        title: 'Crosshair Target Locate',
+        subtitle: 'Two-Pass Intersection Method',
+        description: 'Demonstrates the Crosshair target location technique using two flight passes over a target. Select from three example flights showing different crossing angles and terrain.',
+        module: 'crosshair',
+        icon: '🎯',
+        color: '#e53e3e',
+        flights: ['kansas', 'texas', 'oregon'],
+        defaultFlight: 'kansas'
       }
     ];
     
     const [demoLoading, setDemoLoading] = useState(false);
     const [demoLoadStatus, setDemoLoadStatus] = useState('');
+    const [crosshairDemoFlight, setCrosshairDemoFlight] = useState('kansas'); // Selected flight for crosshair demo
     
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedAircraft, setSelectedAircraft] = useState("C182T");
@@ -2799,12 +2811,10 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
       aircraft: '',      // e.g., "CAP 594"
       missionBase: ''    // e.g., "Blue Mesa 92"
     });
-    const [crosshairPath1, setCrosshairPath1] = useState([]);
-    const [crosshairPath2, setCrosshairPath2] = useState([]);
+    const [crosshairPoints, setCrosshairPoints] = useState([]); // Unified point list - auto-detects paths
     const [crosshairResult, setCrosshairResult] = useState(null);
-        const targetSeqRef = React.useRef(0); // per refresh
-const [activeCrosshairPath, setActiveCrosshairPath] = useState(1);
-    const [intersectionConstraint, setIntersectionConstraint] = useState("lines"); // "lines" or "segments"
+    const [crosshairAnalysis, setCrosshairAnalysis] = useState(null); // Stores path detection results
+    const targetSeqRef = React.useRef(0); // per refresh
     // ELT Assist state
     const [eltObservations, setEltObservations] = useState([]);
     const [eltResult, setEltResult] = useState(null);
@@ -6115,141 +6125,519 @@ Events: ${events.length}`;
       ));
     };
     const renderCrosshairTab = () => {
-      const calculateIntersection = () => {
-        if (crosshairPath1.length < 2 || crosshairPath2.length < 2) {
-          alert("Need at least 2 points on each path");
+      // Helper: Calculate bearing between two points (in degrees)
+      const calcBearing = (lat1, lon1, lat2, lon2) => {
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const lat1Rad = lat1 * Math.PI / 180;
+        const lat2Rad = lat2 * Math.PI / 180;
+        const y = Math.sin(dLon) * Math.cos(lat2Rad);
+        const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+        let bearing = Math.atan2(y, x) * 180 / Math.PI;
+        return (bearing + 360) % 360;
+      };
+      
+      // Helper: Convert point to decimal degrees
+      const pointToDD = (pt) => ({
+        lat: gpsUtils.ddmToDd(pt.latDeg, pt.latMin),
+        lon: -gpsUtils.ddmToDd(pt.lonDeg, pt.lonMin) // West is negative
+      });
+      
+      // Helper: Calculate angle difference (handles wraparound)
+      const angleDiff = (a1, a2) => {
+        let diff = Math.abs(a1 - a2) % 360;
+        return diff > 180 ? 360 - diff : diff;
+      };
+      
+      // AUTOMATIC PATH DETECTION: Analyze points and find best intersection
+      const analyzeAndCalculate = () => {
+        if (crosshairPoints.length < 4) {
+          alert("Need at least 4 points to calculate intersection.\n\nMark 2+ points on first pass, then 2+ points on second pass.");
           return;
         }
-
-        // Use the first and last points of each path as the legs to intersect
-        const p1Start = crosshairPath1[0];
-        const p1End = crosshairPath1[crosshairPath1.length - 1];
-        const p2Start = crosshairPath2[0];
-        const p2End = crosshairPath2[crosshairPath2.length - 1];
-
-        // Convert DDM to signed decimal degrees (West is negative)
-        const lat1a = gpsUtils.ddmToDd(p1Start.latDeg, p1Start.latMin);
-        const lon1a = -gpsUtils.ddmToDd(p1Start.lonDeg, p1Start.lonMin);
-        const lat1b = gpsUtils.ddmToDd(p1End.latDeg, p1End.latMin);
-        const lon1b = -gpsUtils.ddmToDd(p1End.lonDeg, p1End.lonMin);
-
-        const lat2a = gpsUtils.ddmToDd(p2Start.latDeg, p2Start.latMin);
-        const lon2a = -gpsUtils.ddmToDd(p2Start.lonDeg, p2Start.lonMin);
-        const lat2b = gpsUtils.ddmToDd(p2End.latDeg, p2End.latMin);
-        const lon2b = -gpsUtils.ddmToDd(p2End.lonDeg, p2End.lonMin);
-
-        // Option 2: local tangent-plane projection (equirectangular) to reduce longitude distortion
-        const lat0 = (lat1a + lat1b + lat2a + lat2b) / 4;
-        const lat0Rad = lat0 * Math.PI / 180;
-        const cosLat0 = Math.cos(lat0Rad) || 1;
-
-        const project = (lat, lon) => ({
-          x: lon * cosLat0,
-          y: lat
-        });
-        const unproject = (x, y) => ({
-          lat: y,
-          lon: x / cosLat0
-        });
-
-        const a1 = project(lat1a, lon1a);
-        const a2 = project(lat1b, lon1b);
-        const b1 = project(lat2a, lon2a);
-        const b2 = project(lat2b, lon2b);
-
-        // Line/segment intersection in 2D
-        const x1 = a1.x, y1 = a1.y, x2 = a2.x, y2 = a2.y;
-        const x3 = b1.x, y3 = b1.y, x4 = b2.x, y4 = b2.y;
-
-        const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-        if (Math.abs(denom) < 1e-12) {
-          alert("Lines are parallel (or nearly parallel) – no reliable intersection");
-          return;
+        
+        // Initialize quality metrics
+        let qualityMetrics = {
+          crossingAngle: 0,
+          avgBearing1: 0,
+          avgBearing2: 0,
+          closestApproachNM: 0,
+          pathDetectionMethod: 'unknown',
+          methodsCompared: []
+        };
+        
+        // Convert all points to decimal degrees
+        const pts = crosshairPoints.map((pt, idx) => ({
+          ...pt,
+          idx,
+          dd: pointToDD(pt)
+        }));
+        
+        // PRIMARY METHOD: Bearing-based clustering
+        // Calculate bearing between consecutive points
+        const segments = [];
+        for (let i = 0; i < pts.length - 1; i++) {
+          const bearing = calcBearing(pts[i].dd.lat, pts[i].dd.lon, pts[i+1].dd.lat, pts[i+1].dd.lon);
+          segments.push({
+            startIdx: i,
+            endIdx: i + 1,
+            bearing,
+            startPt: pts[i],
+            endPt: pts[i+1]
+          });
         }
-
-        const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-        const u = ((x1 - x3) * (y1 - y2) - (y1 - y3) * (x1 - x2)) / denom;
-
-        // Option 3: require the intersection to fall within BOTH drawn legs (segment intersection)
-        if (intersectionConstraint === "segments") {
-          const eps = 1e-9;
-          const inSeg1 = t > -eps && t < 1 + eps;
-          const inSeg2 = u > -eps && u < 1 + eps;
-          if (!inSeg1 || !inSeg2) {
-            alert("No segment intersection: the two drawn legs do not cross within their endpoints. Switch to 'Lines' mode or extend your legs and try again.");
-            return;
+        
+        // Group segments by similar bearing (within 30 degrees)
+        const pathGroups = [];
+        let currentGroup = [segments[0]];
+        
+        for (let i = 1; i < segments.length; i++) {
+          const prevBearing = currentGroup[currentGroup.length - 1].bearing;
+          const currBearing = segments[i].bearing;
+          const diff = angleDiff(prevBearing, currBearing);
+          
+          if (diff < 30) {
+            // Similar bearing, add to current group
+            currentGroup.push(segments[i]);
+          } else {
+            // Significant bearing change - start new group
+            if (currentGroup.length > 0) pathGroups.push(currentGroup);
+            currentGroup = [segments[i]];
           }
         }
+        if (currentGroup.length > 0) pathGroups.push(currentGroup);
+        
+        let path1Points, path2Points, method;
+        
+        if (pathGroups.length >= 2) {
+          // SUCCESS: Found distinct path groups by bearing
+          // Use the two largest groups
+          pathGroups.sort((a, b) => b.length - a.length);
+          
+          // Get all points from each path group
+          const group1Indices = new Set();
+          pathGroups[0].forEach(seg => {
+            group1Indices.add(seg.startIdx);
+            group1Indices.add(seg.endIdx);
+          });
+          
+          const group2Indices = new Set();
+          pathGroups[1].forEach(seg => {
+            group2Indices.add(seg.startIdx);
+            group2Indices.add(seg.endIdx);
+          });
+          
+          path1Points = pts.filter(pt => group1Indices.has(pt.idx));
+          path2Points = pts.filter(pt => group2Indices.has(pt.idx));
+          
+          const avgBearing1 = pathGroups[0].reduce((sum, s) => sum + s.bearing, 0) / pathGroups[0].length;
+          const avgBearing2 = pathGroups[1].reduce((sum, s) => sum + s.bearing, 0) / pathGroups[1].length;
+          const crossAngle = angleDiff(avgBearing1, avgBearing2);
+          
+          method = `Auto-detected paths (${Math.round(avgBearing1)}° and ${Math.round(avgBearing2)}°)`;
+          
+          // Store quality metrics
+          qualityMetrics = {
+            ...qualityMetrics,
+            crossingAngle: crossAngle,
+            avgBearing1: avgBearing1,
+            avgBearing2: avgBearing2,
+            pathDetectionMethod: 'bearing-based clustering'
+          };
+        } else {
+          // FALLBACK: Best-fit line method
+          // Split points roughly in half and fit lines
+          const midIdx = Math.floor(pts.length / 2);
+          path1Points = pts.slice(0, midIdx);
+          path2Points = pts.slice(midIdx);
+          method = "Points split at midpoint";
+          
+          // Estimate crossing angle from split paths
+          if (path1Points.length >= 2 && path2Points.length >= 2) {
+            const b1 = calcBearing(path1Points[0].dd.lat, path1Points[0].dd.lon, 
+                                   path1Points[path1Points.length-1].dd.lat, path1Points[path1Points.length-1].dd.lon);
+            const b2 = calcBearing(path2Points[0].dd.lat, path2Points[0].dd.lon,
+                                   path2Points[path2Points.length-1].dd.lat, path2Points[path2Points.length-1].dd.lon);
+            qualityMetrics = {
+              ...qualityMetrics,
+              crossingAngle: angleDiff(b1, b2),
+              avgBearing1: b1,
+              avgBearing2: b2,
+              pathDetectionMethod: 'midpoint split (fallback)'
+            };
+          }
+        }
+        
+        if (path1Points.length < 2 || path2Points.length < 2) {
+          alert("Could not detect two distinct paths.\n\nTry marking points more clearly on two different headings.");
+          return;
+        }
+        
+        // Calculate closest approach between paths
+        let minPathDist = Infinity;
+        let closestPair = null;
+        path1Points.forEach((p1, i) => {
+          path2Points.forEach((p2, j) => {
+            const d = Math.sqrt(
+              Math.pow((p1.dd.lat - p2.dd.lat) * 60, 2) + 
+              Math.pow((p1.dd.lon - p2.dd.lon) * 60 * Math.cos(p1.dd.lat * Math.PI / 180), 2)
+            );
+            if (d < minPathDist) {
+              minPathDist = d;
+              closestPair = { p1, p2, i, j };
+            }
+          });
+        });
+        qualityMetrics.closestApproachNM = minPathDist;
+        
+        // === MULTI-METHOD INTERSECTION CALCULATION ===
+        // Calculate using multiple methods, then select best based on geometry
+        
+        const allLats = [...path1Points, ...path2Points].map(p => p.dd.lat);
+        const allLons = [...path1Points, ...path2Points].map(p => p.dd.lon);
+        const lat0 = allLats.reduce((a, b) => a + b, 0) / allLats.length;
+        const cosLat0 = Math.cos(lat0 * Math.PI / 180) || 1;
+        
+        const project = (lat, lon) => ({ x: lon * cosLat0, y: lat });
+        const unproject = (x, y) => ({ lat: y, lon: x / cosLat0 });
+        
+        // Data bounds for validation
+        const dataMinX = Math.min(...allLons) * cosLat0;
+        const dataMaxX = Math.max(...allLons) * cosLat0;
+        const dataMinY = Math.min(...allLats);
+        const dataMaxY = Math.max(...allLats);
+        const dataRangeX = dataMaxX - dataMinX;
+        const dataRangeY = dataMaxY - dataMinY;
+        const margin = 2;
+        
+        const isInBounds = (x, y) => 
+          x >= dataMinX - margin * dataRangeX && x <= dataMaxX + margin * dataRangeX &&
+          y >= dataMinY - margin * dataRangeY && y <= dataMaxY + margin * dataRangeY;
+        
+        // Helper: Line intersection from two points each
+        const intersectTwoPointLines = (p1a, p1b, p2a, p2b) => {
+          const a1 = project(p1a.dd.lat, p1a.dd.lon);
+          const a2 = project(p1b.dd.lat, p1b.dd.lon);
+          const b1 = project(p2a.dd.lat, p2a.dd.lon);
+          const b2 = project(p2b.dd.lat, p2b.dd.lon);
+          
+          const x1 = a1.x, y1 = a1.y, x2 = a2.x, y2 = a2.y;
+          const x3 = b1.x, y3 = b1.y, x4 = b2.x, y4 = b2.y;
+          
+          const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+          if (Math.abs(denom) < 1e-12) return null;
+          
+          const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+          const ix = x1 + t * (x2 - x1);
+          const iy = y1 + t * (y2 - y1);
+          
+          if (!isInBounds(ix, iy)) return null;
+          
+          const result = unproject(ix, iy);
+          return { lat: result.lat, lon: result.lon };
+        };
+        
+        // PCA-based line fitting with center weighting
+        const fitLinePCA = (points) => {
+          const n = points.length;
+          const center = (n - 1) / 2;
+          const sigma = n / 2.5;
+          
+          const projected = points.map((p, i) => {
+            const weight = Math.exp(-Math.pow((i - center) / sigma, 2));
+            return { ...project(p.dd.lat, p.dd.lon), weight };
+          });
+          
+          const totalWeight = projected.reduce((sum, p) => sum + p.weight, 0);
+          const cx = projected.reduce((sum, p) => sum + p.x * p.weight, 0) / totalWeight;
+          const cy = projected.reduce((sum, p) => sum + p.y * p.weight, 0) / totalWeight;
+          
+          let cxx = 0, cxy = 0, cyy = 0;
+          projected.forEach(p => {
+            const dx = p.x - cx;
+            const dy = p.y - cy;
+            cxx += p.weight * dx * dx;
+            cxy += p.weight * dx * dy;
+            cyy += p.weight * dy * dy;
+          });
+          
+          const trace = cxx + cyy;
+          const det = cxx * cyy - cxy * cxy;
+          const discriminant = Math.sqrt(Math.max(0, trace * trace / 4 - det));
+          const lambda1 = trace / 2 + discriminant;
+          
+          let dx, dy;
+          if (Math.abs(cxy) > 1e-12) {
+            dx = lambda1 - cyy;
+            dy = cxy;
+          } else if (cxx >= cyy) {
+            dx = 1; dy = 0;
+          } else {
+            dx = 0; dy = 1;
+          }
+          
+          const len = Math.sqrt(dx * dx + dy * dy);
+          dx /= len; dy /= len;
+          
+          const a = -dy;
+          const b = dx;
+          const c = -(a * cx + b * cy);
+          
+          return { a, b, c, cx, cy };
+        };
+        
+        // Calculate all methods
+        const methods = [];
+        
+        // METHOD 1: Endpoints
+        const endpointsResult = intersectTwoPointLines(
+          path1Points[0], path1Points[path1Points.length - 1],
+          path2Points[0], path2Points[path2Points.length - 1]
+        );
+        if (endpointsResult) {
+          methods.push({
+            name: 'Endpoints',
+            lat: endpointsResult.lat,
+            lon: endpointsResult.lon,
+            description: 'Line through first and last points of each path'
+          });
+        }
+        
+        // METHOD 2: PCA Center-Weighted
+        const line1 = fitLinePCA(path1Points);
+        const line2 = fitLinePCA(path2Points);
+        const pcaDet = line1.a * line2.b - line2.a * line1.b;
+        
+        if (Math.abs(pcaDet) >= 1e-12) {
+          const pcaIx = (line1.b * line2.c - line2.b * line1.c) / pcaDet;
+          const pcaIy = (line2.a * line1.c - line1.a * line2.c) / pcaDet;
+          
+          if (isInBounds(pcaIx, pcaIy)) {
+            const pcaResult = unproject(pcaIx, pcaIy);
+            methods.push({
+              name: 'PCA Center-Weighted',
+              lat: pcaResult.lat,
+              lon: pcaResult.lon,
+              description: 'Best-fit lines weighted toward center of each path'
+            });
+          }
+        }
+        
+        // METHOD 3: Midpoints (middle segment of each path)
+        if (path1Points.length >= 3 && path2Points.length >= 3) {
+          const mid1 = Math.floor(path1Points.length / 2);
+          const mid2 = Math.floor(path2Points.length / 2);
+          const midpointsResult = intersectTwoPointLines(
+            path1Points[mid1 - 1], path1Points[mid1 + 1 < path1Points.length ? mid1 + 1 : mid1],
+            path2Points[mid2 - 1], path2Points[mid2 + 1 < path2Points.length ? mid2 + 1 : mid2]
+          );
+          if (midpointsResult) {
+            methods.push({
+              name: 'Midpoints',
+              lat: midpointsResult.lat,
+              lon: midpointsResult.lon,
+              description: 'Line through middle portion of each path'
+            });
+          }
+        }
+        
+        // METHOD 4: Closest Approach (always available as fallback)
+        const closestApproachResult = {
+          name: 'Closest Approach',
+          lat: (closestPair.p1.dd.lat + closestPair.p2.dd.lat) / 2,
+          lon: (closestPair.p1.dd.lon + closestPair.p2.dd.lon) / 2,
+          description: `Midpoint where paths come within ${minPathDist.toFixed(3)} NM`
+        };
+        methods.push(closestApproachResult);
+        
+        // Store all methods for transparency
+        qualityMetrics.methodsCompared = methods;
+        
+        // SELECT BEST METHOD based on crossing angle
+        let selectedMethod;
+        let finalLat, finalLon, finalMethodName;
+        
+        const crossAngle = qualityMetrics.crossingAngle;
+        
+        if (crossAngle < 15) {
+          // Very shallow angle - use closest approach only
+          selectedMethod = methods.find(m => m.name === 'Closest Approach');
+          finalMethodName = 'Closest Approach (shallow angle fallback)';
+        } else if (crossAngle < 30) {
+          // Shallow angle - prefer closest approach but check if methods agree
+          const lineResults = methods.filter(m => m.name !== 'Closest Approach');
+          if (lineResults.length >= 2) {
+            // Check if line methods are consistent (within 0.1 NM of each other)
+            const spread = Math.max(...lineResults.map(m1 => 
+              Math.max(...lineResults.map(m2 => 
+                Math.sqrt(Math.pow((m1.lat - m2.lat) * 60, 2) + Math.pow((m1.lon - m2.lon) * 60 * cosLat0, 2))
+              ))
+            ));
+            if (spread < 0.1) {
+              // Methods agree - use PCA or Endpoints
+              selectedMethod = methods.find(m => m.name === 'Endpoints') || methods.find(m => m.name === 'PCA Center-Weighted');
+              finalMethodName = selectedMethod.name + ' (methods consistent)';
+            } else {
+              // Methods disagree - use closest approach
+              selectedMethod = methods.find(m => m.name === 'Closest Approach');
+              finalMethodName = 'Closest Approach (line methods inconsistent)';
+            }
+          } else {
+            selectedMethod = methods.find(m => m.name === 'Closest Approach');
+            finalMethodName = 'Closest Approach (insufficient line solutions)';
+          }
+        } else if (crossAngle >= 75) {
+          // Excellent geometry - prefer Endpoints (historically most accurate at 90°)
+          selectedMethod = methods.find(m => m.name === 'Endpoints') || methods.find(m => m.name === 'PCA Center-Weighted');
+          finalMethodName = selectedMethod.name + ' (excellent geometry)';
+        } else {
+          // Good geometry (30-75°) - use PCA center-weighted
+          selectedMethod = methods.find(m => m.name === 'PCA Center-Weighted') || methods.find(m => m.name === 'Endpoints');
+          finalMethodName = selectedMethod ? selectedMethod.name : 'Closest Approach';
+          if (!selectedMethod) {
+            selectedMethod = methods.find(m => m.name === 'Closest Approach');
+            finalMethodName = 'Closest Approach (no line solution)';
+          }
+        }
+        
+        finalLat = selectedMethod.lat;
+        finalLon = selectedMethod.lon;
+        
+        // Store analysis for display
+        setCrosshairAnalysis({
+          path1Points,
+          path2Points,
+          method,
+          totalPoints: crosshairPoints.length,
+          qualityMetrics,
+          selectedMethodName: finalMethodName
+        });
 
-        const ix = x1 + t * (x2 - x1);
-        const iy = y1 + t * (y2 - y1);
-        const unp = unproject(ix, iy);
+        const latDdm = gpsUtils.ddToDdm(finalLat);
+        const lonDdm = gpsUtils.ddToDdm(Math.abs(finalLon));
 
-        const latDdm = gpsUtils.ddToDdm(unp.lat);
-        const lonDdm = gpsUtils.ddToDdm(Math.abs(unp.lon));
+        // Build result
+        const grid = gpsUtils.calculateCapGrid(finalLat, finalLon);
+        const ddText = gpsUtils.formatDd(finalLat, finalLon);
+        const ddmText = gpsUtils.formatDdm(finalLat, finalLon);
+        const dmsText = gpsUtils.formatDms(finalLat, finalLon);
 
-        // Build display formats and CAP Grid for the intersection
-const grid = gpsUtils.calculateCapGrid(unp.lat, unp.lon);
-const ddText = gpsUtils.formatDd(unp.lat, unp.lon);
-const ddmText = gpsUtils.formatDdm(unp.lat, unp.lon);
-const dmsText = gpsUtils.formatDms(unp.lat, unp.lon);
+        targetSeqRef.current = (targetSeqRef.current || 0) + 1;
+        const targetLabel = "Target #" + targetSeqRef.current;
+        
+        // Calculate quality score (0-100) with aggressive penalty for shallow angles
+        let angleScore;
+        if (crossAngle < 15) {
+          angleScore = crossAngle * 2; // 0-30 points for <15°
+        } else if (crossAngle < 30) {
+          angleScore = 30 + (crossAngle - 15) * 2; // 30-60 points for 15-30°
+        } else {
+          angleScore = Math.min(100, (crossAngle / 90) * 100); // Normal scaling for >30°
+        }
+        
+        const pointsScore = Math.min(100, ((path1Points.length + path2Points.length) / 10) * 100);
+        const approachScore = qualityMetrics.closestApproachNM < 0.1 ? 100 : 
+                              qualityMetrics.closestApproachNM < 0.2 ? 75 :
+                              qualityMetrics.closestApproachNM < 0.5 ? 50 : 25;
+        const qualityScore = Math.round((angleScore * 0.6) + (pointsScore * 0.15) + (approachScore * 0.25));
+        
+        // Quality rating with expected accuracy
+        let qualityRating, qualityColor, expectedAccuracy;
+        if (qualityScore >= 80) {
+          qualityRating = 'EXCELLENT';
+          qualityColor = '#38a169';
+          expectedAccuracy = '<200 ft';
+        } else if (qualityScore >= 60) {
+          qualityRating = 'GOOD';
+          qualityColor = '#68d391';
+          expectedAccuracy = '200-1000 ft';
+        } else if (qualityScore >= 40) {
+          qualityRating = 'FAIR';
+          qualityColor = '#d69e2e';
+          expectedAccuracy = '1000-3000 ft';
+        } else {
+          qualityRating = 'POOR';
+          qualityColor = '#e53e3e';
+          expectedAccuracy = '>3000 ft - Re-fly recommended';
+        }
 
-// Target numbering per refresh/session
-targetSeqRef.current = (targetSeqRef.current || 0) + 1;
-const targetLabel = "Target #" + targetSeqRef.current;
+        const resultObj = {
+          latDeg: latDdm.deg,
+          latMin: latDdm.min.toFixed(3),
+          lonDeg: lonDdm.deg,
+          lonMin: lonDdm.min.toFixed(3),
+          latDD: finalLat,
+          lonDD: finalLon,
+          timestamp: getZuluTimeOnly(),
+          method: finalMethodName,
+          capGrid: grid.full,
+          ddText,
+          ddmText,
+          dmsText,
+          targetLabel,
+          path1Count: path1Points.length,
+          path2Count: path2Points.length,
+          // Quality metrics
+          crossingAngle: qualityMetrics.crossingAngle,
+          closestApproachNM: qualityMetrics.closestApproachNM,
+          avgBearing1: qualityMetrics.avgBearing1,
+          avgBearing2: qualityMetrics.avgBearing2,
+          pathDetectionMethod: qualityMetrics.pathDetectionMethod,
+          qualityScore,
+          qualityRating,
+          qualityColor,
+          expectedAccuracy,
+          methodsCompared: qualityMetrics.methodsCompared,
+          usedFallback: finalMethodName.includes('fallback') || finalMethodName.includes('Closest Approach')
+        };
 
-const resultObj = {
-  latDeg: latDdm.deg,
-  latMin: latDdm.min.toFixed(3),
-  lonDeg: lonDdm.deg,
-  lonMin: lonDdm.min.toFixed(3),
-  timestamp: getZuluTimeOnly(),
-  method: intersectionConstraint === "segments" ? "Segment intersection (tangent-plane)" : "Line intersection (tangent-plane)",
-  capGrid: grid.full,
-  ddText,
-  ddmText,
-  dmsText,
-  targetLabel
-};
+        setCrosshairResult(resultObj);
+        
+        // Store analysis reference for export functions
+        const analysisRef = {
+          path1Points,
+          path2Points,
+          method,
+          totalPoints: crosshairPoints.length,
+          qualityMetrics,
+          selectedMethodName: finalMethodName
+        };
+        setCrosshairAnalysis(analysisRef);
 
-setCrosshairResult(resultObj);
-
-// Automatically add to log as a new event
-eventSeqRef.current = (eventSeqRef.current || 1) + 1;
+        // Auto-add to events with comprehensive logging
+        eventSeqRef.current = (eventSeqRef.current || 1) + 1;
+        const fullNotes = addCalculationToLog(resultObj, analysisRef);
+        
         const newEvent = {
-  id: Date.now() + Math.random(),
+          id: Date.now() + Math.random(),
           eventNum: eventSeqRef.current,
-  eventType: "Target Located",
-  timeZ: resultObj.timestamp,
-  latDeg: resultObj.latDeg.toString(),
-  latMin: resultObj.latMin,
-  longDeg: resultObj.lonDeg.toString(),
-  longMin: resultObj.lonMin,
-  altMSL: "",
-  altAGL: "",
-  heading: "",
-  airspeed: "",
-  groundSpeed: "",
-  capGrid: resultObj.capGrid,
-  notes:
-    resultObj.targetLabel + " (Crosshair Intersection)\n" +
-    "CAP Grid: " + resultObj.capGrid + "\n" +
-    "DD: " + resultObj.ddText + "\n" +
-    "DDM: " + resultObj.ddmText + "\n" +
-    "DMS: " + resultObj.dmsText + "\n" +
-    "Method: " + resultObj.method
-};
-setEvents([newEvent, ...events]);
+          eventType: "Target Located",
+          timeZ: resultObj.timestamp,
+          latDeg: resultObj.latDeg.toString(),
+          latMin: resultObj.latMin,
+          longDeg: resultObj.lonDeg.toString(),
+          longMin: resultObj.lonMin,
+          altMSL: "",
+          altAGL: "",
+          heading: "",
+          airspeed: "",
+          groundSpeed: "",
+          capGrid: resultObj.capGrid,
+          notes: fullNotes
+        };
+        setEvents([newEvent, ...events]);
 
-// Immediate cockpit feedback (optional)
-alert(
-  resultObj.targetLabel + "\n" +
-  "CAP Grid: " + resultObj.capGrid + "\n" +
-  "DD: " + resultObj.ddText + "\n" +
-  "DDM: " + resultObj.ddmText + "\n" +
-  "DMS: " + resultObj.dmsText
-);
-};
+        // Cockpit feedback
+        alert(
+          resultObj.targetLabel + "\n" +
+          "Quality: " + resultObj.qualityRating + " (" + resultObj.qualityScore + "%)\n" +
+          "Expected: " + resultObj.expectedAccuracy + "\n\n" +
+          "CAP Grid: " + resultObj.capGrid + "\n" +
+          "DD: " + resultObj.ddText + "\n" +
+          "DDM: " + resultObj.ddmText + "\n" +
+          "DMS: " + resultObj.dmsText
+        );
+      };
+
       const addCurrentPosition = () => {
         if (!navigator.geolocation) {
           alert("GPS not supported");
@@ -6269,232 +6657,954 @@ alert(
               lonMin: lonDdm.min.toFixed(3),
               time: getZuluTimeOnly()
             };
-            if (activeCrosshairPath === 1) {
-              setCrosshairPath1([...crosshairPath1, point]);
-            } else {
-              setCrosshairPath2([...crosshairPath2, point]);
-            }
+            setCrosshairPoints(prev => [...prev, point]);
+            setCrosshairResult(null); // Clear previous result when adding new points
+            setCrosshairAnalysis(null);
           },
           (err) => alert("GPS Error: " + err.message),
           { enableHighAccuracy: true, timeout: 1e4 }
         );
       };
-      const clearPath = (pathNum) => {
-        if (pathNum === 1) {
-          setCrosshairPath1([]);
-        } else {
-          setCrosshairPath2([]);
-        }
+      
+      const clearAllPoints = () => {
+        setCrosshairPoints([]);
         setCrosshairResult(null);
+        setCrosshairAnalysis(null);
       };
-      const copyToEvent = () => {
-        if (!crosshairResult) return;
-        const newEvent = {
-          id: Date.now() + Math.random(),
-          eventType: "Target Located",
-          timeZ: crosshairResult.timestamp,
-          latDeg: crosshairResult.latDeg.toString(),
-          latMin: crosshairResult.latMin,
-          longDeg: crosshairResult.lonDeg.toString(),
-          longMin: crosshairResult.lonMin,
-          altMSL: "",
-          altAGL: "",
-          heading: "",
-          airspeed: "",
-          groundSpeed: "",
-          capGrid: crosshairResult.capGrid,
-          notes: "Crosshair intersection target location"
-        };
-        setEvents([newEvent, ...events]);
-        setActiveTab("events");
+      
+      const removePoint = (id) => {
+        setCrosshairPoints(prev => prev.filter(pt => pt.id !== id));
+        setCrosshairResult(null);
+        setCrosshairAnalysis(null);
       };
-      const PathButton = ({ pathNum, active, pointCount }) => {
-        const getStatusColor = (count) => {
-          if (count === 0) return { bg: '#e53e3e', border: '#fc8181', text: 'NO POINTS' };
-          if (count === 1) return { bg: '#e53e3e', border: '#fc8181', text: '1 point - NEED MORE' };
-          if (count === 2) return { bg: '#d69e2e', border: '#f6e05e', text: '2 points - READY' };
-          return { bg: '#38a169', border: '#68d391', text: count + ' points - READY' };
-        };
-        const status = getStatusColor(pointCount);
-        return React.createElement(
-        "button",
-        {
-          onClick: () => setActiveCrosshairPath(pathNum),
-          style: {
-            flex: 1,
-            minHeight: "80px",
-            padding: "14px",
-            fontSize: "14px",
-            fontWeight: "700",
-            background: active ? pathNum === 1 ? "linear-gradient(135deg, #3182ce, #2b6cb0)" : "linear-gradient(135deg, #38a169, #2f855a)" : "rgba(0,0,0,0.3)",
-            border: active ? pathNum === 1 ? "3px solid #63b3ed" : "3px solid #68d391" : "2px solid rgba(255,255,255,0.15)",
-            borderRadius: "12px",
-            color: "#fff",
-            fontFamily: "inherit",
-            cursor: "pointer",
-            touchAction: "manipulation"
-          }
-        },
-        React.createElement("div", { style: { fontSize: "20px", marginBottom: "4px" } }, pathNum === 1 ? "\u2195\uFE0F" : "\u2194\uFE0F"),
-        "PATH ",
-        pathNum,
-        React.createElement("div", { style: { 
-          fontSize: "10px", 
-          marginTop: "6px",
-          padding: "4px 8px",
-          borderRadius: "4px",
-          background: status.bg,
-          border: "1px solid " + status.border,
-          color: "#fff",
-          fontWeight: "600"
-        } }, status.text)
-      );
-      };
-      return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.section }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeader }, "\u{1F3AF} Crosshair Target Locator"), /* @__PURE__ */ React.createElement("div", { style: styles.sectionBody }, /* @__PURE__ */ React.createElement("div", { style: {
-        background: "rgba(99,179,237,0.1)",
-        padding: "14px",
-        borderRadius: "10px",
-        marginBottom: "16px",
-        border: "1px solid rgba(99,179,237,0.2)"
-      } }, /* @__PURE__ */ React.createElement("p", { style: { margin: 0, fontSize: "13px", color: "#a0aec0", lineHeight: "1.5" } }, /* @__PURE__ */ React.createElement("strong", { style: { color: "#63b3ed" } }, "How to use:"), /* @__PURE__ */ React.createElement("br", null), "1. Select Path 1, fly N-S or S-N over target, mark points", /* @__PURE__ */ React.createElement("br", null), "2. Select Path 2, fly E-W or W-E over target, mark points", /* @__PURE__ */ React.createElement("br", null), "3. Calculate intersection = target location")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "12px", marginBottom: "20px" } }, /* @__PURE__ */ React.createElement(PathButton, { pathNum: 1, active: activeCrosshairPath === 1, pointCount: crosshairPath1.length }), /* @__PURE__ */ React.createElement(PathButton, { pathNum: 2, active: activeCrosshairPath === 2, pointCount: crosshairPath2.length })), /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          onClick: addCurrentPosition,
-          style: {
-            width: "100%",
-            minHeight: "70px",
-            marginBottom: "16px",
-            padding: "18px",
-            fontSize: "18px",
-            fontWeight: "700",
-            background: activeCrosshairPath === 1 ? "linear-gradient(135deg, #3182ce, #2b6cb0)" : "linear-gradient(135deg, #38a169, #2f855a)",
-            border: "none",
-            borderRadius: "12px",
-            color: "#fff",
-            fontFamily: "inherit",
-            cursor: "pointer",
-            touchAction: "manipulation",
-            boxShadow: "0 4px 15px rgba(0,0,0,0.3)"
-          }
-        },
-        "\u{1F4CD} MARK POSITION ON PATH ",
-        activeCrosshairPath
-      ), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#63b3ed", textTransform: "uppercase" } }, "\u2195\uFE0F Path 1 Points (", crosshairPath1.length, ")"), crosshairPath1.length > 0 && /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          onClick: () => clearPath(1),
-          style: {
-            background: "rgba(229,62,62,0.2)",
-            border: "1px solid #e53e3e",
-            borderRadius: "6px",
-            padding: "6px 12px",
-            color: "#fc8181",
-            fontSize: "11px",
-            fontWeight: "600",
-            cursor: "pointer"
-          }
-        },
-        "CLEAR"
-      )), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "10px", maxHeight: "120px", overflowY: "auto" } }, crosshairPath1.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: "#718096", fontSize: "12px", textAlign: "center", padding: "10px" } }, "No points marked") : crosshairPath1.map((pt, i) => /* @__PURE__ */ React.createElement("div", { key: pt.id, style: { fontSize: "12px", color: "#e2e8f0", padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" } }, /* @__PURE__ */ React.createElement("span", { style: { color: "#63b3ed", fontWeight: "600" } }, "#", i + 1), " ", pt.time, "Z \u2014 N ", pt.latDeg, "\xB0 ", pt.latMin, "' W ", pt.lonDeg, "\xB0 ", pt.lonMin, "'")))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "20px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" } }, /* @__PURE__ */ React.createElement("label", { style: { fontSize: "12px", fontWeight: "700", color: "#68d391", textTransform: "uppercase" } }, "\u2194\uFE0F Path 2 Points (", crosshairPath2.length, ")"), crosshairPath2.length > 0 && /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          onClick: () => clearPath(2),
-          style: {
-            background: "rgba(229,62,62,0.2)",
-            border: "1px solid #e53e3e",
-            borderRadius: "6px",
-            padding: "6px 12px",
-            color: "#fc8181",
-            fontSize: "11px",
-            fontWeight: "600",
-            cursor: "pointer"
-          }
-        },
-        "CLEAR"
-      )), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "10px", maxHeight: "120px", overflowY: "auto" } }, crosshairPath2.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: "#718096", fontSize: "12px", textAlign: "center", padding: "10px" } }, "No points marked") : crosshairPath2.map((pt, i) => /* @__PURE__ */ React.createElement("div", { key: pt.id, style: { fontSize: "12px", color: "#e2e8f0", padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" } }, /* @__PURE__ */ React.createElement("span", { style: { color: "#68d391", fontWeight: "600" } }, "#", i + 1), " ", pt.time, "Z \u2014 N ", pt.latDeg, "\xB0 ", pt.latMin, "' W ", pt.lonDeg, "\xB0 ", pt.lonMin, "'")))), /* @__PURE__ */ React.createElement("div", { style: {
-        background: "rgba(0,0,0,0.25)",
-        borderRadius: "12px",
-        padding: "12px",
-        marginBottom: "12px",
-        border: "1px solid rgba(255,255,255,0.08)"
-      } }, React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "8px", fontWeight: "700", letterSpacing: "0.6px" } }, "INTERSECTION OPTIONS"), React.createElement("label", { style: { display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", color: "#e2e8f0", cursor: "pointer", userSelect: "none" } }, React.createElement("input", {
-        type: "checkbox",
-        checked: intersectionConstraint === "segments",
-        onChange: (e) => setIntersectionConstraint(e.target.checked ? "segments" : "lines"),
-        style: { width: "18px", height: "18px" }
-      }), "Segments only (must intersect within the drawn legs)"), React.createElement("div", { style: { marginTop: "8px", fontSize: "11px", color: "#718096", lineHeight: "1.4" } }, "Intersection math uses a local tangent-plane projection for better accuracy over distance.")),
-React.createElement(
-        "button",
-        {
-          onClick: calculateIntersection,
-          disabled: crosshairPath1.length < 2 || crosshairPath2.length < 2,
-          style: {
-            width: "100%",
-            minHeight: "64px",
-            marginBottom: "16px",
-            padding: "18px",
-            fontSize: "16px",
-            fontWeight: "700",
-            background: crosshairPath1.length >= 2 && crosshairPath2.length >= 2 ? "linear-gradient(135deg, #d69e2e, #b7791f)" : "rgba(255,255,255,0.1)",
-            border: "none",
-            borderRadius: "12px",
-            color: crosshairPath1.length >= 2 && crosshairPath2.length >= 2 ? "#fff" : "#718096",
-            fontFamily: "inherit",
-            cursor: crosshairPath1.length >= 2 && crosshairPath2.length >= 2 ? "pointer" : "not-allowed",
-            touchAction: "manipulation"
-          }
-        },
-        "\u{1F3AF} CALCULATE INTERSECTION"
-      ), crosshairResult && /* @__PURE__ */ React.createElement("div", { style: {
-        background: "linear-gradient(135deg, rgba(246,224,94,0.15), rgba(237,137,54,0.1))",
-        borderRadius: "12px",
-        padding: "20px",
-        border: "2px solid #f6e05e"
-      } }, /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "14px", color: "#a0aec0", marginBottom: "4px" } }, "\u{1F3AF} TARGET LOCATION"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: "#718096" } }, crosshairResult.timestamp, "Z")), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px", textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "4px" } }, "LATITUDE N"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "700", color: "#f6e05e", fontFamily: "monospace" } }, crosshairResult.latDeg, "\xB0 ", crosshairResult.latMin, "'")), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px", textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "4px" } }, "LONGITUDE W"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "700", color: "#f6e05e", fontFamily: "monospace" } }, crosshairResult.lonDeg, "\xB0 ", crosshairResult.lonMin, "'"))), /* @__PURE__ */ React.createElement("div", { style: { background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px", textAlign: "center", marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginBottom: "4px" } }, "CAP GRID"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "22px", fontWeight: "700", color: "#f6e05e", fontFamily: "monospace", letterSpacing: "2px" } }, crosshairResult.capGrid)), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "10px" } }, /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          onClick: copyToEvent,
-          style: {
-            flex: 1,
-            minHeight: "56px",
-            padding: "14px",
-            fontSize: "14px",
-            fontWeight: "700",
-            background: "linear-gradient(135deg, #38a169, #2f855a)",
-            border: "2px solid #48bb78",
-            borderRadius: "10px",
-            color: "#fff",
-            fontFamily: "inherit",
-            cursor: "pointer",
-            touchAction: "manipulation"
-          }
-        },
-        "\u2713 SAVE TO EVENTS"
-      ), /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          onClick: () => {
-            if (crosshairResult) {
-              window.open(`https://www.openstreetmap.org/?mlat=${crosshairResult.latDD}&mlon=${crosshairResult.lonDD}&zoom=15`, "_blank");
+      
+      // Import KML/KMZ/GPX file for crosshair analysis
+      const importCrosshairFile = async (file) => {
+        try {
+          let points = [];
+          const fileName = file.name.toLowerCase();
+          
+          if (fileName.endsWith('.kmz')) {
+            // KMZ is a zipped KML
+            const arrayBuffer = await file.arrayBuffer();
+            const JSZip = window.JSZip;
+            if (!JSZip) {
+              alert('Loading JSZip library... Please try again.');
+              const script = document.createElement('script');
+              script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+              document.head.appendChild(script);
+              return;
             }
-          },
-          style: {
-            flex: 1,
-            minHeight: "56px",
-            padding: "14px",
-            fontSize: "14px",
-            fontWeight: "700",
-            background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
-            border: "2px solid #4299e1",
-            borderRadius: "10px",
-            color: "#fff",
-            fontFamily: "inherit",
-            cursor: "pointer",
-            touchAction: "manipulation"
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            const kmlFile = zip.file(/\.kml$/i)[0];
+            if (!kmlFile) {
+              alert('No KML file found in KMZ archive');
+              return;
+            }
+            const kmlText = await kmlFile.async('text');
+            points = parseKmlForCrosshair(kmlText);
+          } else if (fileName.endsWith('.kml')) {
+            const kmlText = await file.text();
+            points = parseKmlForCrosshair(kmlText);
+          } else if (fileName.endsWith('.gpx')) {
+            const gpxText = await file.text();
+            points = parseGpxForCrosshair(gpxText);
+          } else if (fileName.endsWith('.csv') || fileName.endsWith('.txt')) {
+            const csvText = await file.text();
+            points = parseCsvForCrosshair(csvText);
+          } else {
+            alert('Unsupported file format. Please use KML, KMZ, GPX, or CSV.');
+            return;
           }
-        },
-        "\u{1F5FA}\uFE0F VIEW MAP"
-      ))))));
+          
+          if (points.length < 4) {
+            alert('Need at least 4 points for analysis. Found ' + points.length + ' points.');
+            return;
+          }
+          
+          // Convert to crosshair point format
+          const crosshairPts = points.map((pt, i) => {
+            const latDdm = gpsUtils.ddToDdm(pt.lat);
+            const lonDdm = gpsUtils.ddToDdm(Math.abs(pt.lon));
+            return {
+              id: Date.now() + i,
+              latDeg: latDdm.deg.toString(),
+              latMin: latDdm.min.toFixed(3),
+              lonDeg: lonDdm.deg.toString(),
+              lonMin: lonDdm.min.toFixed(3),
+              time: pt.time || getZuluTimeOnly()
+            };
+          });
+          
+          setCrosshairPoints(crosshairPts);
+          setCrosshairResult(null);
+          setCrosshairAnalysis(null);
+          alert('Imported ' + crosshairPts.length + ' points from ' + file.name + '\n\nReview the points, then tap CALCULATE.');
+        } catch (err) {
+          alert('Error importing file: ' + err.message);
+        }
+      };
+      
+      // Parse KML file for track points
+      const parseKmlForCrosshair = (kmlText) => {
+        const parser = new DOMParser();
+        const kml = parser.parseFromString(kmlText, 'text/xml');
+        const points = [];
+        
+        // Try gx:Track coordinates
+        const gxCoords = kml.querySelectorAll('gx\\:coord, coord');
+        const whenElements = kml.querySelectorAll('when');
+        
+        if (gxCoords.length > 0) {
+          gxCoords.forEach((coord, i) => {
+            const parts = coord.textContent.trim().split(/\s+/);
+            if (parts.length >= 2) {
+              const lon = parseFloat(parts[0]);
+              const lat = parseFloat(parts[1]);
+              if (!isNaN(lat) && !isNaN(lon)) {
+                let time = getZuluTimeOnly();
+                if (whenElements[i]) {
+                  const dt = new Date(whenElements[i].textContent);
+                  if (!isNaN(dt.getTime())) {
+                    time = dt.toISOString().substr(11, 8);
+                  }
+                }
+                points.push({ lat, lon, time });
+              }
+            }
+          });
+        }
+        
+        // Try LineString coordinates
+        if (points.length === 0) {
+          const coordElements = kml.querySelectorAll('coordinates');
+          coordElements.forEach(coordEl => {
+            const coordText = coordEl.textContent.trim();
+            const coordPairs = coordText.split(/\s+/);
+            coordPairs.forEach(pair => {
+              const parts = pair.split(',');
+              if (parts.length >= 2) {
+                const lon = parseFloat(parts[0]);
+                const lat = parseFloat(parts[1]);
+                if (!isNaN(lat) && !isNaN(lon)) {
+                  points.push({ lat, lon, time: getZuluTimeOnly() });
+                }
+              }
+            });
+          });
+        }
+        
+        // Try Placemarks with Point
+        if (points.length === 0) {
+          const placemarks = kml.querySelectorAll('Placemark');
+          placemarks.forEach(pm => {
+            const pointCoord = pm.querySelector('Point coordinates');
+            if (pointCoord) {
+              const parts = pointCoord.textContent.trim().split(',');
+              if (parts.length >= 2) {
+                const lon = parseFloat(parts[0]);
+                const lat = parseFloat(parts[1]);
+                if (!isNaN(lat) && !isNaN(lon)) {
+                  points.push({ lat, lon, time: getZuluTimeOnly() });
+                }
+              }
+            }
+          });
+        }
+        
+        return points;
+      };
+      
+      // Parse GPX file for track points
+      const parseGpxForCrosshair = (gpxText) => {
+        const parser = new DOMParser();
+        const gpx = parser.parseFromString(gpxText, 'text/xml');
+        const points = [];
+        
+        // Track points
+        const trkpts = gpx.querySelectorAll('trkpt');
+        trkpts.forEach(pt => {
+          const lat = parseFloat(pt.getAttribute('lat'));
+          const lon = parseFloat(pt.getAttribute('lon'));
+          if (!isNaN(lat) && !isNaN(lon)) {
+            let time = getZuluTimeOnly();
+            const timeEl = pt.querySelector('time');
+            if (timeEl) {
+              const dt = new Date(timeEl.textContent);
+              if (!isNaN(dt.getTime())) {
+                time = dt.toISOString().substr(11, 8);
+              }
+            }
+            points.push({ lat, lon, time });
+          }
+        });
+        
+        // Waypoints
+        const wpts = gpx.querySelectorAll('wpt');
+        wpts.forEach(pt => {
+          const lat = parseFloat(pt.getAttribute('lat'));
+          const lon = parseFloat(pt.getAttribute('lon'));
+          if (!isNaN(lat) && !isNaN(lon)) {
+            points.push({ lat, lon, time: getZuluTimeOnly() });
+          }
+        });
+        
+        return points;
+      };
+      
+      // Parse CSV file for coordinates
+      const parseCsvForCrosshair = (csvText) => {
+        const points = [];
+        const lines = csvText.trim().split('\n');
+        
+        lines.forEach((line, i) => {
+          // Skip header row if it looks like headers
+          if (i === 0 && (line.toLowerCase().includes('lat') || line.toLowerCase().includes('lon'))) {
+            return;
+          }
+          
+          const parts = line.split(/[,\t]/);
+          if (parts.length >= 2) {
+            // Try to find lat/lon values
+            let lat = null, lon = null;
+            parts.forEach(p => {
+              const val = parseFloat(p.trim());
+              if (!isNaN(val)) {
+                if (val >= -90 && val <= 90 && lat === null) {
+                  lat = val;
+                } else if (val >= -180 && val <= 180 && lon === null) {
+                  lon = val;
+                }
+              }
+            });
+            if (lat !== null && lon !== null) {
+              points.push({ lat, lon, time: getZuluTimeOnly() });
+            }
+          }
+        });
+        
+        return points;
+      };
+      
+      // Copy intersection to clipboard
+      const copyIntersection = () => {
+        if (!crosshairResult) return;
+        const text = 
+          crosshairResult.targetLabel + '\n' +
+          'CAP Grid: ' + crosshairResult.capGrid + '\n' +
+          'DD: ' + crosshairResult.ddText + '\n' +
+          'DDM: ' + crosshairResult.ddmText + '\n' +
+          'DMS: ' + crosshairResult.dmsText + '\n' +
+          'Quality: ' + crosshairResult.qualityRating + ' (' + crosshairResult.qualityScore + '%)\n' +
+          'Expected Accuracy: ' + crosshairResult.expectedAccuracy + '\n' +
+          'Crossing Angle: ' + Math.round(crosshairResult.crossingAngle) + '°\n' +
+          'Method: ' + crosshairResult.method;
+        
+        navigator.clipboard.writeText(text).then(() => {
+          alert('Copied to clipboard!');
+        }).catch(() => {
+          // Fallback for older browsers
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          alert('Copied to clipboard!');
+        });
+      };
+      
+      // Export to ForeFlight (creates a FPL file or opens ForeFlight URL)
+      const exportToForeflight = () => {
+        if (!crosshairResult) return;
+        
+        // ForeFlight URL scheme for creating a waypoint
+        const lat = crosshairResult.latDD;
+        const lon = crosshairResult.lonDD;
+        const name = 'TGT' + (targetSeqRef.current || 1);
+        
+        // Try ForeFlight URL scheme first (works on iOS/iPad)
+        const foreflightUrl = 'foreflight://maps/search?q=' + lat.toFixed(6) + ',' + lon.toFixed(6);
+        
+        // Also create a GPX file as backup
+        const gpxContent = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+          '<gpx version="1.1" creator="MAT Crosshair">\n' +
+          '  <wpt lat="' + lat.toFixed(6) + '" lon="' + lon.toFixed(6) + '">\n' +
+          '    <name>' + name + '</name>\n' +
+          '    <desc>' + crosshairResult.targetLabel + ' - ' + crosshairResult.qualityRating + ' (' + crosshairResult.qualityScore + '%)</desc>\n' +
+          '  </wpt>\n' +
+          '</gpx>';
+        
+        // Create download link
+        const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name + '_' + crosshairResult.capGrid.replace(/\s+/g, '-') + '.gpx';
+        
+        // Ask user which method
+        if (confirm('Export to ForeFlight:\n\n• OK = Open in ForeFlight app (iOS/iPad)\n• Cancel = Download GPX file\n\nNote: GPX can be imported into ForeFlight via Files app.')) {
+          window.location.href = foreflightUrl;
+        } else {
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+      };
+      
+      // View on map with flight tracks - styled like Command Module maps
+      // Standard Map Colors (high visibility on OSM):
+      // - Flight tracks/paths: #000000 (black) weight 3-4
+      // - Grid boundaries: #ff00ff (magenta) weight 3, dashed
+      // - Target/POI markers: #e53e3e (red)
+      // - Uncertainty areas: #000000 (black) dashed, low fill opacity
+      // - Path 1: #0066cc (dark blue) 
+      // - Path 2: #006600 (dark green)
+      // - Data points: white fill with colored border
+      const viewOnMapWithTracks = () => {
+        if (!crosshairResult || !crosshairAnalysis) return;
+        
+        const path1Coords = crosshairAnalysis.path1Points.map(p => [p.dd.lat, p.dd.lon]);
+        const path2Coords = crosshairAnalysis.path2Points.map(p => [p.dd.lat, p.dd.lon]);
+        const targetLat = crosshairResult.latDD;
+        const targetLon = crosshairResult.lonDD;
+        
+        // Standard map colors
+        const mapColors = {
+          path1: '#0066cc',      // Dark blue - high visibility
+          path2: '#006600',      // Dark green - high visibility
+          target: '#cc0000',     // Dark red
+          uncertainty: '#000000', // Black for uncertainty circle
+          grid: '#ff00ff'        // Magenta for CAP grid reference
+        };
+        
+        // Calculate expected accuracy circle radius in meters
+        let accuracyRadius = 60; // default for excellent
+        if (crosshairResult.qualityScore < 40) accuracyRadius = 1000;
+        else if (crosshairResult.qualityScore < 60) accuracyRadius = 500;
+        else if (crosshairResult.qualityScore < 80) accuracyRadius = 200;
+        
+        // Quality color for UI elements (not map)
+        const qualityColor = crosshairResult.qualityColor || '#f6e05e';
+        
+        const mapHtml = [
+          '<!DOCTYPE html>',
+          '<html><head>',
+          '<title>Target ' + crosshairResult.targetLabel + ' - ' + crosshairResult.capGrid + '</title>',
+          '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+          '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>',
+          '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></scr' + 'ipt>',
+          '<style>',
+          'body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif}',
+          '#map{height:100vh;width:100%}',
+          '.info-panel{position:absolute;top:10px;right:10px;background:linear-gradient(135deg,rgba(26,32,44,0.95),rgba(45,55,72,0.95));color:#fff;padding:0;border-radius:12px;z-index:1000;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,0.4);border:2px solid ' + qualityColor + ';overflow:hidden}',
+          '.info-header{background:linear-gradient(90deg,rgba(221,107,32,0.3),transparent);padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.1)}',
+          '.info-header h3{margin:0;color:#f6e05e;font-size:16px}',
+          '.info-body{padding:16px}',
+          '.cap-grid{background:rgba(0,0,0,0.4);padding:12px;border-radius:8px;text-align:center;margin-bottom:12px;border:2px solid #f6e05e}',
+          '.cap-grid-label{font-size:10px;color:#a0aec0;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}',
+          '.cap-grid-value{font-size:22px;font-weight:700;color:#f6e05e;font-family:monospace;letter-spacing:2px}',
+          '.coords{background:rgba(0,0,0,0.3);padding:10px;border-radius:6px;margin-bottom:12px}',
+          '.coord-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0}',
+          '.coord-label{color:#a0aec0}',
+          '.coord-value{color:#68d391;font-family:monospace}',
+          '.quality-bar{background:rgba(0,0,0,0.3);padding:10px;border-radius:6px;margin-bottom:12px}',
+          '.quality-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}',
+          '.quality-label{font-size:10px;color:#a0aec0;text-transform:uppercase}',
+          '.quality-value{font-size:13px;font-weight:700;color:' + qualityColor + ';padding:2px 8px;background:rgba(0,0,0,0.3);border-radius:4px}',
+          '.quality-track{height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden}',
+          '.quality-fill{height:100%;background:' + qualityColor + ';border-radius:3px;width:' + crosshairResult.qualityScore + '%}',
+          '.quality-stats{display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:#718096}',
+          '.legend{display:flex;gap:12px;justify-content:center;padding:10px;background:rgba(0,0,0,0.2);border-radius:6px;font-size:11px}',
+          '.legend-item{display:flex;align-items:center;gap:4px}',
+          '.legend-dot{width:10px;height:10px;border-radius:50%}',
+          '.legend-line{width:16px;height:3px;border-radius:2px}',
+          '@media(max-width:480px){.info-panel{top:auto;bottom:10px;right:10px;left:10px;max-width:none}}',
+          '</style>',
+          '</head><body>',
+          '<div id="map"></div>',
+          '<div class="info-panel">',
+          '<div class="info-header">',
+          '<h3>🎯 ' + crosshairResult.targetLabel + '</h3>',
+          '</div>',
+          '<div class="info-body">',
+          '<div class="cap-grid">',
+          '<div class="cap-grid-label">CAP Grid</div>',
+          '<div class="cap-grid-value">' + crosshairResult.capGrid + '</div>',
+          '</div>',
+          '<div class="coords">',
+          '<div class="coord-row"><span class="coord-label">Latitude N</span><span class="coord-value">' + crosshairResult.latDeg + '° ' + crosshairResult.latMin + "'" + '</span></div>',
+          '<div class="coord-row"><span class="coord-label">Longitude W</span><span class="coord-value">' + crosshairResult.lonDeg + '° ' + crosshairResult.lonMin + "'" + '</span></div>',
+          '<div class="coord-row"><span class="coord-label">DD</span><span class="coord-value">' + crosshairResult.latDD.toFixed(5) + ', ' + crosshairResult.lonDD.toFixed(5) + '</span></div>',
+          '</div>',
+          '<div class="quality-bar">',
+          '<div class="quality-header">',
+          '<span class="quality-label">Solution Quality</span>',
+          '<span class="quality-value">' + crosshairResult.qualityRating + ' (' + crosshairResult.qualityScore + '%)</span>',
+          '</div>',
+          '<div class="quality-track"><div class="quality-fill"></div></div>',
+          '<div class="quality-stats">',
+          '<span>Crossing: ' + Math.round(crosshairResult.crossingAngle) + '°</span>',
+          '<span>Expected: ' + crosshairResult.expectedAccuracy + '</span>',
+          '</div>',
+          '</div>',
+          '<div class="legend">',
+          '<div class="legend-item"><div class="legend-line" style="background:#0066cc"></div> Path 1 (' + path1Coords.length + ')</div>',
+          '<div class="legend-item"><div class="legend-line" style="background:#006600"></div> Path 2 (' + path2Coords.length + ')</div>',
+          '<div class="legend-item"><div class="legend-dot" style="background:#cc0000"></div> Target</div>',
+          '</div>',
+          '</div>',
+          '</div>',
+          '<scr' + 'ipt>',
+          'var map=L.map("map").setView([' + targetLat + ',' + targetLon + '],15);',
+          'L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"OpenStreetMap"}).addTo(map);',
+          // Accuracy/uncertainty circle - black dashed
+          'L.circle([' + targetLat + ',' + targetLon + '],{radius:' + accuracyRadius + ',color:"#000000",weight:3,fillColor:"#000000",fillOpacity:0.08,dashArray:"8,6"}).addTo(map);',
+          'var path1Coords=' + JSON.stringify(path1Coords) + ';',
+          'var path2Coords=' + JSON.stringify(path2Coords) + ';',
+          // Path 1 - Dark Blue with thick line
+          'var path1=L.polyline(path1Coords,{color:"#0066cc",weight:5,opacity:1.0}).addTo(map);',
+          'path1Coords.forEach(function(c,i){L.circleMarker(c,{radius:7,color:"#0066cc",weight:3,fillColor:"#ffffff",fillOpacity:1.0}).bindPopup("Path 1 Point #"+(i+1)).addTo(map);});',
+          // Path 2 - Dark Green with thick line
+          'var path2=L.polyline(path2Coords,{color:"#006600",weight:5,opacity:1.0}).addTo(map);',
+          'path2Coords.forEach(function(c,i){L.circleMarker(c,{radius:7,color:"#006600",weight:3,fillColor:"#ffffff",fillOpacity:1.0}).bindPopup("Path 2 Point #"+(i+1)).addTo(map);});',
+          // Target marker - Red with high visibility
+          'var targetIcon=L.divIcon({className:"target-marker",html:"<div style=\\"background:#cc0000;color:white;padding:6px 12px;border-radius:6px;font-size:13px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.5);border:3px solid white\\">TARGET</div>",iconSize:[80,32],iconAnchor:[40,16]});',
+          'L.marker([' + targetLat + ',' + targetLon + '],{icon:targetIcon}).bindPopup("<b>' + crosshairResult.targetLabel + '</b><br>CAP Grid: ' + crosshairResult.capGrid + '<br>' + crosshairResult.ddmText + '").addTo(map).openPopup();',
+          'var allPoints=path1Coords.concat(path2Coords);allPoints.push([' + targetLat + ',' + targetLon + ']);',
+          'map.fitBounds(allPoints,{padding:[50,50]});',
+          '</scr' + 'ipt>',
+          '</body></html>'
+        ].join('\n');
+        
+        // Open in new window
+        const mapWindow = window.open('', '_blank');
+        if (mapWindow) {
+          mapWindow.document.write(mapHtml);
+          mapWindow.document.close();
+        } else {
+          alert('Please allow popups to view the map.');
+        }
+      };
+      
+      // Add calculation to mission log with all details
+      const addCalculationToLog = (resultObj, analysis) => {
+        // Build comprehensive notes with all data points
+        let pointsList = 'DATA POINTS USED:\n';
+        
+        if (analysis && analysis.path1Points) {
+          pointsList += '\nPath 1 (bearing ~' + Math.round(resultObj.avgBearing1) + '°):\n';
+          analysis.path1Points.forEach((pt, i) => {
+            pointsList += '  #' + (i+1) + ': ' + pt.dd.lat.toFixed(5) + ', ' + pt.dd.lon.toFixed(5) + '\n';
+          });
+        }
+        
+        if (analysis && analysis.path2Points) {
+          pointsList += '\nPath 2 (bearing ~' + Math.round(resultObj.avgBearing2) + '°):\n';
+          analysis.path2Points.forEach((pt, i) => {
+            pointsList += '  #' + (i+1) + ': ' + pt.dd.lat.toFixed(5) + ', ' + pt.dd.lon.toFixed(5) + '\n';
+          });
+        }
+        
+        // Methods comparison
+        let methodsText = '\nMETHODS COMPARED:\n';
+        if (resultObj.methodsCompared) {
+          resultObj.methodsCompared.forEach(m => {
+            const selected = resultObj.method.includes(m.name) ? '→ ' : '  ';
+            methodsText += selected + m.name + ': ' + m.lat.toFixed(5) + ', ' + m.lon.toFixed(5) + '\n';
+          });
+        }
+        
+        const fullNotes = resultObj.targetLabel + ' (Crosshair Intersection)\n' +
+          '═══════════════════════════════════════\n' +
+          'RESULT:\n' +
+          '  CAP Grid: ' + resultObj.capGrid + '\n' +
+          '  DD: ' + resultObj.ddText + '\n' +
+          '  DDM: ' + resultObj.ddmText + '\n' +
+          '  DMS: ' + resultObj.dmsText + '\n' +
+          '\nQUALITY ASSESSMENT:\n' +
+          '  Rating: ' + resultObj.qualityRating + ' (' + resultObj.qualityScore + '%)\n' +
+          '  Expected Accuracy: ' + resultObj.expectedAccuracy + '\n' +
+          '  Crossing Angle: ' + Math.round(resultObj.crossingAngle) + '°\n' +
+          '  Path Separation: ' + resultObj.closestApproachNM.toFixed(3) + ' NM\n' +
+          '\nMETHOD:\n' +
+          '  ' + resultObj.method + '\n' +
+          '  Path Detection: ' + resultObj.pathDetectionMethod + '\n' +
+          methodsText +
+          pointsList;
+        
+        return fullNotes;
+      };
+
+      // Get status indicator
+      const getStatusInfo = () => {
+        const count = crosshairPoints.length;
+        if (count === 0) return { color: "#718096", text: "No points marked", ready: false };
+        if (count === 1) return { color: "#e53e3e", text: "1 point - need 3+ more", ready: false };
+        if (count === 2) return { color: "#e53e3e", text: "2 points - need 2+ more", ready: false };
+        if (count === 3) return { color: "#d69e2e", text: "3 points - need 1+ more", ready: false };
+        return { color: "#38a169", text: count + " points - READY", ready: true };
+      };
+      
+      const status = getStatusInfo();
+
+      return React.createElement("div", null,
+        React.createElement("div", { style: styles.section },
+          React.createElement("div", { style: styles.sectionHeader }, "\u{1F3AF} Crosshair Target Locator"),
+          React.createElement("div", { style: styles.sectionBody },
+            // Instructions
+            React.createElement("div", { style: {
+              background: "rgba(99,179,237,0.1)",
+              padding: "14px",
+              borderRadius: "10px",
+              marginBottom: "16px",
+              border: "1px solid rgba(99,179,237,0.2)"
+            } },
+              React.createElement("p", { style: { margin: 0, fontSize: ts("13"), color: "#a0aec0", lineHeight: "1.5" } },
+                React.createElement("strong", { style: { color: "#63b3ed" } }, "How to use:"),
+                React.createElement("br", null),
+                React.createElement("strong", { style: { color: "#f6e05e" } }, "1."),
+                " Fly over target, ",
+                React.createElement("strong", null, "hold steady heading"),
+                ", tap MARK 3-5 times",
+                React.createElement("br", null),
+                React.createElement("strong", { style: { color: "#f6e05e" } }, "2."),
+                " Turn 60-90° and fly back over target, tap MARK 3-5 times",
+                React.createElement("br", null),
+                React.createElement("strong", { style: { color: "#f6e05e" } }, "3."),
+                " Tap CALCULATE",
+                React.createElement("br", null),
+                React.createElement("br", null),
+                React.createElement("span", { style: { fontSize: ts("11"), color: "#718096" } },
+                  "\u{2139}\uFE0F Best results: 90° crossing angle, consistent heading on each pass, mark points near target"
+                )
+              )
+            ),
+            
+            // Status indicator
+            React.createElement("div", { style: {
+              background: "rgba(0,0,0,0.3)",
+              padding: "12px 16px",
+              borderRadius: "10px",
+              marginBottom: "16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              border: "2px solid " + status.color
+            } },
+              React.createElement("span", { style: { fontSize: ts("14"), fontWeight: "700", color: status.color } },
+                "\u{1F4CD} " + status.text
+              ),
+              crosshairPoints.length > 0 && React.createElement("button", {
+                onClick: clearAllPoints,
+                style: {
+                  background: "rgba(229,62,62,0.2)",
+                  border: "1px solid #e53e3e",
+                  borderRadius: "6px",
+                  padding: "6px 12px",
+                  color: "#fc8181",
+                  fontSize: ts("11"),
+                  fontWeight: "600",
+                  cursor: "pointer"
+                }
+              }, "CLEAR ALL")
+            ),
+            
+            // MARK POSITION button and Import row
+            React.createElement("div", { style: { display: "flex", gap: "10px", marginBottom: "16px" } },
+              React.createElement("button", {
+                onClick: addCurrentPosition,
+                style: {
+                  flex: 2,
+                  minHeight: "80px",
+                  padding: "20px",
+                  fontSize: ts("20"),
+                  fontWeight: "700",
+                  background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
+                  border: "none",
+                  borderRadius: "12px",
+                  color: "#fff",
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  touchAction: "manipulation",
+                  boxShadow: "0 4px 15px rgba(0,0,0,0.3)"
+                }
+              }, "\u{1F4CD} MARK"),
+              React.createElement("label", {
+                style: {
+                  flex: 1,
+                  minHeight: "80px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "10px",
+                  fontSize: ts("12"),
+                  fontWeight: "700",
+                  background: "linear-gradient(135deg, #805ad5, #6b46c1)",
+                  border: "none",
+                  borderRadius: "12px",
+                  color: "#fff",
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  touchAction: "manipulation",
+                  boxShadow: "0 4px 15px rgba(0,0,0,0.3)"
+                }
+              },
+                React.createElement("span", { style: { fontSize: ts("24"), marginBottom: "4px" } }, "\u{1F4C2}"),
+                React.createElement("span", null, "IMPORT"),
+                React.createElement("span", { style: { fontSize: ts("9"), opacity: 0.8 } }, "KML/GPX"),
+                React.createElement("input", {
+                  type: "file",
+                  accept: ".kml,.kmz,.gpx,.csv,.txt",
+                  style: { display: "none" },
+                  onChange: (e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      importCrosshairFile(e.target.files[0]);
+                      e.target.value = '';
+                    }
+                  }
+                })
+              )
+            ),
+            
+            // Points list
+            React.createElement("div", { style: { marginBottom: "16px" } },
+              React.createElement("div", { style: { fontSize: ts("12"), fontWeight: "700", color: "#63b3ed", marginBottom: "8px", textTransform: "uppercase" } },
+                "Marked Points (" + crosshairPoints.length + ")"
+              ),
+              React.createElement("div", { style: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "10px", maxHeight: "180px", overflowY: "auto" } },
+                crosshairPoints.length === 0 
+                  ? React.createElement("div", { style: { color: "#718096", fontSize: ts("12"), textAlign: "center", padding: "20px" } }, "No points marked yet")
+                  : crosshairPoints.map((pt, i) => React.createElement("div", { 
+                      key: pt.id, 
+                      style: { 
+                        fontSize: ts("12"), 
+                        color: "#e2e8f0", 
+                        padding: "8px", 
+                        borderBottom: "1px solid rgba(255,255,255,0.05)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                      } 
+                    },
+                      React.createElement("span", null,
+                        React.createElement("span", { style: { color: "#f6e05e", fontWeight: "700" } }, "#" + (i + 1) + " "),
+                        pt.time + "Z — N " + pt.latDeg + "° " + pt.latMin + "' W " + pt.lonDeg + "° " + pt.lonMin + "'"
+                      ),
+                      React.createElement("button", {
+                        onClick: () => removePoint(pt.id),
+                        style: {
+                          background: "transparent",
+                          border: "none",
+                          color: "#fc8181",
+                          cursor: "pointer",
+                          padding: "4px 8px",
+                          fontSize: ts("14")
+                        }
+                      }, "✕")
+                    ))
+              )
+            ),
+            
+            // Analysis info (shown after calculation)
+            crosshairAnalysis && React.createElement("div", { style: {
+              background: "rgba(99,179,237,0.1)",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "16px",
+              border: "1px solid rgba(99,179,237,0.3)"
+            } },
+              React.createElement("div", { style: { fontSize: ts("11"), color: "#63b3ed", fontWeight: "700", marginBottom: "4px" } }, "PATH DETECTION"),
+              React.createElement("div", { style: { fontSize: ts("12"), color: "#a0aec0" } },
+                "Path 1: " + crosshairAnalysis.path1Points.length + " points • Path 2: " + crosshairAnalysis.path2Points.length + " points"
+              ),
+              React.createElement("div", { style: { fontSize: ts("11"), color: "#718096", marginTop: "4px" } }, crosshairAnalysis.method)
+            ),
+            
+            // CALCULATE button
+            React.createElement("button", {
+              onClick: analyzeAndCalculate,
+              disabled: !status.ready,
+              style: {
+                width: "100%",
+                minHeight: "64px",
+                marginBottom: "16px",
+                padding: "18px",
+                fontSize: ts("16"),
+                fontWeight: "700",
+                background: status.ready ? "linear-gradient(135deg, #d69e2e, #b7791f)" : "rgba(255,255,255,0.1)",
+                border: "none",
+                borderRadius: "12px",
+                color: status.ready ? "#fff" : "#718096",
+                fontFamily: "inherit",
+                cursor: status.ready ? "pointer" : "not-allowed",
+                touchAction: "manipulation"
+              }
+            }, "\u{1F3AF} CALCULATE INTERSECTION"),
+            
+            // Result display
+            crosshairResult && React.createElement("div", { style: {
+              background: "linear-gradient(135deg, rgba(246,224,94,0.15), rgba(237,137,54,0.1))",
+              borderRadius: "12px",
+              padding: "20px",
+              border: "2px solid #f6e05e"
+            } },
+              React.createElement("div", { style: { textAlign: "center", marginBottom: "16px" } },
+                React.createElement("div", { style: { fontSize: ts("14"), color: "#a0aec0", marginBottom: "4px" } }, "\u{1F3AF} TARGET LOCATION"),
+                React.createElement("div", { style: { fontSize: ts("11"), color: "#718096" } }, crosshairResult.timestamp + "Z")
+              ),
+              
+              // Quality Indicator
+              React.createElement("div", { style: { 
+                background: "rgba(0,0,0,0.3)", 
+                padding: "12px", 
+                borderRadius: "8px", 
+                marginBottom: "16px",
+                border: "2px solid " + crosshairResult.qualityColor
+              } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" } },
+                  React.createElement("span", { style: { fontSize: ts("11"), color: "#a0aec0", fontWeight: "600" } }, "SOLUTION QUALITY"),
+                  React.createElement("span", { style: { 
+                    fontSize: ts("14"), 
+                    fontWeight: "700", 
+                    color: crosshairResult.qualityColor,
+                    padding: "4px 12px",
+                    background: "rgba(0,0,0,0.3)",
+                    borderRadius: "4px"
+                  } }, crosshairResult.qualityRating + " (" + crosshairResult.qualityScore + "%)")
+                ),
+                // Quality bar
+                React.createElement("div", { style: { 
+                  height: "8px", 
+                  background: "rgba(255,255,255,0.1)", 
+                  borderRadius: "4px",
+                  overflow: "hidden"
+                } },
+                  React.createElement("div", { style: { 
+                    width: crosshairResult.qualityScore + "%", 
+                    height: "100%", 
+                    background: crosshairResult.qualityColor,
+                    borderRadius: "4px",
+                    transition: "width 0.3s"
+                  } })
+                ),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: "8px", fontSize: ts("10"), color: "#718096" } },
+                  React.createElement("span", null, "Crossing: " + Math.round(crosshairResult.crossingAngle) + "°"),
+                  React.createElement("span", null, "Paths: " + crosshairResult.closestApproachNM.toFixed(3) + " NM apart")
+                )
+              ),
+              
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" } },
+                React.createElement("div", { style: { background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px", textAlign: "center" } },
+                  React.createElement("div", { style: { fontSize: ts("10"), color: "#a0aec0", marginBottom: "4px" } }, "LATITUDE N"),
+                  React.createElement("div", { style: { fontSize: ts("18"), fontWeight: "700", color: "#f6e05e", fontFamily: "monospace" } }, crosshairResult.latDeg + "\u00B0 " + crosshairResult.latMin + "'")
+                ),
+                React.createElement("div", { style: { background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px", textAlign: "center" } },
+                  React.createElement("div", { style: { fontSize: ts("10"), color: "#a0aec0", marginBottom: "4px" } }, "LONGITUDE W"),
+                  React.createElement("div", { style: { fontSize: ts("18"), fontWeight: "700", color: "#f6e05e", fontFamily: "monospace" } }, crosshairResult.lonDeg + "\u00B0 " + crosshairResult.lonMin + "'")
+                )
+              ),
+              React.createElement("div", { style: { background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px", textAlign: "center", marginBottom: "16px" } },
+                React.createElement("div", { style: { fontSize: ts("10"), color: "#a0aec0", marginBottom: "4px" } }, "CAP GRID"),
+                React.createElement("div", { style: { fontSize: ts("22"), fontWeight: "700", color: "#f6e05e", fontFamily: "monospace", letterSpacing: "2px" } }, crosshairResult.capGrid)
+              ),
+              
+              // Assumptions & Method Details (collapsible)
+              React.createElement("details", { style: { 
+                background: "rgba(0,0,0,0.2)", 
+                borderRadius: "8px", 
+                marginBottom: "16px",
+                border: "1px solid rgba(255,255,255,0.1)"
+              } },
+                React.createElement("summary", { style: { 
+                  padding: "12px", 
+                  cursor: "pointer", 
+                  fontSize: ts("12"), 
+                  fontWeight: "600", 
+                  color: "#a0aec0",
+                  userSelect: "none"
+                } }, "\u{1F4CB} Solution Details & Assumptions"),
+                React.createElement("div", { style: { 
+                  padding: "12px", 
+                  paddingTop: "0",
+                  fontSize: ts("11"), 
+                  color: "#a0aec0",
+                  lineHeight: "1.6"
+                } },
+                  React.createElement("div", { style: { marginBottom: "10px" } },
+                    React.createElement("strong", { style: { color: "#63b3ed" } }, "Method: "),
+                    crosshairResult.method
+                  ),
+                  React.createElement("div", { style: { marginBottom: "10px" } },
+                    React.createElement("strong", { style: { color: "#63b3ed" } }, "Path Detection: "),
+                    crosshairResult.pathDetectionMethod
+                  ),
+                  React.createElement("div", { style: { marginBottom: "10px" } },
+                    React.createElement("strong", { style: { color: "#63b3ed" } }, "Input Data: "),
+                    crosshairResult.path1Count + " points on Path 1 (bearing ~" + Math.round(crosshairResult.avgBearing1) + "\u00B0), " +
+                    crosshairResult.path2Count + " points on Path 2 (bearing ~" + Math.round(crosshairResult.avgBearing2) + "\u00B0)"
+                  ),
+                  React.createElement("div", { style: { marginBottom: "10px" } },
+                    React.createElement("strong", { style: { color: "#63b3ed" } }, "Crossing Angle: "),
+                    Math.round(crosshairResult.crossingAngle) + "\u00B0",
+                    crosshairResult.crossingAngle < 30 ? 
+                      React.createElement("span", { style: { color: "#fc8181", marginLeft: "8px" } }, "\u26A0\uFE0F Shallow angle reduces accuracy") :
+                      crosshairResult.crossingAngle >= 60 ?
+                        React.createElement("span", { style: { color: "#68d391", marginLeft: "8px" } }, "\u2714 Good geometry") :
+                        React.createElement("span", { style: { color: "#f6e05e", marginLeft: "8px" } }, "Acceptable")
+                  ),
+                  React.createElement("div", { style: { marginBottom: "10px" } },
+                    React.createElement("strong", { style: { color: "#63b3ed" } }, "Path Separation: "),
+                    crosshairResult.closestApproachNM.toFixed(3) + " NM at closest approach",
+                    crosshairResult.closestApproachNM > 0.2 ?
+                      React.createElement("span", { style: { color: "#fc8181", marginLeft: "8px" } }, "\u26A0\uFE0F Paths may not cross over target") :
+                      React.createElement("span", { style: { color: "#68d391", marginLeft: "8px" } }, "\u2714 Paths converge well")
+                  ),
+                  React.createElement("div", { style: { marginBottom: "10px" } },
+                    React.createElement("strong", { style: { color: "#63b3ed" } }, "Expected Accuracy: "),
+                    React.createElement("span", { style: { color: crosshairResult.qualityColor, fontWeight: "600" } }, crosshairResult.expectedAccuracy)
+                  ),
+                  // Methods Compared
+                  crosshairResult.methodsCompared && crosshairResult.methodsCompared.length > 1 && React.createElement("div", { style: { 
+                    marginTop: "10px", 
+                    padding: "8px", 
+                    background: "rgba(99,179,237,0.1)", 
+                    borderRadius: "4px",
+                    border: "1px solid rgba(99,179,237,0.3)"
+                  } },
+                    React.createElement("strong", { style: { color: "#63b3ed", fontSize: ts("10") } }, "Methods Compared:"),
+                    React.createElement("div", { style: { marginTop: "6px", fontSize: ts("10") } },
+                      crosshairResult.methodsCompared.map((m, i) => 
+                        React.createElement("div", { key: i, style: { 
+                          padding: "4px 0",
+                          color: m.name === crosshairResult.method.split(' ')[0] || crosshairResult.method.includes(m.name) ? "#68d391" : "#718096"
+                        } },
+                          (m.name === crosshairResult.method.split(' ')[0] || crosshairResult.method.includes(m.name) ? "\u2713 " : "  ") +
+                          m.name + ": " + m.lat.toFixed(5) + ", " + m.lon.toFixed(5)
+                        )
+                      )
+                    )
+                  ),
+                  crosshairResult.usedFallback && React.createElement("div", { style: { 
+                    marginTop: "10px", 
+                    padding: "8px", 
+                    background: "rgba(214,158,46,0.2)", 
+                    borderRadius: "4px",
+                    border: "1px solid #d69e2e"
+                  } },
+                    React.createElement("strong", { style: { color: "#f6e05e" } }, "\u26A0\uFE0F Fallback Used: "),
+                    "Line intersection unreliable due to shallow crossing angle or paths not crossing. Using closest approach midpoint."
+                  ),
+                  React.createElement("div", { style: { 
+                    marginTop: "12px", 
+                    paddingTop: "10px",
+                    borderTop: "1px solid rgba(255,255,255,0.1)",
+                    fontSize: ts("10"),
+                    color: "#718096"
+                  } },
+                    React.createElement("strong", null, "Assumptions: "),
+                    "Aircraft GPS accuracy typical for aviation receivers. ",
+                    "Both paths represent intentional overflights of same target. ",
+                    "Pilot maintained consistent heading during each pass. ",
+                    "Multi-method comparison selects best result based on crossing geometry."
+                  ),
+                  React.createElement("div", { style: { marginTop: "8px", fontSize: ts("10"), color: "#718096" } },
+                    React.createElement("strong", null, "Coordinate Formats: "),
+                    React.createElement("br", null),
+                    "DD: " + crosshairResult.ddText,
+                    React.createElement("br", null),
+                    "DDM: " + crosshairResult.ddmText,
+                    React.createElement("br", null),
+                    "DMS: " + crosshairResult.dmsText
+                  )
+                )
+              ),
+              
+              // Export buttons row 1
+              React.createElement("div", { style: { display: "flex", gap: "8px", marginBottom: "8px" } },
+                React.createElement("button", {
+                  onClick: copyIntersection,
+                  style: {
+                    flex: 1,
+                    minHeight: "48px",
+                    padding: "12px",
+                    fontSize: ts("12"),
+                    fontWeight: "700",
+                    background: "linear-gradient(135deg, #4a5568, #2d3748)",
+                    border: "2px solid #718096",
+                    borderRadius: "10px",
+                    color: "#fff",
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    touchAction: "manipulation"
+                  }
+                }, "\u{1F4CB} COPY"),
+                React.createElement("button", {
+                  onClick: exportToForeflight,
+                  style: {
+                    flex: 1,
+                    minHeight: "48px",
+                    padding: "12px",
+                    fontSize: ts("12"),
+                    fontWeight: "700",
+                    background: "linear-gradient(135deg, #2f855a, #276749)",
+                    border: "2px solid #48bb78",
+                    borderRadius: "10px",
+                    color: "#fff",
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    touchAction: "manipulation"
+                  }
+                }, "\u{2708}\uFE0F FOREFLIGHT")
+              ),
+              
+              // Export buttons row 2
+              React.createElement("div", { style: { display: "flex", gap: "8px" } },
+                React.createElement("button", {
+                  onClick: () => {
+                    if (crosshairResult) {
+                      window.open("https://www.openstreetmap.org/?mlat=" + crosshairResult.latDD + "&mlon=" + crosshairResult.lonDD + "&zoom=15", "_blank");
+                    }
+                  },
+                  style: {
+                    flex: 1,
+                    minHeight: "48px",
+                    padding: "12px",
+                    fontSize: ts("12"),
+                    fontWeight: "700",
+                    background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
+                    border: "2px solid #4299e1",
+                    borderRadius: "10px",
+                    color: "#fff",
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    touchAction: "manipulation"
+                  }
+                }, "\u{1F5FA}\uFE0F MAP"),
+                React.createElement("button", {
+                  onClick: viewOnMapWithTracks,
+                  style: {
+                    flex: 1,
+                    minHeight: "48px",
+                    padding: "12px",
+                    fontSize: ts("12"),
+                    fontWeight: "700",
+                    background: "linear-gradient(135deg, #805ad5, #6b46c1)",
+                    border: "2px solid #9f7aea",
+                    borderRadius: "10px",
+                    color: "#fff",
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    touchAction: "manipulation"
+                  }
+                }, "\u{1F4CD} MAP+TRACKS")
+              )
+            )
+          )
+        )
+      );
     };
 
     // ELT Assist Tab - ELT Signal Triangulation Tool
@@ -8467,64 +9577,71 @@ React.createElement(
                             attribution: '© OpenStreetMap'
                           }).addTo(map);
                           
-                          // Add 90% confidence area (orange)
+                          // Standard Map Colors for high visibility on OSM:
+                          // 90% area: gray with low opacity
+                          // 50% area: darker gray 
+                          // Observations: dark blue
+                          // Bearing lines: black
+                          // Centroid: dark red
+                          
+                          // Add 90% confidence area (gray, outer)
                           if (eltResult.area90 && eltResult.area90.length > 0) {
                             eltResult.area90.forEach(g => {
                               L.circleMarker([g.lat, g.lon], {
                                 radius: 4,
-                                fillColor: '#ed8936',
-                                color: '#ed8936',
+                                fillColor: '#666666',
+                                color: '#666666',
                                 weight: 1,
-                                fillOpacity: 0.4
+                                fillOpacity: 0.3
                               }).addTo(map);
                             });
                           }
                           
-                          // Add 50% confidence area (yellow)
+                          // Add 50% confidence area (darker, inner)
                           if (eltResult.area50 && eltResult.area50.length > 0) {
                             eltResult.area50.forEach(g => {
                               L.circleMarker([g.lat, g.lon], {
                                 radius: 5,
-                                fillColor: '#fcd34d',
-                                color: '#fcd34d',
+                                fillColor: '#333333',
+                                color: '#333333',
                                 weight: 1,
-                                fillOpacity: 0.6
+                                fillOpacity: 0.5
                               }).addTo(map);
                             });
                           }
                           
-                          // Add observation points (blue)
+                          // Add observation points (dark blue with white fill)
                           eltResult.observations.forEach((obs, i) => {
                             L.circleMarker([obs.lat, obs.lon], {
                               radius: 8,
-                              fillColor: '#3182ce',
-                              color: '#fff',
-                              weight: 2,
-                              fillOpacity: 0.9
+                              fillColor: '#ffffff',
+                              color: '#0066cc',
+                              weight: 3,
+                              fillOpacity: 1.0
                             }).addTo(map).bindPopup('Obs #' + (i+1) + '<br>Strength: ' + (obs.strength || 'N/A'));
                             
-                            // Add bearing lines if present
+                            // Add bearing lines if present (black, thick)
                             if (obs.bearing !== null && obs.bearing !== undefined) {
                               const len = 0.05; // degrees
                               const rad = (90 - obs.bearing) * Math.PI / 180;
                               const endLat = obs.lat + Math.sin(rad) * len;
                               const endLon = obs.lon + Math.cos(rad) * len;
                               L.polyline([[obs.lat, obs.lon], [endLat, endLon]], {
-                                color: '#63b3ed',
-                                weight: 2,
-                                dashArray: '5,5',
-                                opacity: 0.8
+                                color: '#000000',
+                                weight: 3,
+                                dashArray: '8,6',
+                                opacity: 1.0
                               }).addTo(map);
                             }
                           });
                           
-                          // Add centroid marker (red) - most important
+                          // Add centroid marker (dark red) - most important, high visibility
                           L.circleMarker([eltResult.centroid.lat, eltResult.centroid.lon], {
-                            radius: 12,
-                            fillColor: '#e53e3e',
-                            color: '#fff',
-                            weight: 3,
-                            fillOpacity: 0.9
+                            radius: 14,
+                            fillColor: '#cc0000',
+                            color: '#ffffff',
+                            weight: 4,
+                            fillOpacity: 1.0
                           }).addTo(map).bindPopup(
                             '<strong>Estimated ELT Location</strong><br>' +
                             'N ' + eltResult.centroid.latDeg + '° ' + eltResult.centroid.latMin + "'<br>" +
@@ -9751,6 +10868,94 @@ React.createElement(
           setActiveTab('eltAssist');
         }
         
+        // Crosshair Target Locate Demo
+        if (demo.module === 'crosshair') {
+          // Clear existing Crosshair data
+          setCrosshairPoints([]);
+          setCrosshairResult(null);
+          setCrosshairAnalysis(null);
+          
+          setDemoLoadStatus('Loading flight data...');
+          await new Promise(r => setTimeout(r, 200));
+          
+          // Get the demo data
+          const demoData = window.DEMO_DATA && window.DEMO_DATA[demo.id];
+          if (!demoData || !demoData.flights) {
+            setDemoLoadStatus('Error: Demo data not found. Make sure demo-data.js is loaded.');
+            await new Promise(r => setTimeout(r, 2000));
+            setDemoLoading(false);
+            return;
+          }
+          
+          // Get selected flight (from state or default)
+          const flightKey = crosshairDemoFlight || demo.defaultFlight;
+          const flightData = demoData.flights[flightKey];
+          
+          if (!flightData || !flightData.segments || flightData.segments.length < 2) {
+            setDemoLoadStatus('Error: Invalid flight data for ' + flightKey);
+            await new Promise(r => setTimeout(r, 2000));
+            setDemoLoading(false);
+            return;
+          }
+          
+          setDemoLoadStatus('Processing ' + flightData.name + '...');
+          await new Promise(r => setTimeout(r, 300));
+          
+          // Convert the flight segments to crosshair points
+          const points = [];
+          let pointNum = 0;
+          
+          // Process each segment
+          for (let segIdx = 0; segIdx < flightData.segments.length; segIdx++) {
+            const segment = flightData.segments[segIdx];
+            setDemoLoadStatus('Loading ' + segment.name + ' (' + segment.points.length + ' points)...');
+            
+            for (const pt of segment.points) {
+              pointNum++;
+              
+              // Convert to DDM format
+              const latDeg = Math.floor(Math.abs(pt.lat));
+              const latMin = ((Math.abs(pt.lat) - latDeg) * 60).toFixed(3);
+              const lonDeg = Math.floor(Math.abs(pt.lon));
+              const lonMin = ((Math.abs(pt.lon) - lonDeg) * 60).toFixed(3);
+              
+              // Extract time from ISO timestamp
+              let timeZ = '';
+              if (pt.time) {
+                const match = pt.time.match(/T(\d{2}):(\d{2}):(\d{2})/);
+                if (match) {
+                  timeZ = match[1] + match[2] + match[3];
+                }
+              }
+              
+              points.push({
+                id: Date.now() + Math.random() + pointNum,
+                pointNum: pointNum,
+                timeZ: timeZ,
+                latDeg: latDeg.toString(),
+                latMin: latMin,
+                lonDeg: lonDeg.toString(),
+                lonMin: lonMin,
+                dd: {
+                  lat: pt.lat,
+                  lon: pt.lon
+                }
+              });
+            }
+            
+            await new Promise(r => setTimeout(r, 100));
+          }
+          
+          // Set all points
+          setCrosshairPoints(points);
+          
+          setDemoLoadStatus('Loaded ' + points.length + ' points from ' + flightData.segments.length + ' passes! Switching to Crosshair...');
+          await new Promise(r => setTimeout(r, 800));
+          
+          // Switch to Crosshair tab
+          setActiveTab('crosshair');
+        }
+        
       } catch (err) {
         console.error('Error loading demo:', err);
         setDemoLoadStatus('Error loading demo: ' + err.message);
@@ -9857,6 +11062,46 @@ React.createElement(
                 ),
                 demo.module === 'eltAssistNative' && React.createElement("div", { style: { background: "rgba(56,161,105,0.15)", padding: "6px 12px", borderRadius: "6px", fontSize: ts(12), color: "#68d391" } },
                   "\u{1F9ED} " + demo.dataPoints + " DF observations"
+                ),
+                demo.module === 'crosshair' && React.createElement("div", { style: { background: "rgba(229,62,62,0.15)", padding: "6px 12px", borderRadius: "6px", fontSize: ts(12), color: "#fc8181" } },
+                  "🎯 Two-pass intersection data"
+                )
+              ),
+              // Flight Selector for Crosshair demos
+              demo.module === 'crosshair' && demo.flights && window.DEMO_DATA && window.DEMO_DATA[demo.id] && React.createElement("div", {
+                style: {
+                  background: "rgba(229,62,62,0.1)",
+                  border: "1px solid rgba(229,62,62,0.3)",
+                  borderRadius: "8px",
+                  padding: "14px",
+                  marginBottom: "16px"
+                }
+              },
+                React.createElement("div", { style: { fontSize: ts(12), fontWeight: "600", color: "#fc8181", marginBottom: "10px" } }, "✈️ Select Example Flight"),
+                React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "8px" } },
+                  demo.flights.map(flightKey => {
+                    const flightData = window.DEMO_DATA[demo.id].flights[flightKey];
+                    if (!flightData) return null;
+                    const isSelected = crosshairDemoFlight === flightKey;
+                    return React.createElement("button", {
+                      key: flightKey,
+                      onClick: () => setCrosshairDemoFlight(flightKey),
+                      style: {
+                        padding: "12px 14px",
+                        borderRadius: "8px",
+                        border: isSelected ? "2px solid #fc8181" : "1px solid rgba(255,255,255,0.2)",
+                        background: isSelected ? "rgba(229,62,62,0.2)" : "rgba(0,0,0,0.3)",
+                        color: isSelected ? "#fff" : "#a0aec0",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        textAlign: "left",
+                        transition: "all 0.2s"
+                      }
+                    },
+                      React.createElement("div", { style: { fontSize: ts(14), fontWeight: isSelected ? "700" : "500", marginBottom: "4px" } }, flightData.name),
+                      React.createElement("div", { style: { fontSize: ts(11), color: isSelected ? "#fca5a5" : "#718096" } }, flightData.description)
+                    );
+                  })
                 )
               ),
               // Ground Truth Reveal (for training demos)
@@ -11750,63 +12995,70 @@ React.createElement(
             spMap = L.map('spMapDiv').setView([ctrLat, ctrLon], 11); 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(spMap); 
             
-            // Draw grid corners if available (for grid-based patterns)
+            // Standard Map Colors for high visibility on OSM:
+            // Grid boundaries: magenta (#ff00ff), dashed
+            // Search area: black dashed
+            // Flight path: black solid
+            // Waypoints: white fill with colored border
+            // POI: dark red
+            
+            // Draw grid corners if available (for grid-based patterns) - magenta
             if (planToShow.gridInfo?.corners) { 
               const c = planToShow.gridInfo.corners; 
-              L.polygon([[c.nw.lat, c.nw.lon], [c.ne.lat, c.ne.lon], [c.se.lat, c.se.lon], [c.sw.lat, c.sw.lon]], { color: '#3182ce', weight: 2, fillOpacity: 0.1, dashArray: '5,5' }).addTo(spMap); 
+              L.polygon([[c.nw.lat, c.nw.lon], [c.ne.lat, c.ne.lon], [c.se.lat, c.se.lon], [c.sw.lat, c.sw.lon]], { color: '#ff00ff', weight: 3, fillOpacity: 0.05, dashArray: '8,6' }).addTo(spMap); 
             }
             
             // Draw custom search area if available (for custom creeping line)
             if (planToShow.searchArea) {
-              // Draw search area polygon
+              // Draw search area polygon - black dashed
               if (planToShow.searchArea.corners && planToShow.searchArea.corners.length === 4) {
                 const corners = planToShow.searchArea.corners;
                 L.polygon(corners.map(c => [c.lat, c.lon]), { 
-                  color: '#ed8936', 
-                  weight: 2, 
-                  fillOpacity: 0.1, 
-                  fillColor: '#ed8936',
-                  dashArray: '8,4' 
+                  color: '#000000', 
+                  weight: 3, 
+                  fillOpacity: 0.05, 
+                  fillColor: '#000000',
+                  dashArray: '10,6' 
                 }).addTo(spMap);
               }
               
-              // Draw creeping line (axis) as a dashed line
+              // Draw creeping line (axis) as a dashed line - dark red
               if (planToShow.searchArea.creepLine) {
                 const cl = planToShow.searchArea.creepLine;
                 L.polyline([[cl.start.lat, cl.start.lon], [cl.end.lat, cl.end.lon]], { 
-                  color: '#e53e3e', 
-                  weight: 3, 
-                  dashArray: '10,10',
-                  opacity: 0.9
+                  color: '#cc0000', 
+                  weight: 4, 
+                  dashArray: '12,8',
+                  opacity: 1.0
                 }).addTo(spMap).bindPopup('Creep Direction: ' + (planToShow.dimensions?.creepDirection || '?') + '°');
               }
             }
             
-            // Draw flight path
+            // Draw flight path - black solid for high visibility
             const path = planToShow.waypoints.map(w => [w.lat, w.lon]); 
-            L.polyline(path, { color: '#38a169', weight: 3 }).addTo(spMap); 
+            L.polyline(path, { color: '#000000', weight: 4, opacity: 1.0 }).addTo(spMap); 
             
-            // Draw waypoint markers
+            // Draw waypoint markers - white fill with colored borders
             planToShow.waypoints.forEach((w, i) => {
               const isStart = i === 0;
               const isEnd = i === planToShow.waypoints.length - 1;
               L.circleMarker([w.lat, w.lon], { 
-                radius: isStart ? 8 : (isEnd ? 7 : 5), 
-                fillColor: isStart ? '#e53e3e' : (isEnd ? '#805ad5' : '#38a169'), 
-                color: '#fff', 
-                weight: 2, 
-                fillOpacity: 0.8 
+                radius: isStart ? 10 : (isEnd ? 9 : 6), 
+                fillColor: '#ffffff', 
+                color: isStart ? '#cc0000' : (isEnd ? '#660099' : '#000000'), 
+                weight: 3, 
+                fillOpacity: 1.0 
               }).addTo(spMap).bindPopup('WP' + w.number + ': ' + w.ddm + (w.note ? '<br>' + w.note : ''));
             });
             
-            // Draw POI marker
+            // Draw POI marker - dark red with white border
             if (planToShow.poi) {
               L.marker([planToShow.poi.latDD, planToShow.poi.lonDD], {
                 icon: L.divIcon({
                   className: 'poi-marker',
-                  html: '<div style="background:#e53e3e;color:white;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:bold;white-space:nowrap;">POI</div>',
-                  iconSize: [30, 20],
-                  iconAnchor: [15, 10]
+                  html: '<div style="background:#cc0000;color:white;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:bold;white-space:nowrap;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4)">POI</div>',
+                  iconSize: [40, 24],
+                  iconAnchor: [20, 12]
                 })
               }).addTo(spMap);
             }

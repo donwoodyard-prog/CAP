@@ -202,6 +202,124 @@ window.DEMO_DATA = {
         source: 'df'
       }
     ]
+  },
+  
+  // Crosshair Target Locate demos - flight track data for intersection calculations
+  'crosshair-target-1': {
+    description: 'Crosshair Target Locate demonstrations showing two-pass intersection method',
+    flights: {
+      'kansas': {
+        name: 'Kansas - Classic Cross Pattern',
+        description: 'Near-perpendicular N-S and E-W passes over rural Kansas. Excellent crossing angle for high accuracy.',
+        date: '2024-04-15',
+        segments: [
+          {
+            name: 'Segment 1 (N-S)',
+            points: [
+              { lat: 39.10060, lon: -96.58580, time: '2024-04-15T16:00:00Z' },
+              { lat: 39.09770, lon: -96.58560, time: '2024-04-15T16:00:15Z' },
+              { lat: 39.09510, lon: -96.58590, time: '2024-04-15T16:00:30Z' },
+              { lat: 39.09240, lon: -96.58570, time: '2024-04-15T16:00:45Z' },
+              { lat: 39.08990, lon: -96.58585, time: '2024-04-15T16:01:00Z' },
+              { lat: 39.08740, lon: -96.58570, time: '2024-04-15T16:01:15Z' },
+              { lat: 39.08500, lon: -96.58595, time: '2024-04-15T16:01:30Z' },
+              { lat: 39.08240, lon: -96.58565, time: '2024-04-15T16:01:45Z' },
+              { lat: 39.07970, lon: -96.58590, time: '2024-04-15T16:02:00Z' },
+              { lat: 39.07690, lon: -96.58575, time: '2024-04-15T16:02:15Z' }
+            ]
+          },
+          {
+            name: 'Segment 2 (E-W)',
+            points: [
+              { lat: 39.08890, lon: -96.59890, time: '2024-04-15T16:10:00Z' },
+              { lat: 39.08910, lon: -96.59580, time: '2024-04-15T16:10:15Z' },
+              { lat: 39.08880, lon: -96.59270, time: '2024-04-15T16:10:30Z' },
+              { lat: 39.08905, lon: -96.58960, time: '2024-04-15T16:10:45Z' },
+              { lat: 39.08885, lon: -96.58670, time: '2024-04-15T16:11:00Z' },
+              { lat: 39.08910, lon: -96.58370, time: '2024-04-15T16:11:15Z' },
+              { lat: 39.08890, lon: -96.58050, time: '2024-04-15T16:11:30Z' },
+              { lat: 39.08905, lon: -96.57740, time: '2024-04-15T16:11:45Z' },
+              { lat: 39.08880, lon: -96.57420, time: '2024-04-15T16:12:00Z' },
+              { lat: 39.08900, lon: -96.57110, time: '2024-04-15T16:12:15Z' }
+            ]
+          }
+        ]
+      },
+      'texas': {
+        name: 'Texas - Angled Intersection',
+        description: 'NNE-SSW and WNW-ESE passes near Austin. Shows path wiggle and curve handling.',
+        date: '2024-04-15',
+        segments: [
+          {
+            name: 'Segment 1 (NNE to SSW)',
+            points: [
+              { lat: 30.32210, lon: -98.12440, time: '2024-04-15T19:00:00Z' },
+              { lat: 30.31960, lon: -98.12510, time: '2024-04-15T19:00:15Z' },
+              { lat: 30.31710, lon: -98.12460, time: '2024-04-15T19:00:30Z' },
+              { lat: 30.31460, lon: -98.12530, time: '2024-04-15T19:00:45Z' },
+              { lat: 30.31210, lon: -98.12480, time: '2024-04-15T19:01:00Z' },
+              { lat: 30.30960, lon: -98.12540, time: '2024-04-15T19:01:15Z' },
+              { lat: 30.30710, lon: -98.12490, time: '2024-04-15T19:01:30Z' },
+              { lat: 30.30460, lon: -98.12560, time: '2024-04-15T19:01:45Z' },
+              { lat: 30.30210, lon: -98.12500, time: '2024-04-15T19:02:00Z' },
+              { lat: 30.29960, lon: -98.12570, time: '2024-04-15T19:02:15Z' }
+            ]
+          },
+          {
+            name: 'Segment 2 (WNW to ESE)',
+            points: [
+              { lat: 30.30990, lon: -98.14860, time: '2024-04-15T19:12:00Z' },
+              { lat: 30.30930, lon: -98.14480, time: '2024-04-15T19:12:15Z' },
+              { lat: 30.30880, lon: -98.14100, time: '2024-04-15T19:12:30Z' },
+              { lat: 30.30840, lon: -98.13730, time: '2024-04-15T19:12:45Z' },
+              { lat: 30.30810, lon: -98.13360, time: '2024-04-15T19:13:00Z' },
+              { lat: 30.30790, lon: -98.12990, time: '2024-04-15T19:13:15Z' },
+              { lat: 30.30780, lon: -98.12620, time: '2024-04-15T19:13:30Z' },
+              { lat: 30.30790, lon: -98.12240, time: '2024-04-15T19:13:45Z' },
+              { lat: 30.30820, lon: -98.11860, time: '2024-04-15T19:14:00Z' },
+              { lat: 30.30860, lon: -98.11480, time: '2024-04-15T19:14:15Z' }
+            ]
+          }
+        ]
+      },
+      'oregon': {
+        name: 'Oregon - Mountain Terrain',
+        description: 'SSE-NNW and WSW-ENE passes in Cascade foothills. Demonstrates hand-flown track with drift.',
+        date: '2024-04-15',
+        segments: [
+          {
+            name: 'Segment 1 (SSE to NNW)',
+            points: [
+              { lat: 44.69110, lon: -122.51420, time: '2024-04-15T20:00:00Z' },
+              { lat: 44.69340, lon: -122.51330, time: '2024-04-15T20:00:15Z' },
+              { lat: 44.69570, lon: -122.51390, time: '2024-04-15T20:00:30Z' },
+              { lat: 44.69790, lon: -122.51310, time: '2024-04-15T20:00:45Z' },
+              { lat: 44.70010, lon: -122.51370, time: '2024-04-15T20:01:00Z' },
+              { lat: 44.70230, lon: -122.51290, time: '2024-04-15T20:01:15Z' },
+              { lat: 44.70450, lon: -122.51350, time: '2024-04-15T20:01:30Z' },
+              { lat: 44.70670, lon: -122.51270, time: '2024-04-15T20:01:45Z' },
+              { lat: 44.70890, lon: -122.51320, time: '2024-04-15T20:02:00Z' },
+              { lat: 44.71110, lon: -122.51250, time: '2024-04-15T20:02:15Z' }
+            ]
+          },
+          {
+            name: 'Segment 2 (WSW to ENE)',
+            points: [
+              { lat: 44.70190, lon: -122.53780, time: '2024-04-15T20:12:00Z' },
+              { lat: 44.70220, lon: -122.53390, time: '2024-04-15T20:12:15Z' },
+              { lat: 44.70260, lon: -122.53010, time: '2024-04-15T20:12:30Z' },
+              { lat: 44.70310, lon: -122.52630, time: '2024-04-15T20:12:45Z' },
+              { lat: 44.70360, lon: -122.52260, time: '2024-04-15T20:13:00Z' },
+              { lat: 44.70400, lon: -122.51890, time: '2024-04-15T20:13:15Z' },
+              { lat: 44.70430, lon: -122.51520, time: '2024-04-15T20:13:30Z' },
+              { lat: 44.70440, lon: -122.51140, time: '2024-04-15T20:13:45Z' },
+              { lat: 44.70430, lon: -122.50760, time: '2024-04-15T20:14:00Z' },
+              { lat: 44.70410, lon: -122.50380, time: '2024-04-15T20:14:15Z' }
+            ]
+          }
+        ]
+      }
+    }
   }
 };
 
