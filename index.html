@@ -37,6 +37,7 @@
 <body>
   <div id="root"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
     // Verify Leaflet loaded
     if (typeof L === 'undefined') {
@@ -44,6 +45,12 @@
       window.L = null;
     } else {
       console.log('Leaflet loaded successfully, version:', L.version);
+    }
+    // Verify JSZip loaded
+    if (typeof JSZip === 'undefined') {
+      console.warn('JSZip failed to load - KMZ support may be limited');
+    } else {
+      console.log('JSZip loaded successfully');
     }
   </script>
   <script>
@@ -380,10 +387,16 @@ function spNormalizeBearing(b) { b = b % 360; if (b < 0) b += 360; return b; }
 function spParseCoordinate(input) {
   if (!input || typeof input !== 'string') return null;
   input = input.trim();
+  // Format: decimal degrees (39.1234, -104.5678)
   let m = input.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
   if (m) return { latDD: parseFloat(m[1]), lonDD: parseFloat(m[2]) };
+  // Format: DDM (39 07.40N 104 32.81W)
   m = input.match(/(\d+)\s+(\d+\.?\d*)\s*([NS])\s+(\d+)\s+(\d+\.?\d*)\s*([EW])/i);
   if (m) { let lat = parseInt(m[1]) + parseFloat(m[2]) / 60, lon = parseInt(m[4]) + parseFloat(m[5]) / 60; if (m[3].toUpperCase() === 'S') lat = -lat; if (m[6].toUpperCase() === 'W') lon = -lon; return { latDD: lat, lonDD: lon }; }
+  // Format: DMS with symbols (39°07'24.0"N 104°32'48.6"W) or (39° 6'24.20"N, 104°34'24.11"W)
+  m = input.match(/(\d+)[°]\s*(\d+)['''′]\s*(\d+\.?\d*)["""″]?\s*([NS])[,\s]+(\d+)[°]\s*(\d+)['''′]\s*(\d+\.?\d*)["""″]?\s*([EW])/i);
+  if (m) { let lat = parseInt(m[1]) + parseInt(m[2])/60 + parseFloat(m[3])/3600, lon = parseInt(m[5]) + parseInt(m[6])/60 + parseFloat(m[7])/3600; if (m[4].toUpperCase() === 'S') lat = -lat; if (m[8].toUpperCase() === 'W') lon = -lon; return { latDD: lat, lonDD: lon }; }
+  // Format: DMS without degree symbol (39 07 24.0 N 104 32 48.6 W)
   m = input.match(/(\d+)[°\s]+(\d+)['′\s]+(\d+\.?\d*)["″\s]*([NS])\s+(\d+)[°\s]+(\d+)['′\s]+(\d+\.?\d*)["″\s]*([EW])/i);
   if (m) { let lat = parseInt(m[1]) + parseInt(m[2])/60 + parseFloat(m[3])/3600, lon = parseInt(m[5]) + parseInt(m[6])/60 + parseFloat(m[7])/3600; if (m[4].toUpperCase() === 'S') lat = -lat; if (m[8].toUpperCase() === 'W') lon = -lon; return { latDD: lat, lonDD: lon }; }
   return null;
@@ -1420,25 +1433,26 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
         {
           name: "Create User Waypoint",
           steps: [
-            "Turn Large FMS knob \u2192 WPT page group",
-            "Turn Small FMS knob \u2192 USER WPT INFO page",
-            "Press NEW soft key",
-            "Use FMS knobs to enter name \u2192 ENT",
-            "Use FMS knobs to enter Lat/Long coordinates",
-            "Press ENT when finished",
-            "Press CLR 2 sec \u2192 return to Map"
+            "Turn LARGE (outer) knob → RIGHT to WPT page group",
+            "Turn SMALL (inner) knob → RIGHT to USER WPT INFO page",
+            "Press NEW soft key (or MENU → 'Create New User Waypoint')",
+            "Enter a waypoint name (up to 6 characters)",
+            "Press ENTER - current aircraft position is the default",
+            "If needed, select LAT/LON and enter coordinates using FMS knobs",
+            "Press ENTER to accept the new waypoint",
+            "Push FMS knob to remove cursor"
           ]
         },
         {
           name: "Create Waypoint from Present Position",
           steps: [
             "On NAVIGATION MAP page",
-            "Push joystick (Range-Pan knob)",
-            "Pointer appears at present position",
-            "Press ENT to create waypoint",
-            "Use FMS knobs to select name",
-            "Press ENT to accept",
-            "Press CLR 2 sec \u2192 return to Map"
+            "Push the Joystick to display Map Pointer",
+            "Pointer appears at aircraft's current position",
+            "Press ENTER to display User Waypoint Information Page",
+            "Enter a waypoint name (up to 6 characters)",
+            "Press ENTER to accept",
+            "Push FMS knob to remove cursor"
           ]
         },
         {
@@ -1446,34 +1460,34 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
           steps: [
             "Go to USER WPT INFO page",
             "Press NEW soft key",
-            "Use FMS knobs to name waypoint \u2192 ENT",
-            "Small FMS CCW \u2192 waypoint reference window",
-            "Select from FPL, NRST, or RECENT",
-            "Large FMS \u2192 scroll waypoints \u2192 ENT",
-            "Set RADIAL (angle) and DIS (distance)",
-            "Press ENT when finished"
+            "Enter waypoint name → Press ENTER",
+            "Turn SMALL knob to select reference type: RAD/RAD, RAD/DIS, or LAT/LON",
+            "Press ENTER",
+            "Enter reference waypoint identifier and radial/distance as needed",
+            "Press ENTER to accept the new waypoint",
+            "Push FMS knob to remove cursor"
           ]
         },
         {
           name: "Modify User Waypoint",
           steps: [
-            "Go to WPT \u2192 User WPT Info page",
-            "Press FMS knob to activate cursor",
-            "Use FMS knobs to select waypoint name",
-            "Use FMS knobs to make changes",
-            "Press ENT to accept changes",
-            "Press CLR 2 sec \u2192 return to Map"
+            "Go to WPT → User WPT Info page",
+            "Push FMS knob to activate cursor",
+            "Turn LARGE knob to scroll to waypoint name, or enter name",
+            "Press ENTER to select",
+            "Use FMS knobs to make changes to position/name",
+            "Press ENTER to accept changes",
+            "Push FMS knob to remove cursor"
           ]
         },
         {
           name: "Delete User Waypoint",
           steps: [
-            "Go to WPT \u2192 User WPT Info page",
-            "Large FMS \u2192 scroll to waypoint",
-            "Press CLR button \u2192 Delete (Yes/No)",
-            "ENT to accept",
-            "Press SmKb to clear cursor",
-            "Press CLR 2 sec \u2192 return to Map"
+            "Go to WPT → User WPT Info page",
+            "Turn LARGE (outer) knob to scroll to waypoint",
+            "Press CLR button → Delete prompt appears (Yes/No)",
+            "Press ENTER to confirm deletion",
+            "Push FMS knob to remove cursor"
           ]
         }
       ]
@@ -1486,48 +1500,46 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
           name: "Create New Flight Plan",
           steps: [
             "Press FPL button",
-            "Small FMS CW 1 click \u2192 FPL list",
-            "Press NEW soft key",
-            "Small FMS CW 1 click for first leg",
-            "Spell waypoint IDENT with Sm/Lg knobs",
-            "Press ENT (accepts) \u2192 ENT (inserts leg)",
-            "Repeat for additional legs",
-            "Press Small FMS knob when finished",
-            "Press CLR \u2192 return to Map"
+            "Push SMALL (inner) knob to activate cursor (MFD only)",
+            "Turn SMALL knob → RIGHT to display Waypoint Info Window",
+            "Enter waypoint identifier and press ENTER",
+            "Turn LARGE knob to next position in flight plan",
+            "Repeat: SMALL knob → RIGHT, enter identifier, ENTER",
+            "Push FMS knob when finished to remove cursor"
           ]
         },
         {
           name: "Store & Activate Flight Plan",
           steps: [
-            "Press FPL key",
-            "Small FMS \u2192 Flight Plan Catalog page",
+            "Press FPL button",
+            "Turn SMALL (inner) knob → RIGHT to Flight Plan Catalog page",
             "Press NEW soft key for blank FPL",
-            "Use FMS knobs to insert waypoints",
-            "Press ENT after each waypoint",
+            "Enter waypoints using SMALL/LARGE knobs",
+            "Press ENTER after each waypoint",
             "Press ACTIVE soft key to activate"
           ]
         },
         {
           name: "Edit Flight Plan - Insert Waypoint",
           steps: [
-            "Large FMS \u2192 scroll to position",
-            "Small FMS CW \u2192 spell IDENT",
-            "Use Sm/Lg knobs to spell \u2192 ENT",
-            "Waypoint inserts ABOVE cursor",
-            "Or: Small FMS CCW \u2192 FPL/RECENT/NRST",
-            "Large FMS \u2192 scroll list \u2192 ENT",
-            "Press Small FMS knob \u2192 return to FPL list"
+            "Press FPL button",
+            "Push FMS knob to activate cursor",
+            "Turn LARGE knob to position BEFORE where new waypoint goes",
+            "Turn SMALL knob → RIGHT to display Waypoint Info Window",
+            "(Or turn SMALL knob → LEFT for FPL/NEAREST/RECENT/USER lists)",
+            "Enter identifier or select from list → Press ENTER",
+            "New waypoint inserts directly in front of highlighted position"
           ],
-          note: "Waypoint inserts ABOVE cursor position"
+          note: "New waypoint inserts BEFORE the highlighted waypoint"
         },
         {
           name: "Edit Flight Plan - Delete Waypoint",
           steps: [
-            "Large FMS \u2192 scroll to waypoint",
+            "Turn LARGE (outer) knob → RIGHT to scroll to waypoint",
             "Press CLR button to delete",
-            "Large FMS CW \u2192 OK/Cancel",
-            "ENT to confirm deletion",
-            "Press Small FMS knob \u2192 return to FPL list"
+            "Turn LARGE knob → RIGHT to OK/Cancel",
+            "Press ENTER to confirm deletion",
+            "Push SMALL knob → return to FPL list"
           ]
         },
         {
@@ -1535,20 +1547,20 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
           steps: [
             "View FPL list and select FPL to copy",
             "Press MENU button",
-            "Large FMS \u2192 scroll to 'Copy FPL'",
+            "Turn LARGE (outer) knob → RIGHT to scroll to 'Copy FPL'",
             "Copies to first empty location",
-            "ENT to confirm"
+            "Press ENTER to confirm"
           ]
         },
         {
           name: "Rename Flight Plan",
           steps: [
             "View FPL (see View FPL steps)",
-            "Large FMS CCW 1 click \u2192 move to FPL name",
-            "Small FMS CW \u2192 start rename",
-            "Use Sm/Lg knobs to spell name",
-            "ENT accepts new name",
-            "Press Small FMS knob to clear"
+            "Turn LARGE (outer) knob → LEFT one click to move to FPL name",
+            "Turn SMALL (inner) knob → RIGHT to start rename",
+            "Use SMALL/LARGE knobs to spell name",
+            "Press ENTER to accept new name",
+            "Push SMALL knob to clear cursor"
           ]
         },
         {
@@ -1556,11 +1568,11 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
           steps: [
             "Press FPL button",
             "Go to FLIGHT PLAN CATALOG page",
-            "Press MENU \u2192 Select 'Delete All'",
-            "Press CLR 2 seconds",
+            "Press MENU → Select 'Delete All'",
+            "Hold CLR for 2 seconds",
             "Go to WPT page group",
             "Select User Waypoint Info page",
-            "Press MENU \u2192 Delete All User Waypoints"
+            "Press MENU → Delete All User Waypoints"
           ]
         }
       ]
@@ -1574,25 +1586,26 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
           steps: [
             "Press FPL button",
             "Press MENU button",
-            "Select 'Search & Rescue'",
-            "Press ENT"
-          ]
+            "Turn LARGE (outer) knob → RIGHT to 'Search & Rescue'",
+            "Press ENTER"
+          ],
+          note: "Requires SAR unlock card in MFD TOP SD slot"
         },
         {
           name: "Parallel Track Search",
           steps: [
             "Store and activate FPL with 4 grid corners",
-            "Press FPL key",
-            "Press FMS knob to activate cursor",
-            "Large FMS \u2192 highlight grid entry point",
-            "Press MENU \u2192 Search and Rescue \u2192 ENT",
-            "Select PARALLEL pattern",
+            "Press FPL button",
+            "Push SMALL (inner) knob to activate cursor",
+            "Turn LARGE knob → RIGHT to highlight grid entry point",
+            "Press MENU → Turn LARGE knob to 'Search and Rescue' → Press ENTER",
+            "Turn SMALL knob → RIGHT to select PARALLEL pattern",
             "Configure: Leg Length = 7.5nm",
             "Number of Legs = 9",
-            "Set Initial DTK (1-360\xB0)",
+            "Set Initial DTK (1-360°)",
             "Set Initial Turn (Left/Right)",
             "Set Spacing (0.5-9.9nm)",
-            "Select 'Activate SAR' \u2192 ENT"
+            "Turn LARGE knob to 'Activate SAR' → Press ENTER"
           ],
           note: "Leg length is FULL length of each leg",
           diagram: `   \u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
@@ -1607,15 +1620,15 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
           steps: [
             "Store/activate FPL with search start point",
             "May need to create user waypoint",
-            "Press FPL key",
-            "Press FMS knob \u2192 activate cursor",
-            "Large FMS \u2192 highlight entry point",
-            "Press MENU \u2192 Search and Rescue \u2192 ENT",
-            "Select SECTOR pattern",
-            "Set Initial DTK (1-360\xB0)",
+            "Press FPL button",
+            "Push SMALL (inner) knob → activate cursor",
+            "Turn LARGE knob → RIGHT to highlight entry point",
+            "Press MENU → Turn LARGE knob to 'Search and Rescue' → Press ENTER",
+            "Turn SMALL knob → RIGHT to select SECTOR pattern",
+            "Set Initial DTK (1-360°)",
             "Set Initial Turn (Left/Right)",
             "Set Leg Length (0.5-10.0nm)",
-            "Select 'Activate SAR' \u2192 ENT"
+            "Turn LARGE knob to 'Activate SAR' → Press ENTER"
           ],
           note: "Creates 3 equilateral triangles - all legs equal",
           diagram: `        1
@@ -1634,16 +1647,16 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
           steps: [
             "Store/activate FPL with sector center",
             "May need to create user waypoint",
-            "Press FPL key",
-            "Press FMS knob \u2192 activate cursor",
-            "Large FMS \u2192 highlight grid entry point",
-            "Press MENU \u2192 Search and Rescue \u2192 ENT",
-            "Select EXP SQR pattern",
-            "Set Initial DTK (1-360\xB0)",
+            "Press FPL button",
+            "Push SMALL (inner) knob → activate cursor",
+            "Turn LARGE knob → RIGHT to highlight grid entry point",
+            "Press MENU → Turn LARGE knob to 'Search and Rescue' → Press ENTER",
+            "Turn SMALL knob → RIGHT to select EXP SQR pattern",
+            "Set Initial DTK (1-360°)",
             "Set Initial Turn (Left/Right)",
             "Set Spacing (0.5-9.9nm)",
             "Set Number of Legs (1-60)",
-            "Select 'Activate SAR' \u2192 ENT"
+            "Turn LARGE knob to 'Activate SAR' → Press ENTER"
           ],
           note: "10 legs gives 5nm last leg",
           diagram: `     1nm\u2192
@@ -1662,71 +1675,71 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
         {
           name: "Direct To (Spell IDENT)",
           steps: [
-            "Press Direct To (D\u2192) button",
-            "Small FMS CW \u2192 select first letter",
-            "Large FMS \u2192 move letter position",
-            "ENT accepts \u2192 ENT activates",
-            "Returns to FPL with Direct To"
+            "Press Direct To (D→) button",
+            "Turn SMALL (inner) knob → RIGHT to begin entering identifier",
+            "Turn LARGE (outer) knob to move to next character position",
+            "Press ENTER - 'Activate?' is highlighted",
+            "Press ENTER again to activate direct-to"
           ]
         },
         {
           name: "Direct To (From FPL/NEAREST/RECENT)",
           steps: [
-            "Press Direct To (D\u2192) button",
-            "Small FMS CCW 1 click \u2192 FPL box",
-            "Small FMS CW \u2192 FPL, NEAREST, RECENT pages",
-            "Large FMS \u2192 select waypoint",
-            "ENT accepts \u2192 ENT activates"
+            "Press Direct To (D→) button",
+            "Turn SMALL knob → LEFT to display waypoint selection submenu",
+            "Turn SMALL knob → RIGHT to cycle: FPL, NEAREST, RECENT, USER",
+            "Turn LARGE (outer) knob → RIGHT to select waypoint",
+            "Press ENTER - 'Activate?' is highlighted",
+            "Press ENTER again to activate direct-to"
           ]
         },
         {
           name: "Direct To with Selected Course",
           steps: [
-            "Press CDI for GPS",
-            "Press OBS button",
-            "Rotate CRS small knob for intercept heading",
-            "Fly to intercept magenta line (inbound to WPT)"
+            "Press OBS Softkey to select OBS Mode",
+            "Turn CRS Knob to select desired course to/from waypoint",
+            "Push CRS Knob to synchronize with bearing to next waypoint",
+            "Press OBS Softkey again to disable OBS Mode"
           ]
         },
         {
           name: "Direct To from Nearest (PFD)",
           steps: [
-            "Press NRST soft key (PFD)",
-            "Use Small FMS CW to scroll list",
-            "Press Direct To button",
-            "ENT accepts \u2192 ENT activates"
+            "Press NRST soft key (on PFD)",
+            "Turn SMALL (inner) knob → RIGHT to scroll through list",
+            "Press Direct To (D→) button",
+            "Press ENTER (accepts) → Press ENTER again (activates)"
           ]
         },
         {
           name: "Intercept GPS Radial to Waypoint",
           steps: [
-            "Set Direct To waypoint",
-            "Press CDI button for GPS CDI gauge",
-            "Press OBS button (PFD) \u2192 engages OBS function",
-            "Rotate CRS small knob to select radial",
-            "Arrowhead = inbound (Magenta Line)",
-            "Tail of arrow = from WPT (White Line)",
-            "Press CRS knob \u2192 places magenta line under aircraft"
+            "Set Direct To waypoint first",
+            "Press OBS Softkey to engage OBS Mode",
+            "Turn CRS Knob to select desired radial",
+            "Fly to intercept the magenta course line",
+            "Push CRS Knob to sync course under aircraft",
+            "Press OBS Softkey again when done to disable"
           ]
         },
         {
           name: "Track Orientation Setting",
           steps: [
             "Press MENU button",
-            "Map Setup \u2192 ENT",
-            "Large FMS CW \u2192 select Orientation",
-            "Small FMS CW \u2192 North Up/Track Up/DTK Up/HDG Up",
-            "Press Small FMS knob \u2192 return to Map"
+            "Map Setup → Press ENTER",
+            "Turn LARGE (outer) knob → RIGHT to select Orientation",
+            "Turn SMALL (inner) knob → RIGHT to cycle: North Up/Track Up/DTK Up/HDG Up",
+            "Push SMALL knob → return to Map"
           ]
         },
         {
           name: "View Present Position (Lat/Long)",
           steps: [
-            "Method 1: Press Range small knob - read Lat/Long",
-            "Method 2: Large FMS CW 2 clicks \u2192 AUX page",
-            "Small FMS CW 2 clicks \u2192 GPS Status (page 3)",
-            "See POSITION field",
-            "CLR 2 sec \u2192 return to Map"
+            "Method 1: Push Joystick to show Map Pointer with Lat/Long",
+            "Push Joystick again to remove pointer",
+            "Method 2: Turn LARGE knob to AUX page group",
+            "Turn SMALL knob to GPS Status page",
+            "View POSITION field"
           ]
         }
       ]
@@ -1738,39 +1751,38 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
         {
           name: "Mark Target (In Flight)",
           steps: [
-            "Press RANGE-PAN knob when over target",
-            "White cross appears on MFD",
-            "DO NOT toggle Range-Pan knob after marking",
-            "Write down Lat/Long displayed (upper left MFD)",
-            "Report position to mission base"
+            "Push Joystick when over target to display Map Pointer",
+            "Map Pointer appears at aircraft position with Lat/Long shown",
+            "DO NOT move Joystick after marking",
+            "Write down Lat/Long displayed",
+            "Report position to mission base",
+            "Push Joystick again to remove pointer"
           ],
           note: "Critical: Note position immediately - do not move pointer"
         },
         {
           name: "Mark Current Position as Waypoint",
           steps: [
-            "Push Range small knob",
-            "Move pointer to desired position with Range knob",
-            "Press ENT \u2192 user WPT name entry",
-            "Use Sm/Lg knobs to spell name",
-            "ENT accepts name",
-            "Press Small FMS knob \u2192 Cursor Off",
-            "Press CLR 2 sec \u2192 return to Map"
+            "Push Joystick to activate Map Pointer",
+            "Move Joystick to pan to desired position",
+            "Press ENTER to display User Waypoint Information Page",
+            "Enter waypoint name (up to 6 characters)",
+            "Press ENTER to accept",
+            "Push FMS knob to remove cursor",
+            "Press Go Back Softkey to return to map"
           ]
         },
         {
           name: "Create User WPT with Lat/Long",
           steps: [
-            "Large FMS CW \u2192 WPT page",
-            "Small FMS CW \u2192 page 5 (User WPT)",
+            "Turn LARGE (outer) knob to WPT page group",
+            "Turn SMALL (inner) knob to User WPT Info page",
             "Press NEW soft key",
-            "Sm/Lg knobs \u2192 edit name \u2192 ENT",
-            "Large FMS CCW \u2192 move to Lat/Long",
-            "Small FMS CW 1 click",
-            "Sm/Lg knobs \u2192 enter Lat/Long values",
-            "ENT to save",
-            "Press Small FMS knob to clear",
-            "Press CLR 2 sec \u2192 return to Map"
+            "Enter waypoint name → Press ENTER",
+            "Turn SMALL knob to select 'LAT/LON' → Press ENTER",
+            "Enter Lat/Long values using FMS knobs",
+            "Press ENTER to accept",
+            "Push FMS knob to remove cursor"
           ]
         }
       ]
@@ -1782,52 +1794,52 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
         {
           name: "Lat/Long Display Format Setting",
           steps: [
-            "Large FMS CW \u2192 AUX page",
-            "Small FMS CW 3 clicks \u2192 page 4",
-            "Press Small FMS knob (Cursor On)",
-            "Large FMS CW \u2192 Display Units - Position",
-            "Small FMS CW \u2192 select format:",
-            `  HDDD\xB0MM'SS.SS" or HDDD\xB0MM.MM'`,
-            "ENT to accept",
-            "Press Small FMS knob to clear",
-            "Press CLR 2 sec \u2192 return to Map"
+            "Turn LARGE (outer) knob → RIGHT to AUX page",
+            "Turn SMALL (inner) knob → RIGHT 3 clicks to page 4",
+            "Push SMALL knob (Cursor On)",
+            "Turn LARGE knob → RIGHT to 'Display Units - Position'",
+            "Turn SMALL knob → RIGHT to select format:",
+            "  HDDD°MM'SS.SS\" or HDDD°MM.MM'",
+            "Press ENTER to accept",
+            "Push SMALL knob to clear cursor",
+            "Hold CLR for 2 seconds → return to Map"
           ]
         },
         {
           name: "Fuel Ring Reserve Setting",
           steps: [
             "Press MENU button",
-            "Map Setup \u2192 ENT",
-            "Large FMS CW \u2192 select Fuel Ring",
-            "Small FMS \u2192 ON/OFF",
-            "Large FMS CW \u2192 time position",
-            "Small FMS CW \u2192 adjust Hours",
-            "Large FMS CW \u2192 minute position",
-            "Small FMS \u2192 adjust Minutes \u2192 ENT",
-            "Press Small FMS knob to clear"
+            "Map Setup → Press ENTER",
+            "Turn LARGE (outer) knob → RIGHT to select Fuel Ring",
+            "Turn SMALL (inner) knob → RIGHT for ON/OFF",
+            "Turn LARGE knob → RIGHT to time position",
+            "Turn SMALL knob → RIGHT to adjust Hours",
+            "Turn LARGE knob → RIGHT to minute position",
+            "Turn SMALL knob → RIGHT to adjust Minutes → Press ENTER",
+            "Push SMALL knob to clear cursor"
           ]
         },
         {
           name: "Load Airport Radio Frequency",
           steps: [
-            "View FPL (FPL button \u2192 Small FMS CW)",
-            "Large FMS \u2192 scroll to airport",
-            "ENT to select",
-            "Press Small FMS knob (Cursor On)",
-            "Large FMS CW \u2192 scroll to frequency",
-            "ENT \u2192 loads to Standby Freq Box",
+            "View FPL (Press FPL button → Turn SMALL knob → RIGHT)",
+            "Turn LARGE (outer) knob → RIGHT to scroll to airport",
+            "Press ENTER to select",
+            "Push SMALL knob (Cursor On)",
+            "Turn LARGE knob → RIGHT to scroll to frequency",
+            "Press ENTER → loads to Standby Freq Box",
             "Repeat for additional frequencies",
-            "Press Small FMS knob to clear"
+            "Push SMALL knob to clear cursor"
           ]
         },
         {
           name: "View Airport Diagram",
           steps: [
-            "From FPL list, Large FMS \u2192 select airport",
-            "ENT to select",
-            "Press CHRT soft key \u2192 NOS airport diagram",
-            "Use Range small knob to zoom",
-            "Hold CLR 2 sec \u2192 return to Map"
+            "From FPL list, turn LARGE knob → RIGHT to select airport",
+            "Press ENTER to select",
+            "Press CHRT soft key → NOS airport diagram displays",
+            "Turn Range (small) knob to zoom in/out",
+            "Hold CLR for 2 seconds → return to Map"
           ]
         },
         {
@@ -1835,37 +1847,37 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
           steps: [
             "From Airport selection",
             "Press APR soft key",
-            "Press Small FMS knob (cursor)",
-            "Large FMS CW \u2192 scroll to approach",
-            "Small FMS CW \u2192 approach selection box",
-            "Small FMS CW \u2192 scroll to desired approach \u2192 ENT",
+            "Push SMALL knob (cursor on)",
+            "Turn LARGE (outer) knob → RIGHT to scroll to approach",
+            "Turn SMALL (inner) knob → RIGHT to approach selection box",
+            "Turn SMALL knob → RIGHT to scroll to desired approach → Press ENTER",
             "Press CHRT to view chart",
-            "Hold CLR 2 sec \u2192 return to Map"
+            "Hold CLR for 2 seconds → return to Map"
           ]
         },
         {
           name: "View Timers",
           steps: [
-            "Large FMS CW 2 clicks \u2192 AUX page",
-            "Small FMS CW 2 clicks \u2192 Utility page",
+            "Turn LARGE (outer) knob → RIGHT 2 clicks to AUX page",
+            "Turn SMALL (inner) knob → RIGHT 2 clicks to Utility page",
             "View Timers section"
           ]
         },
         {
           name: "PFD Nav Screen Display",
           steps: [
-            "Press INSET soft key \u2192 brings up Map screen",
-            "Press OFF soft key \u2192 removes Map screen"
+            "Press INSET soft key → brings up Map screen on PFD",
+            "Press OFF soft key → removes Map screen"
           ]
         },
         {
           name: "Display Nav1/Nav2/DME on PFD",
           steps: [
             "Press PFD soft key on PFD",
-            "Press BRG1 soft key \u2192 Nav1/GPS/ADF/Off",
-            "Press BRG2 soft key \u2192 same options",
-            "Press DME soft key \u2192 display DME",
-            "Press Back soft key \u2192 return to default"
+            "Press BRG1 soft key → Nav1/GPS/ADF/Off",
+            "Press BRG2 soft key → same options",
+            "Press DME soft key → display DME",
+            "Press Back soft key → return to default"
           ]
         }
       ]
@@ -2659,6 +2671,25 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
     const [opsTimerRemaining, setOpsTimerRemaining] = useState(null);
     const [opsTimerLastReset, setOpsTimerLastReset] = useState(null);
 const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
+    const [g1000RefTextSize, setG1000RefTextSize] = useState(1); // 0.85, 1, 1.2, 1.4
+    
+    // Command Tools state
+    const [cmdState, setCmdState] = useState({
+      searchAreaMode: 'grid', // 'grid', 'point', 'route'
+      gridInput: '',
+      selectedGrids: [], // [{grid: 'DEN27', subgrids: ['A','B','C','D'], corners: {...}}]
+      pointInput: '',
+      routePoints: [], // [{lat, lon, name}]
+      coverageWidth: 0.5, // NM on each side
+      flights: [], // [{id, callsign, coordinates: [{lat, lon, alt, time}], color}]
+      coverageGrid: null, // 2D array for coverage calculation
+      showSettings: false,
+      showMap: false,
+      mapKey: 0, // Increment to force map re-render
+      analysisGrids: [] // Stores coverage analysis data for map
+    });
+    const cmdFlightColors = ['#f6e05e', '#68d391', '#63b3ed', '#fc8181', '#b794f4', '#f687b3'];
+    
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedAircraft, setSelectedAircraft] = useState("C182T");
     const [selectedEmergencyCategory, setSelectedEmergencyCategory] = useState("engine");
@@ -5216,6 +5247,7 @@ Events: ${events.length}`;
         { id: "crosshair", icon: "🎯", label: "Target Locate", desc: "Crosshair triangulation tool", color: "#d69e2e" },
         { id: "eltAssist", icon: "📡", label: "ELT Assist", desc: "ELT signal tracking & SARSAT", color: "#ed8936" },
         { id: "searchPlanner", icon: "🧭", label: "Search Planner", desc: "Generate search patterns", color: "#805ad5" },
+        { id: "commandTools", icon: "📊", label: "Command Tools", desc: "Coverage analysis for IC/Planners", color: "#e53e3e" },
         { id: "radio", icon: "📢", label: "Radio Calls", desc: "CAP radio call templates", color: "#3182ce" },
         { id: "coComms", icon: "📻", label: "CO Comms", desc: "Colorado frequencies & callsigns", color: "#2b6cb0" },
         { id: "emergency", icon: "🚨", label: "Emergency", desc: "Emergency procedures & checklists", color: "#c53030" },
@@ -9070,6 +9102,850 @@ React.createElement(
       );
     };
 
+    // Command Tools Tab - Coverage Analysis for IC/Planners
+    const renderCommandToolsTab = () => {
+      const cmdStyles = {
+        section: { marginBottom: "16px" },
+        sectionHeader: { background: "linear-gradient(135deg, rgba(229,62,62,0.3), rgba(197,48,48,0.2))", borderRadius: "12px 12px 0 0", padding: "14px 16px", fontWeight: "700", fontSize: "15px", color: "#fc8181", display: "flex", alignItems: "center", gap: "10px", borderBottom: "2px solid rgba(229,62,62,0.4)" },
+        sectionBody: { background: "rgba(0,0,0,0.3)", borderRadius: "0 0 12px 12px", padding: "16px", border: "1px solid rgba(255,255,255,0.1)", borderTop: "none" },
+        modeTab: { flex: 1, padding: "12px", borderRadius: "8px", border: "2px solid", cursor: "pointer", fontWeight: "600", fontSize: "13px", fontFamily: "inherit", textAlign: "center" },
+        input: { width: "100%", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(255,255,255,0.2)", borderRadius: "8px", padding: "14px", fontSize: "16px", color: "#fff", fontFamily: "inherit", marginBottom: "12px" },
+        btn: { padding: "12px 20px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "700", fontSize: "14px", fontFamily: "inherit" },
+        gridCard: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "12px", marginBottom: "8px", border: "1px solid rgba(255,255,255,0.1)" },
+        flightCard: { background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "12px", marginBottom: "8px", border: "2px solid", display: "flex", justifyContent: "space-between", alignItems: "center" },
+        statBox: { background: "rgba(0,0,0,0.3)", borderRadius: "8px", padding: "16px", textAlign: "center", border: "1px solid rgba(255,255,255,0.1)" },
+        statValue: { fontSize: "32px", fontWeight: "700", marginBottom: "4px" },
+        statLabel: { fontSize: "11px", color: "#a0aec0", textTransform: "uppercase" },
+        coverageBar: { height: "24px", borderRadius: "4px", background: "rgba(0,0,0,0.4)", overflow: "hidden", marginTop: "8px" },
+        coverageFill: { height: "100%", borderRadius: "4px", transition: "width 0.3s" }
+      };
+
+      // Parse KML file and extract flight track
+      const parseKML = (kmlText) => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(kmlText, "text/xml");
+        
+        // Get callsign from track name
+        const trackPlacemark = Array.from(doc.getElementsByTagName('Placemark')).find(p => {
+          return p.getElementsByTagName('gx:Track').length > 0;
+        });
+        
+        let callsign = 'Unknown';
+        if (trackPlacemark) {
+          const nameEl = trackPlacemark.getElementsByTagName('n')[0] || trackPlacemark.getElementsByTagName('name')[0];
+          if (nameEl) callsign = nameEl.textContent;
+        }
+        
+        // Get coordinates
+        const coords = [];
+        const gxCoords = doc.getElementsByTagNameNS('http://www.google.com/kml/ext/2.2', 'coord');
+        const whenElements = doc.getElementsByTagName('when');
+        
+        for (let i = 0; i < gxCoords.length; i++) {
+          const parts = gxCoords[i].textContent.trim().split(/\s+/);
+          if (parts.length >= 2) {
+            coords.push({
+              lon: parseFloat(parts[0]),
+              lat: parseFloat(parts[1]),
+              alt: parts[2] ? parseFloat(parts[2]) : 0,
+              time: whenElements[i] ? whenElements[i].textContent : null
+            });
+          }
+        }
+        
+        return { callsign, coordinates: coords };
+      };
+
+      // Handle KML file upload
+      const handleKMLUpload = async (e) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        
+        for (let idx = 0; idx < files.length; idx++) {
+          const file = files[idx];
+          const isKMZ = file.name.toLowerCase().endsWith('.kmz');
+          
+          try {
+            let kmlText;
+            
+            if (isKMZ) {
+              // KMZ is a ZIP file containing a KML file (usually doc.kml)
+              const arrayBuffer = await file.arrayBuffer();
+              const blob = new Blob([arrayBuffer]);
+              
+              // Use JSZip if available, otherwise try native decompression
+              if (typeof JSZip !== 'undefined') {
+                const zip = await JSZip.loadAsync(arrayBuffer);
+                // Look for .kml file in the archive
+                const kmlFile = Object.keys(zip.files).find(name => name.toLowerCase().endsWith('.kml'));
+                if (kmlFile) {
+                  kmlText = await zip.files[kmlFile].async('string');
+                } else {
+                  console.error('No KML file found in KMZ archive');
+                  continue;
+                }
+              } else {
+                // Fallback: Use DecompressionStream API (modern browsers)
+                try {
+                  const ds = new DecompressionStream('deflate-raw');
+                  // KMZ/ZIP parsing is complex without library, try basic approach
+                  // ZIP files have local file headers, we'll look for the KML content
+                  const bytes = new Uint8Array(arrayBuffer);
+                  
+                  // Simple ZIP parser - find PK signature and extract
+                  let kmlStart = -1, kmlEnd = -1;
+                  const xmlHeader = '<?xml';
+                  const kmlHeader = '<kml';
+                  
+                  // Convert to string and look for KML content
+                  const decoder = new TextDecoder('utf-8', { fatal: false });
+                  const fullText = decoder.decode(bytes);
+                  
+                  // Find XML/KML content within the ZIP (it's often stored uncompressed or we can find markers)
+                  const xmlIdx = fullText.indexOf('<?xml');
+                  const kmlIdx = fullText.indexOf('<kml');
+                  const startIdx = Math.min(
+                    xmlIdx >= 0 ? xmlIdx : Infinity,
+                    kmlIdx >= 0 ? kmlIdx : Infinity
+                  );
+                  
+                  if (startIdx < Infinity) {
+                    // Find the end of the KML (</kml>)
+                    const endIdx = fullText.indexOf('</kml>', startIdx);
+                    if (endIdx > startIdx) {
+                      kmlText = fullText.substring(startIdx, endIdx + 6);
+                    }
+                  }
+                  
+                  if (!kmlText) {
+                    // Try using fflate or pako if loaded
+                    if (typeof pako !== 'undefined') {
+                      try {
+                        const inflated = pako.inflate(bytes.slice(30), { to: 'string' }); // Skip ZIP header
+                        if (inflated.includes('<kml')) {
+                          kmlText = inflated;
+                        }
+                      } catch (e) { }
+                    }
+                  }
+                  
+                  if (!kmlText) {
+                    alert('Could not extract KML from KMZ file: ' + file.name + '\nTry extracting the .kml file manually from the .kmz archive.');
+                    continue;
+                  }
+                } catch (err) {
+                  alert('Error reading KMZ file: ' + file.name + '\n' + err.message);
+                  continue;
+                }
+              }
+            } else {
+              // Regular KML file
+              kmlText = await file.text();
+            }
+            
+            const parsed = parseKML(kmlText);
+            
+            if (parsed.coordinates.length > 0) {
+              const newFlight = {
+                id: Date.now() + idx,
+                callsign: parsed.callsign,
+                filename: file.name,
+                coordinates: parsed.coordinates,
+                color: cmdFlightColors[cmdState.flights.length % cmdFlightColors.length],
+                pointCount: parsed.coordinates.length
+              };
+              
+              setCmdState(prev => ({
+                ...prev,
+                flights: [...prev.flights, newFlight]
+              }));
+            } else {
+              console.warn('No coordinates found in file:', file.name);
+            }
+          } catch (err) {
+            console.error('Error processing file:', file.name, err);
+            alert('Error processing file: ' + file.name);
+          }
+        }
+        
+        e.target.value = '';
+      };
+
+      // Remove a flight
+      const removeFlight = (id) => {
+        setCmdState(prev => ({
+          ...prev,
+          flights: prev.flights.filter(f => f.id !== id)
+        }));
+      };
+
+      // Smart parser for search area input - handles CAP grids, coordinates, or multiple entries
+      const parseSearchAreaInput = () => {
+        const input = cmdState.gridInput.trim();
+        if (!input) return;
+        
+        const results = { grids: [], errors: [] };
+        
+        // Split by common delimiters: newline, semicolon, or " / "
+        // But be careful not to split coordinates like "39° 6'24"N, 104°34'24"W"
+        const entries = input.split(/[\n;]|(?:\s+\/\s+)/).map(s => s.trim()).filter(s => s);
+        
+        entries.forEach(entry => {
+          // Try to parse as CAP Grid ID first (e.g., "DEN 110", "DEN110", "DEN 110B", "DEN110B")
+          const gridMatch = entry.match(/^([A-Z]{3})\s*(\d+)\s*([ABCD])?$/i);
+          if (gridMatch) {
+            const sectionalId = gridMatch[1].toUpperCase();
+            const gridNum = parseInt(gridMatch[2]);
+            const quadrant = gridMatch[3] ? gridMatch[3].toUpperCase() : null;
+            
+            // We need to find a point in this grid to get corners
+            // Use the sectional data to calculate grid center
+            const sectionals = [
+              { id: "SEA", north: 49, south: 44.5, west: 125, east: 117 },
+              { id: "GTF", north: 49, south: 44.5, west: 117, east: 109 },
+              { id: "BIL", north: 49, south: 44.5, west: 109, east: 101 },
+              { id: "MSP", north: 49, south: 44.5, west: 101, east: 93 },
+              { id: "GRB", north: 48.25, south: 44, west: 93, east: 85 },
+              { id: "LHN", north: 48, south: 44, west: 85, east: 77 },
+              { id: "MON", north: 48, south: 44, west: 77, east: 69 },
+              { id: "HFX", north: 48, south: 44, west: 69, east: 61 },
+              { id: "LMT", north: 44.5, south: 40, west: 125, east: 117 },
+              { id: "SLC", north: 44.5, south: 40, west: 117, east: 109 },
+              { id: "CYS", north: 44.5, south: 40, west: 109, east: 101 },
+              { id: "OMA", north: 44.5, south: 40, west: 101, east: 93 },
+              { id: "ORD", north: 44, south: 40, west: 93, east: 85 },
+              { id: "DET", north: 44, south: 40, west: 85, east: 77 },
+              { id: "NYC", north: 44, south: 40, west: 77, east: 69 },
+              { id: "SFO", north: 40, south: 36, west: 125, east: 118 },
+              { id: "LAS", north: 40, south: 35.75, west: 118, east: 111 },
+              { id: "DEN", north: 40, south: 35.75, west: 111, east: 104 },
+              { id: "ICT", north: 40, south: 36, west: 104, east: 97 },
+              { id: "MKC", north: 40, south: 36, west: 97, east: 90 },
+              { id: "STL", north: 40, south: 36, west: 91, east: 84 },
+              { id: "LUK", north: 40, south: 36, west: 85, east: 78 },
+              { id: "DCA", north: 40, south: 36, west: 79, east: 72 },
+              { id: "LAX", north: 36, south: 32, west: 121.5, east: 115 },
+              { id: "PHX", north: 35.75, south: 31.25, west: 116, east: 109 },
+              { id: "ABQ", north: 36, south: 32, west: 109, east: 102 },
+              { id: "DFW", north: 36, south: 32, west: 102, east: 95 },
+              { id: "MEM", north: 36, south: 32, west: 95, east: 88 },
+              { id: "ATL", north: 36, south: 32, west: 88, east: 81 },
+              { id: "CLT", north: 36, south: 32, west: 81, east: 75 },
+              { id: "ELP", north: 32, south: 28, west: 109, east: 103 },
+              { id: "SAT", north: 32, south: 28, west: 103, east: 97 },
+              { id: "HOU", north: 32, south: 28, west: 97, east: 91 },
+              { id: "MSY", north: 32, south: 28, west: 91, east: 85 },
+              { id: "JAX", north: 32, south: 28, west: 85, east: 79 },
+              { id: "BRO", north: 28, south: 24, west: 103, east: 97 },
+              { id: "MIA", north: 28, south: 24, west: 83, east: 77 }
+            ];
+            
+            const sectional = sectionals.find(s => s.id === sectionalId);
+            if (sectional) {
+              // Calculate grid location from grid number
+              const gridsPerRow = Math.round((sectional.west - sectional.east) / 0.25);
+              const row = Math.floor((gridNum - 1) / gridsPerRow);
+              const col = (gridNum - 1) % gridsPerRow;
+              
+              const gridNorth = sectional.north - row * 0.25;
+              const gridWest = sectional.west - col * 0.25;
+              
+              // Calculate center of grid (or quadrant if specified)
+              let centerLat, centerLon;
+              if (quadrant) {
+                const qs = 0.125;
+                if (quadrant === 'A') { centerLat = gridNorth - qs/2; centerLon = -(gridWest - qs - qs/2); }
+                else if (quadrant === 'B') { centerLat = gridNorth - qs/2; centerLon = -(gridWest - qs/2); }
+                else if (quadrant === 'C') { centerLat = gridNorth - qs - qs/2; centerLon = -(gridWest - qs - qs/2); }
+                else { centerLat = gridNorth - qs - qs/2; centerLon = -(gridWest - qs/2); }
+              } else {
+                centerLat = gridNorth - 0.125;
+                centerLon = -(gridWest - 0.125);
+              }
+              
+              // Now use spDetectCapGrid with this center point
+              const gridInfo = spDetectCapGrid(centerLat, centerLon);
+              if (gridInfo) {
+                results.grids.push({ gridInfo, input: entry });
+              } else {
+                results.errors.push(entry + ' (grid calculation error)');
+              }
+            } else {
+              results.errors.push(entry + ' (unknown sectional)');
+            }
+            return;
+          }
+          
+          // Try to parse as coordinate
+          const parsed = spParseCoordinate(entry);
+          if (parsed) {
+            const gridInfo = spDetectCapGrid(parsed.latDD, parsed.lonDD);
+            if (gridInfo) {
+              results.grids.push({ gridInfo, input: entry, coord: parsed });
+            } else {
+              results.errors.push(entry + ' (outside grid coverage)');
+            }
+            return;
+          }
+          
+          // Could not parse
+          results.errors.push(entry + ' (unrecognized format)');
+        });
+        
+        // Process results - add unique grids
+        const addedGrids = [];
+        results.grids.forEach(({ gridInfo, input }) => {
+          const baseGrid = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
+          
+          // Skip if already in selected grids or already added in this batch
+          if (cmdState.selectedGrids.find(g => g.grid === baseGrid) || addedGrids.includes(baseGrid)) {
+            return;
+          }
+          
+          // Calculate full grid corners
+          const qc = gridInfo.corners;
+          const quad = gridInfo.quarterGrid;
+          const qs = 0.125;
+          
+          let fullNorth, fullSouth, fullWest, fullEast;
+          if (quad === 'A') {
+            fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - qs;
+            fullWest = qc.nw.lon - qs; fullEast = qc.ne.lon;
+          } else if (quad === 'B') {
+            fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - qs;
+            fullWest = qc.nw.lon; fullEast = qc.ne.lon + qs;
+          } else if (quad === 'C') {
+            fullNorth = qc.nw.lat + qs; fullSouth = qc.sw.lat;
+            fullWest = qc.nw.lon - qs; fullEast = qc.ne.lon;
+          } else {
+            fullNorth = qc.nw.lat + qs; fullSouth = qc.sw.lat;
+            fullWest = qc.nw.lon; fullEast = qc.ne.lon + qs;
+          }
+          
+          const fullGridCorners = {
+            nw: { lat: fullNorth, lon: fullWest },
+            ne: { lat: fullNorth, lon: fullEast },
+            sw: { lat: fullSouth, lon: fullWest },
+            se: { lat: fullSouth, lon: fullEast }
+          };
+          
+          addedGrids.push(baseGrid);
+          
+          setCmdState(prev => ({
+            ...prev,
+            selectedGrids: [...prev.selectedGrids, {
+              grid: baseGrid,
+              subgrids: ['A', 'B', 'C', 'D'],
+              corners: fullGridCorners,
+              quadrantCorners: qc,
+              detectedQuadrant: quad,
+              gridInfo: gridInfo,
+              coverage: { total: 0, A: 0, B: 0, C: 0, D: 0 }
+            }]
+          }));
+        });
+        
+        // Clear input and show errors if any
+        setCmdState(prev => ({ ...prev, gridInput: '' }));
+        
+        if (results.errors.length > 0) {
+          alert('Could not parse:\\n' + results.errors.join('\\n'));
+        } else if (addedGrids.length > 0) {
+          // Success feedback could go here
+        } else if (results.grids.length > 0) {
+          alert('All grids already added.');
+        }
+      };
+
+      // Calculate coverage for all grids
+      const calculateCoverage = () => {
+        if (cmdState.selectedGrids.length === 0 || cmdState.flights.length === 0) return;
+        
+        const coverageWidth = cmdState.coverageWidth;
+        const nmToLat = 1 / 60;
+        const buffer = coverageWidth * nmToLat * 2;
+        
+        // Calculate the combined bounding box of all search grids (with buffer)
+        let gridMinLat = Infinity, gridMaxLat = -Infinity;
+        let gridMinLon = Infinity, gridMaxLon = -Infinity;
+        
+        cmdState.selectedGrids.forEach(gridInfo => {
+          const corners = gridInfo.corners;
+          gridMinLat = Math.min(gridMinLat, corners.sw.lat, corners.se.lat);
+          gridMaxLat = Math.max(gridMaxLat, corners.nw.lat, corners.ne.lat);
+          gridMinLon = Math.min(gridMinLon, corners.nw.lon, corners.sw.lon);
+          gridMaxLon = Math.max(gridMaxLon, corners.ne.lon, corners.se.lon);
+        });
+        
+        // Count points inside and outside the search area
+        let totalFlightPoints = 0;
+        let pointsInsideArea = 0;
+        let pointsOutsideArea = 0;
+        
+        cmdState.flights.forEach(flight => {
+          flight.coordinates.forEach(coord => {
+            totalFlightPoints++;
+            const insideArea = coord.lat >= gridMinLat - buffer && coord.lat <= gridMaxLat + buffer &&
+                              coord.lon >= gridMinLon - buffer && coord.lon <= gridMaxLon + buffer;
+            if (insideArea) {
+              pointsInsideArea++;
+            } else {
+              pointsOutsideArea++;
+            }
+          });
+        });
+        
+        // Determine warning state
+        const allPointsOutside = pointsInsideArea === 0 && totalFlightPoints > 0;
+        const somePointsOutside = pointsOutsideArea > 0 && pointsInsideArea > 0;
+        
+        const updatedGrids = cmdState.selectedGrids.map(gridInfo => {
+          const corners = gridInfo.corners;
+          const minLat = Math.min(corners.sw.lat, corners.se.lat);
+          const maxLat = Math.max(corners.nw.lat, corners.ne.lat);
+          const minLon = Math.min(corners.nw.lon, corners.sw.lon);
+          const maxLon = Math.max(corners.ne.lon, corners.se.lon);
+          const midLat = (minLat + maxLat) / 2;
+          
+          const cellSize = 0.1;
+          const latStep = cellSize * nmToLat;
+          const lonStep = cellSize * nmToLat / Math.cos(midLat * Math.PI / 180);
+          const numLatCells = Math.ceil((maxLat - minLat) / latStep);
+          const numLonCells = Math.ceil((maxLon - minLon) / lonStep);
+          
+          const coverageGrid = Array(numLatCells).fill(null).map(() => Array(numLonCells).fill(false));
+          
+          // Count how many flight points are within or near this specific grid
+          let pointsNearGrid = 0;
+          
+          cmdState.flights.forEach(flight => {
+            flight.coordinates.forEach(coord => {
+              // Check if this point is near this grid (within buffer)
+              const nearGrid = coord.lat >= minLat - buffer && coord.lat <= maxLat + buffer &&
+                              coord.lon >= minLon - buffer && coord.lon <= maxLon + buffer;
+              
+              // Only process points that are near the grid
+              if (!nearGrid) return;
+              
+              pointsNearGrid++;
+              
+              const latIdx = Math.floor((coord.lat - minLat) / latStep);
+              const lonIdx = Math.floor((coord.lon - minLon) / lonStep);
+              const radiusCells = Math.ceil(coverageWidth / cellSize) + 1;
+              
+              for (let di = -radiusCells; di <= radiusCells; di++) {
+                for (let dj = -radiusCells; dj <= radiusCells; dj++) {
+                  const i = latIdx + di;
+                  const j = lonIdx + dj;
+                  
+                  if (i >= 0 && i < numLatCells && j >= 0 && j < numLonCells) {
+                    const cellLat = minLat + (i + 0.5) * latStep;
+                    const cellLon = minLon + (j + 0.5) * lonStep;
+                    const dLat = (cellLat - coord.lat) / nmToLat;
+                    const dLon = (cellLon - coord.lon) * Math.cos(coord.lat * Math.PI / 180) / nmToLat;
+                    const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+                    
+                    if (dist <= coverageWidth) {
+                      coverageGrid[i][j] = true;
+                    }
+                  }
+                }
+              }
+            });
+          });
+          
+          let totalCovered = 0;
+          let totalCells = 0;
+          const quadrantCounts = { A: { covered: 0, total: 0 }, B: { covered: 0, total: 0 }, C: { covered: 0, total: 0 }, D: { covered: 0, total: 0 } };
+          
+          // Collect uncovered cells for map visualization
+          const uncoveredCells = [];
+          
+          for (let i = 0; i < numLatCells; i++) {
+            for (let j = 0; j < numLonCells; j++) {
+              totalCells++;
+              if (coverageGrid[i][j]) {
+                totalCovered++;
+              } else {
+                // Store uncovered cell coordinates for map
+                uncoveredCells.push({
+                  lat: minLat + (i + 0.5) * latStep,
+                  lon: minLon + (j + 0.5) * lonStep,
+                  latStep: latStep,
+                  lonStep: lonStep
+                });
+              }
+              const isNorth = i >= numLatCells / 2;
+              const isEast = j >= numLonCells / 2;
+              let quad = isNorth ? (isEast ? 'B' : 'A') : (isEast ? 'D' : 'C');
+              quadrantCounts[quad].total++;
+              if (coverageGrid[i][j]) quadrantCounts[quad].covered++;
+            }
+          }
+          
+          return {
+            ...gridInfo,
+            coverage: {
+              total: totalCells > 0 ? Math.round((totalCovered / totalCells) * 100) : 0,
+              A: quadrantCounts.A.total > 0 ? Math.round((quadrantCounts.A.covered / quadrantCounts.A.total) * 100) : 0,
+              B: quadrantCounts.B.total > 0 ? Math.round((quadrantCounts.B.covered / quadrantCounts.B.total) * 100) : 0,
+              C: quadrantCounts.C.total > 0 ? Math.round((quadrantCounts.C.covered / quadrantCounts.C.total) * 100) : 0,
+              D: quadrantCounts.D.total > 0 ? Math.round((quadrantCounts.D.covered / quadrantCounts.D.total) * 100) : 0
+            },
+            uncoveredCells: uncoveredCells,
+            gridBounds: { minLat, maxLat, minLon, maxLon },
+            pointsNearGrid: pointsNearGrid
+          };
+        });
+        
+        // Detect the grid where most flight data is (for helpful message when all points outside)
+        let detectedFlightGrid = null;
+        if (allPointsOutside && totalFlightPoints > 0) {
+          // Find center of all flight tracks
+          let sumLat = 0, sumLon = 0, count = 0;
+          cmdState.flights.forEach(flight => {
+            flight.coordinates.forEach(coord => {
+              sumLat += coord.lat;
+              sumLon += coord.lon;
+              count++;
+            });
+          });
+          if (count > 0) {
+            detectedFlightGrid = spDetectCapGrid(sumLat / count, sumLon / count);
+          }
+        }
+        
+        setCmdState(prev => ({ 
+          ...prev, 
+          selectedGrids: updatedGrids,
+          flightsOutsideArea: allPointsOutside,
+          someFlightsOutside: somePointsOutside,
+          pointsInsideArea: pointsInsideArea,
+          pointsOutsideArea: pointsOutsideArea,
+          detectedFlightGrid: detectedFlightGrid ? detectedFlightGrid.gridId.replace(/[ABCD]$/, '').trim() : null
+        }));
+      };
+
+      const getCoverageColor = (pct) => {
+        if (pct >= 90) return '#38a169';
+        if (pct >= 70) return '#68d391';
+        if (pct >= 50) return '#d69e2e';
+        if (pct >= 30) return '#dd6b20';
+        return '#e53e3e';
+      };
+
+      const totalFlightPoints = cmdState.flights.reduce((sum, f) => sum + f.coordinates.length, 0);
+      const avgCoverage = cmdState.selectedGrids.length > 0 
+        ? Math.round(cmdState.selectedGrids.reduce((sum, g) => sum + (g.coverage?.total || 0), 0) / cmdState.selectedGrids.length)
+        : 0;
+
+      return React.createElement("div", null,
+        React.createElement("div", { style: { ...cmdStyles.section } },
+          React.createElement("div", { style: { ...cmdStyles.sectionHeader, borderRadius: "12px", borderBottom: "none" } },
+            React.createElement("span", null, "\u{1F4CA}"), "Command Tools - Coverage Analysis"
+          )
+        ),
+        React.createElement("div", { style: cmdStyles.section },
+          React.createElement("div", { style: cmdStyles.sectionHeader }, React.createElement("span", null, "\u{1F3AF}"), "Define Search Area"),
+          React.createElement("div", { style: cmdStyles.sectionBody },
+            // Single smart input
+            React.createElement("div", { style: { marginBottom: "12px" } },
+              React.createElement("textarea", { 
+                placeholder: "Enter CAP grids or coordinates (one per line):\n• DEN 110  or  DEN110B\n• 39.1234, -104.5678\n• 39° 6'24\"N, 104°34'24\"W\n\nMultiple entries: separate by newline or semicolon",
+                value: cmdState.gridInput, 
+                onChange: (e) => setCmdState(prev => ({ ...prev, gridInput: e.target.value })), 
+                style: { 
+                  width: "100%", 
+                  minHeight: "100px",
+                  background: "rgba(0,0,0,0.4)", 
+                  border: "2px solid rgba(255,255,255,0.2)", 
+                  borderRadius: "8px", 
+                  padding: "14px", 
+                  fontSize: "14px", 
+                  color: "#fff", 
+                  fontFamily: "inherit",
+                  resize: "vertical"
+                } 
+              }),
+              React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" } },
+                React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0" } }, 
+                  "Accepts: CAP Grid IDs (DEN 110, DEN110B) • Decimal (39.12, -104.56) • DMS (39° 6'24\"N, 104°34'24\"W)"
+                ),
+                React.createElement("button", { 
+                  onClick: parseSearchAreaInput, 
+                  disabled: !cmdState.gridInput.trim(),
+                  style: { 
+                    ...cmdStyles.btn, 
+                    background: cmdState.gridInput.trim() ? "linear-gradient(135deg, #38a169, #2f855a)" : "rgba(100,100,100,0.3)", 
+                    color: cmdState.gridInput.trim() ? "#fff" : "#a0aec0",
+                    cursor: cmdState.gridInput.trim() ? "pointer" : "not-allowed"
+                  } 
+                }, "+ Add Grids")
+              )
+            ),
+            // Active grids display
+            cmdState.selectedGrids.length > 0 && React.createElement("div", { style: { marginTop: "16px" } },
+              React.createElement("div", { style: { fontSize: "12px", fontWeight: "700", color: "#fc8181", marginBottom: "8px" } }, "Active Search Grids (" + cmdState.selectedGrids.length + "):"),
+              cmdState.selectedGrids.map((g, i) => React.createElement("div", { key: i, style: cmdStyles.gridCard },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" } },
+                  React.createElement("span", { style: { fontSize: "16px", fontWeight: "700", color: "#f6e05e" } }, g.grid),
+                  React.createElement("button", { onClick: () => setCmdState(prev => ({ ...prev, selectedGrids: prev.selectedGrids.filter((_, idx) => idx !== i) })), style: { background: "rgba(229,62,62,0.3)", border: "none", color: "#fc8181", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "12px" } }, "Remove")
+                ),
+                React.createElement("div", { style: { display: "flex", gap: "6px" } },
+                  ['A', 'B', 'C', 'D'].map(sub => React.createElement("button", { key: sub, style: { flex: 1, padding: "8px", borderRadius: "6px", border: g.subgrids.includes(sub) ? "2px solid #68d391" : "1px solid rgba(255,255,255,0.2)", background: g.subgrids.includes(sub) ? "rgba(104,211,145,0.2)" : "rgba(0,0,0,0.2)", color: g.subgrids.includes(sub) ? "#68d391" : "#a0aec0", cursor: "pointer", fontWeight: "600", fontSize: "13px" }, onClick: () => { setCmdState(prev => ({ ...prev, selectedGrids: prev.selectedGrids.map((grid, idx) => { if (idx !== i) return grid; const newSubs = grid.subgrids.includes(sub) ? grid.subgrids.filter(s => s !== sub) : [...grid.subgrids, sub]; return { ...grid, subgrids: newSubs }; }) })); } }, g.grid + sub))
+                )
+              ))
+            )
+          )
+        ),
+        React.createElement("div", { style: cmdStyles.section },
+          React.createElement("div", { style: cmdStyles.sectionHeader }, React.createElement("span", null, "\u2708\uFE0F"), "Flight Tracks"),
+          React.createElement("div", { style: cmdStyles.sectionBody },
+            React.createElement("label", { style: { display: "block", padding: "20px", background: "linear-gradient(135deg, rgba(99,179,237,0.2), rgba(49,130,206,0.1))", border: "2px dashed rgba(99,179,237,0.5)", borderRadius: "12px", textAlign: "center", cursor: "pointer", marginBottom: "16px" } },
+              React.createElement("input", { type: "file", accept: ".kml,.kmz", multiple: true, onChange: handleKMLUpload, style: { display: "none" } }),
+              React.createElement("div", { style: { fontSize: "24px", marginBottom: "8px" } }, "\u{1F4C1}"),
+              React.createElement("div", { style: { fontSize: "14px", fontWeight: "600", color: "#63b3ed" } }, "Upload KML/KMZ Flight Track(s)"),
+              React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginTop: "4px" } }, "Click to select or drag & drop multiple files")
+            ),
+            cmdState.flights.length > 0 && React.createElement("div", null,
+              React.createElement("div", { style: { fontSize: "12px", fontWeight: "700", color: "#63b3ed", marginBottom: "8px" } }, "Loaded Flights (" + cmdState.flights.length + "):"),
+              cmdState.flights.map((flight) => React.createElement("div", { key: flight.id, style: { ...cmdStyles.flightCard, borderColor: flight.color } },
+                React.createElement("div", null,
+                  React.createElement("div", { style: { fontSize: "14px", fontWeight: "700", color: flight.color } }, flight.callsign),
+                  React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0" } }, flight.pointCount + " track points \u2022 " + flight.filename)
+                ),
+                React.createElement("button", { onClick: () => removeFlight(flight.id), style: { background: "rgba(229,62,62,0.3)", border: "none", color: "#fc8181", padding: "8px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px" } }, "\u2715 Remove")
+              ))
+            ),
+            React.createElement("div", { style: { marginTop: "16px", padding: "12px", background: "rgba(0,0,0,0.2)", borderRadius: "8px" } },
+              React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" } },
+                React.createElement("span", { style: { fontSize: "12px", fontWeight: "600", color: "#f6e05e" } }, "Coverage Width (each side):"),
+                React.createElement("span", { style: { fontSize: "14px", fontWeight: "700", color: "#68d391" } }, cmdState.coverageWidth + " NM")
+              ),
+              React.createElement("input", { type: "range", min: "0.1", max: "2.0", step: "0.1", value: cmdState.coverageWidth, onChange: (e) => setCmdState(prev => ({ ...prev, coverageWidth: parseFloat(e.target.value) })), style: { width: "100%", accentColor: "#68d391" } }),
+              React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#a0aec0" } }, React.createElement("span", null, "0.1 NM"), React.createElement("span", null, "2.0 NM"))
+            ),
+            React.createElement("button", { onClick: calculateCoverage, disabled: cmdState.selectedGrids.length === 0 || cmdState.flights.length === 0, style: { ...cmdStyles.btn, width: "100%", marginTop: "16px", padding: "16px", fontSize: "16px", background: cmdState.selectedGrids.length > 0 && cmdState.flights.length > 0 ? "linear-gradient(135deg, #38a169, #2f855a)" : "rgba(100,100,100,0.3)", color: cmdState.selectedGrids.length > 0 && cmdState.flights.length > 0 ? "#fff" : "#a0aec0", cursor: cmdState.selectedGrids.length > 0 && cmdState.flights.length > 0 ? "pointer" : "not-allowed" } }, "\u{1F4CA} Analyze Coverage")
+          )
+        ),
+        cmdState.selectedGrids.some(g => g.coverage !== undefined) && React.createElement("div", { style: cmdStyles.section },
+          React.createElement("div", { style: { ...cmdStyles.sectionHeader, background: "linear-gradient(135deg, rgba(56,161,105,0.3), rgba(47,133,90,0.2))", borderColor: "rgba(104,211,145,0.4)" } }, React.createElement("span", null, "\u{1F4C8}"), "Coverage Analysis Results"),
+          React.createElement("div", { style: cmdStyles.sectionBody },
+            // Warning if ALL flights are outside search area
+            cmdState.flightsOutsideArea && React.createElement("div", { 
+              style: { 
+                marginBottom: "16px", 
+                padding: "14px", 
+                background: "linear-gradient(135deg, rgba(214,158,46,0.2), rgba(221,107,32,0.15))", 
+                border: "2px solid #d69e2e", 
+                borderRadius: "8px" 
+              } 
+            },
+              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" } },
+                React.createElement("span", { style: { fontSize: "20px" } }, "\u26A0\uFE0F"),
+                React.createElement("span", { style: { fontSize: "14px", fontWeight: "700", color: "#f6e05e" } }, "Flight Data Outside Search Area")
+              ),
+              React.createElement("div", { style: { fontSize: "12px", color: "#e2e8f0", lineHeight: "1.5" } }, 
+                "The uploaded flight tracks do not overlap with the defined search grids. Coverage is 0% because the aircraft flew in a different area."
+              ),
+              cmdState.detectedFlightGrid && React.createElement("div", { style: { marginTop: "10px", padding: "10px", background: "rgba(0,0,0,0.2)", borderRadius: "6px" } },
+                React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "4px" } }, "Flight tracks appear to be in:"),
+                React.createElement("div", { style: { fontSize: "16px", fontWeight: "700", color: "#68d391" } }, cmdState.detectedFlightGrid),
+                React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginTop: "6px" } }, 
+                  "Consider adding this grid to your search area, or verify the correct KML files were uploaded."
+                )
+              )
+            ),
+            // Info if SOME flights are outside search area (but some are inside)
+            cmdState.someFlightsOutside && React.createElement("div", { 
+              style: { 
+                marginBottom: "16px", 
+                padding: "12px", 
+                background: "linear-gradient(135deg, rgba(99,179,237,0.15), rgba(49,130,206,0.1))", 
+                border: "1px solid rgba(99,179,237,0.4)", 
+                borderRadius: "8px" 
+              } 
+            },
+              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" } },
+                React.createElement("span", { style: { fontSize: "16px" } }, "\u2139\uFE0F"),
+                React.createElement("span", { style: { fontSize: "13px", fontWeight: "600", color: "#63b3ed" } }, "Partial Flight Data in Search Area")
+              ),
+              React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", lineHeight: "1.4" } }, 
+                cmdState.pointsInsideArea.toLocaleString() + " of " + totalFlightPoints.toLocaleString() + " track points (" + Math.round(cmdState.pointsInsideArea / totalFlightPoints * 100) + "%) are within the search area. Points outside the grid are excluded from coverage calculation."
+              )
+            ),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "20px" } },
+              React.createElement("div", { style: cmdStyles.statBox }, React.createElement("div", { style: { ...cmdStyles.statValue, color: "#63b3ed" } }, cmdState.flights.length), React.createElement("div", { style: cmdStyles.statLabel }, "Aircraft")),
+              React.createElement("div", { style: cmdStyles.statBox }, React.createElement("div", { style: { ...cmdStyles.statValue, color: "#f6e05e" } }, (cmdState.pointsInsideArea || totalFlightPoints).toLocaleString()), React.createElement("div", { style: cmdStyles.statLabel }, cmdState.someFlightsOutside ? "Points in Area" : "Track Points")),
+              React.createElement("div", { style: cmdStyles.statBox }, React.createElement("div", { style: { ...cmdStyles.statValue, color: getCoverageColor(avgCoverage) } }, avgCoverage + "%"), React.createElement("div", { style: cmdStyles.statLabel }, "Avg Coverage"))
+            ),
+            // View on Map button
+            React.createElement("button", { 
+              onClick: () => setCmdState(prev => ({ ...prev, showMap: true, mapKey: prev.mapKey + 1 })),
+              style: { ...cmdStyles.btn, width: "100%", marginBottom: "16px", padding: "14px", fontSize: "15px", background: "linear-gradient(135deg, #3182ce, #2b6cb0)", color: "#fff" }
+            }, "\u{1F5FA}\uFE0F View Coverage Map"),
+            cmdState.selectedGrids.map((g, i) => React.createElement("div", { key: i, style: { ...cmdStyles.gridCard, marginBottom: "16px" } },
+              React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" } },
+                React.createElement("span", { style: { fontSize: "18px", fontWeight: "700", color: "#f6e05e" } }, g.grid),
+                React.createElement("span", { style: { fontSize: "24px", fontWeight: "700", color: getCoverageColor(g.coverage?.total || 0) } }, (g.coverage?.total || 0) + "%")
+              ),
+              React.createElement("div", { style: cmdStyles.coverageBar }, React.createElement("div", { style: { ...cmdStyles.coverageFill, width: (g.coverage?.total || 0) + "%", background: getCoverageColor(g.coverage?.total || 0) } })),
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginTop: "12px" } },
+                ['A', 'B', 'C', 'D'].map(sub => { const pct = g.coverage?.[sub] || 0; const isActive = g.subgrids.includes(sub); return React.createElement("div", { key: sub, style: { textAlign: "center", opacity: isActive ? 1 : 0.4 } }, React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginBottom: "4px" } }, g.grid + sub), React.createElement("div", { style: { fontSize: "18px", fontWeight: "700", color: getCoverageColor(pct) } }, pct + "%"), React.createElement("div", { style: { ...cmdStyles.coverageBar, height: "8px" } }, React.createElement("div", { style: { ...cmdStyles.coverageFill, height: "100%", width: pct + "%", background: getCoverageColor(pct) } }))); })
+              ),
+              (g.coverage?.total || 0) < 100 && !cmdState.flightsOutsideArea && React.createElement("div", { style: { marginTop: "12px", padding: "10px", background: "rgba(229,62,62,0.15)", border: "1px solid rgba(229,62,62,0.3)", borderRadius: "6px" } },
+                React.createElement("div", { style: { fontSize: "12px", fontWeight: "600", color: "#fc8181" } }, "\u26A0\uFE0F " + (100 - (g.coverage?.total || 0)) + "% of " + g.grid + " has NOT been visually covered"),
+                React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginTop: "4px" } }, "Areas without flyover have zero probability of detection")
+              )
+            )),
+            React.createElement("button", { onClick: () => setCmdState(prev => ({ ...prev, selectedGrids: prev.selectedGrids.map(g => ({ ...g, coverage: undefined, uncoveredCells: [] })), flights: [], routePoints: [], flightsOutsideArea: false, someFlightsOutside: false, pointsInsideArea: 0, pointsOutsideArea: 0, detectedFlightGrid: null })), style: { ...cmdStyles.btn, width: "100%", marginTop: "12px", background: "rgba(229,62,62,0.3)", color: "#fc8181" } }, "\u{1F5D1}\uFE0F Clear All & Reset")
+          )
+        ),
+        // Coverage Map Modal
+        cmdState.showMap && React.createElement("div", {
+          style: {
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.9)",
+            zIndex: 10000,
+            display: "flex",
+            flexDirection: "column"
+          }
+        },
+          // Modal header
+          React.createElement("div", {
+            style: {
+              padding: "12px 16px",
+              background: "linear-gradient(135deg, #1a202c, #2d3748)",
+              borderBottom: "2px solid #4a5568",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }
+          },
+            React.createElement("div", { style: { fontSize: "16px", fontWeight: "700", color: "#f6e05e" } }, "\u{1F5FA}\uFE0F Coverage Analysis Map"),
+            React.createElement("button", {
+              onClick: () => setCmdState(prev => ({ ...prev, showMap: false })),
+              style: { background: "rgba(229,62,62,0.3)", border: "2px solid #fc8181", borderRadius: "8px", padding: "8px 16px", color: "#fc8181", fontWeight: "700", cursor: "pointer", fontSize: "14px" }
+            }, "\u2715 Close")
+          ),
+          // Legend
+          React.createElement("div", {
+            style: {
+              padding: "8px 16px",
+              background: "rgba(0,0,0,0.5)",
+              display: "flex",
+              gap: "20px",
+              flexWrap: "wrap",
+              fontSize: "12px",
+              borderBottom: "1px solid #4a5568"
+            }
+          },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px" } },
+              React.createElement("div", { style: { width: "20px", height: "6px", background: "#ff00ff", borderRadius: "2px" } }),
+              React.createElement("span", { style: { color: "#e2e8f0" } }, "Search Grid Boundary")
+            ),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px" } },
+              React.createElement("div", { style: { width: "20px", height: "4px", background: "#000000", borderRadius: "2px", border: "1px solid #fff" } }),
+              React.createElement("span", { style: { color: "#e2e8f0" } }, "Flight Tracks (" + cmdState.flights.length + ")")
+            ),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px" } },
+              React.createElement("div", { style: { width: "16px", height: "16px", background: "rgba(229,62,62,0.6)", borderRadius: "2px" } }),
+              React.createElement("span", { style: { color: "#e2e8f0" } }, "Missing Coverage (0% POD)")
+            )
+          ),
+          // Map container
+          React.createElement("div", {
+            id: "cmd-coverage-map-" + cmdState.mapKey,
+            key: "map-" + cmdState.mapKey,
+            style: { flex: 1 },
+            ref: (el) => {
+              if (el && !el._mapInit) {
+                el._mapInit = true;
+                
+                // Small delay to ensure DOM is ready
+                setTimeout(() => {
+                  // Calculate bounds from all grids
+                  let allLats = [], allLons = [];
+                  cmdState.selectedGrids.forEach(g => {
+                    if (g.gridBounds) {
+                      allLats.push(g.gridBounds.minLat, g.gridBounds.maxLat);
+                      allLons.push(g.gridBounds.minLon, g.gridBounds.maxLon);
+                    } else if (g.corners) {
+                      allLats.push(g.corners.nw.lat, g.corners.sw.lat);
+                      allLons.push(g.corners.nw.lon, g.corners.ne.lon);
+                    }
+                  });
+                  cmdState.flights.forEach(f => {
+                    f.coordinates.forEach(c => {
+                      allLats.push(c.lat);
+                      allLons.push(c.lon);
+                    });
+                  });
+                  
+                  const centerLat = allLats.length > 0 ? (Math.min(...allLats) + Math.max(...allLats)) / 2 : 39;
+                  const centerLon = allLons.length > 0 ? (Math.min(...allLons) + Math.max(...allLons)) / 2 : -105;
+                  
+                  const map = L.map(el).setView([centerLat, centerLon], 11);
+                  el._leafletMap = map; // Store reference for cleanup
+                  
+                  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap'
+                  }).addTo(map);
+                  
+                  // Draw grid boundaries
+                  cmdState.selectedGrids.forEach(g => {
+                    if (g.gridBounds) {
+                      const bounds = [[g.gridBounds.minLat, g.gridBounds.minLon], [g.gridBounds.maxLat, g.gridBounds.maxLon]];
+                      L.rectangle(bounds, { color: '#ff00ff', weight: 5, fillOpacity: 0.05, dashArray: '10, 5' }).addTo(map).bindPopup(g.grid + ' - ' + (g.coverage?.total || 0) + '% covered');
+                    } else if (g.corners) {
+                      const c = g.corners;
+                      const bounds = [[c.sw.lat, c.nw.lon], [c.nw.lat, c.ne.lon]];
+                      L.rectangle(bounds, { color: '#ff00ff', weight: 5, fillOpacity: 0.05, dashArray: '10, 5' }).addTo(map).bindPopup(g.grid + ' - ' + (g.coverage?.total || 0) + '% covered');
+                    }
+                    
+                    // Draw uncovered cells as red overlay
+                    if (g.uncoveredCells && g.uncoveredCells.length > 0) {
+                      // Group cells into clusters for performance
+                      const cellsToShow = g.uncoveredCells.length > 500 
+                        ? g.uncoveredCells.filter((_, i) => i % Math.ceil(g.uncoveredCells.length / 500) === 0)
+                        : g.uncoveredCells;
+                      
+                      cellsToShow.forEach(cell => {
+                        const halfLat = cell.latStep / 2;
+                        const halfLon = cell.lonStep / 2;
+                        L.rectangle(
+                          [[cell.lat - halfLat, cell.lon - halfLon], [cell.lat + halfLat, cell.lon + halfLon]],
+                          { color: '#e53e3e', weight: 0, fillColor: '#e53e3e', fillOpacity: 0.5 }
+                        ).addTo(map);
+                      });
+                    }
+                  });
+                  
+                  // Draw flight tracks
+                  cmdState.flights.forEach(flight => {
+                    const latLngs = flight.coordinates.map(c => [c.lat, c.lon]);
+                    if (latLngs.length > 0) {
+                      L.polyline(latLngs, { color: '#000000', weight: 3, opacity: 1.0 }).addTo(map).bindPopup(flight.callsign + ' - ' + flight.pointCount + ' points');
+                    }
+                  });
+                  
+                  // Fit bounds
+                  if (allLats.length > 0 && allLons.length > 0) {
+                    const padding = 0.02;
+                    map.fitBounds([
+                      [Math.min(...allLats) - padding, Math.min(...allLons) - padding],
+                      [Math.max(...allLats) + padding, Math.max(...allLons) + padding]
+                    ]);
+                  }
+                }, 100);
+              }
+            }
+          })
+        )
+      );
+    };
+
     const renderReferenceTab = () => {
       const refSections = [
         { id: "radioFrequencies", label: "Frequencies" },
@@ -9131,15 +10007,248 @@ React.createElement(
           case "distressSignals":
             return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "8px" } }, "Ground-to-Air Signals"), /* @__PURE__ */ React.createElement("table", { style: { ...styles.refTable, marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { style: styles.refTh }, "Symbol"), /* @__PURE__ */ React.createElement("th", { style: styles.refTh }, "Meaning"))), /* @__PURE__ */ React.createElement("tbody", null, data.ground.map((item, i) => /* @__PURE__ */ React.createElement("tr", { key: i }, /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, fontWeight: "700", fontSize: "18px", color: "#fc8181", textAlign: "center" } }, item.symbol), /* @__PURE__ */ React.createElement("td", { style: styles.refTd }, item.meaning))))), /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "600", color: "#f6e05e", marginBottom: "8px" } }, "Air-to-Ground Acknowledgment"), /* @__PURE__ */ React.createElement("table", { style: styles.refTable }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { style: styles.refTh }, "Action"), /* @__PURE__ */ React.createElement("th", { style: styles.refTh }, "Meaning"))), /* @__PURE__ */ React.createElement("tbody", null, data.air.map((item, i) => /* @__PURE__ */ React.createElement("tr", { key: i }, /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, color: "#68d391" } }, item.action), /* @__PURE__ */ React.createElement("td", { style: styles.refTd }, item.meaning))))));
           case "g1000Setup":
-            return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.refCard, marginBottom: "16px", background: "linear-gradient(135deg, rgba(49,130,206,0.15), rgba(56,178,172,0.15))", borderColor: "rgba(49,130,206,0.4)" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "20px" } }, "\u{1F5A5}\uFE0F"), /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "700", color: "#63b3ed", fontSize: "14px" } }, "Garmin G1000 SAR Configuration")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0" } }, "Recommended settings for CAP search and rescue operations")), data.sections.map((section, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "12px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "700", color: "#f6e05e", marginBottom: "8px", fontSize: "13px" } }, section.name), /* @__PURE__ */ React.createElement("table", { style: styles.refTable }, /* @__PURE__ */ React.createElement("tbody", null, section.items.map((item, j) => /* @__PURE__ */ React.createElement("tr", { key: j }, /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, fontWeight: "600", color: "#e2e8f0", width: "45%" } }, item.label), /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, color: "#68d391", fontFamily: "monospace" } }, item.value))))), section.note && /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", marginTop: "8px", fontStyle: "italic" } }, "\u{1F4A1} ", section.note))));
+            const g1000SetupTs = g1000RefTextSize || 1;
+            return /* @__PURE__ */ React.createElement("div", null, 
+              // Text Size Controls
+              React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", padding: "10px 12px", background: "rgba(0,0,0,0.3)", borderRadius: "8px" } },
+                React.createElement("span", { style: { fontSize: "11px", color: "#a0aec0", fontWeight: "600" } }, "TEXT SIZE"),
+                React.createElement("div", { style: { display: "flex", gap: "4px" } },
+                  [0.85, 1, 1.2, 1.4].map(size => 
+                    React.createElement("button", {
+                      key: size,
+                      style: {
+                        width: "36px",
+                        height: "36px",
+                        background: g1000SetupTs === size ? "rgba(99,179,237,0.3)" : "rgba(255,255,255,0.1)",
+                        border: g1000SetupTs === size ? "2px solid #63b3ed" : "1px solid rgba(255,255,255,0.2)",
+                        borderRadius: "6px",
+                        color: "#fff",
+                        fontSize: (12 + (size - 0.85) * 8) + "px",
+                        fontWeight: "700",
+                        cursor: "pointer"
+                      },
+                      onClick: () => setG1000RefTextSize(size)
+                    }, "A")
+                  )
+                )
+              ),
+              /* @__PURE__ */ React.createElement("div", { style: { ...styles.refCard, marginBottom: "16px", background: "linear-gradient(135deg, rgba(49,130,206,0.15), rgba(56,178,172,0.15))", borderColor: "rgba(49,130,206,0.4)" } }, 
+                /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" } }, 
+                  /* @__PURE__ */ React.createElement("span", { style: { fontSize: "20px" } }, "\u{1F5A5}\uFE0F"), 
+                  /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "700", color: "#63b3ed", fontSize: (15 * g1000SetupTs) + "px" } }, "Garmin G1000 SAR Configuration")
+                ), 
+                /* @__PURE__ */ React.createElement("div", { style: { fontSize: (12 * g1000SetupTs) + "px", color: "#a0aec0" } }, "Recommended settings for CAP search and rescue operations")
+              ), 
+              data.sections.map((section, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "12px", padding: (14 * g1000SetupTs) + "px" } }, 
+                /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "700", color: "#f6e05e", marginBottom: (10 * g1000SetupTs) + "px", fontSize: (14 * g1000SetupTs) + "px" } }, section.name), 
+                /* @__PURE__ */ React.createElement("table", { style: { ...styles.refTable, fontSize: (13 * g1000SetupTs) + "px" } }, 
+                  /* @__PURE__ */ React.createElement("tbody", null, section.items.map((item, j) => /* @__PURE__ */ React.createElement("tr", { key: j }, 
+                    /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, fontWeight: "600", color: "#e2e8f0", width: "45%", padding: (10 * g1000SetupTs) + "px" } }, item.label), 
+                    /* @__PURE__ */ React.createElement("td", { style: { ...styles.refTd, color: "#68d391", fontFamily: "monospace", padding: (10 * g1000SetupTs) + "px" } }, item.value)
+                  )))
+                ), 
+                section.note && /* @__PURE__ */ React.createElement("div", { style: { fontSize: (12 * g1000SetupTs) + "px", color: "#a0aec0", marginTop: (10 * g1000SetupTs) + "px", fontStyle: "italic" } }, "\u{1F4A1} ", section.note)
+              ))
+            );
           case "g1000Waypoints":
           case "g1000FlightPlan":
           case "g1000Navigation":
           case "g1000Marking":
           case "g1000Utilities":
-            return /* @__PURE__ */ React.createElement("div", null, data.procedures.map((proc, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "700", color: "#63b3ed", marginBottom: "10px", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" } }, /* @__PURE__ */ React.createElement("span", { style: { background: "rgba(99,179,237,0.2)", padding: "4px 8px", borderRadius: "4px", fontSize: "12px" } }, i + 1), proc.name), /* @__PURE__ */ React.createElement("ol", { style: { margin: 0, paddingLeft: "24px", fontSize: "12px", lineHeight: "1.8" } }, proc.steps.map((step, j) => /* @__PURE__ */ React.createElement("li", { key: j, style: { marginBottom: "6px", color: "#e2e8f0" } }, step.includes("\u2192") ? /* @__PURE__ */ React.createElement("span", { dangerouslySetInnerHTML: { __html: step.replace(/→/g, '<span style="color:#f6e05e;font-weight:600"> \u2192 </span>') } }) : step))), proc.note && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "10px", padding: "8px 12px", background: "rgba(246,224,94,0.1)", borderLeft: "3px solid #f6e05e", borderRadius: "0 4px 4px 0", fontSize: "11px", color: "#f6e05e" } }, "\u26A0\uFE0F ", proc.note))));
+            const g1000ts = g1000RefTextSize || 1;
+            // Helper to style step text with knob/button formatting
+            const formatG1000Step = (step) => {
+              let formatted = step;
+              // Style physical buttons (FPL, MENU, ENTER, CLR, etc.)
+              formatted = formatted.replace(/\b(FPL|MENU|ENTER|CLR|ENT|OBS|CDI|NRST|NEW|ACTIVE|CHRT|APR|INSET|PFD|BRG1|BRG2|DME)\b/g, 
+                '<span style="display:inline-block;padding:2px 8px;background:linear-gradient(180deg, #4a5568, #2d3748);border-radius:4px;font-family:monospace;font-weight:700;color:#f6e05e;border:1px solid #718096;margin:0 2px;font-size:' + (12 * g1000ts) + 'px">$1</span>');
+              // Style "Direct To" button
+              formatted = formatted.replace(/Direct To \(D→\)/g, 
+                '<span style="display:inline-block;padding:2px 8px;background:linear-gradient(180deg, #4a5568, #2d3748);border-radius:4px;font-family:monospace;font-weight:700;color:#f6e05e;border:1px solid #718096;margin:0 2px;font-size:' + (12 * g1000ts) + 'px">D→</span>');
+              // Style LARGE (outer) knob references
+              formatted = formatted.replace(/LARGE \(outer\) knob/g, 
+                '<span style="color:#68d391;font-weight:700">LARGE (outer)</span> knob');
+              formatted = formatted.replace(/LARGE knob/g, 
+                '<span style="color:#68d391;font-weight:700">LARGE</span> knob');
+              // Style SMALL (inner) knob references  
+              formatted = formatted.replace(/SMALL \(inner\) knob/g, 
+                '<span style="color:#f6e05e;font-weight:700">SMALL (inner)</span> knob');
+              formatted = formatted.replace(/SMALL knob/g, 
+                '<span style="color:#f6e05e;font-weight:700">SMALL</span> knob');
+              // Style Range-Pan knob
+              formatted = formatted.replace(/Range-Pan knob/g, 
+                '<span style="color:#b794f4;font-weight:700">Range-Pan knob</span>');
+              formatted = formatted.replace(/Range \(small\) knob/g, 
+                '<span style="color:#b794f4;font-weight:700">Range (small) knob</span>');
+              formatted = formatted.replace(/CRS SMALL knob/g, 
+                '<span style="color:#f6e05e;font-weight:700">CRS (small)</span> knob');
+              // Style directions
+              formatted = formatted.replace(/→ RIGHT/g, 
+                '<span style="color:#63b3ed;font-weight:700"> → RIGHT</span>');
+              formatted = formatted.replace(/→ LEFT/g, 
+                '<span style="color:#fc8181;font-weight:700"> → LEFT</span>');
+              // Style Push actions
+              formatted = formatted.replace(/Push SMALL/g, 
+                '<span style="color:#f6e05e;font-weight:700">Push SMALL</span>');
+              formatted = formatted.replace(/Push LARGE/g, 
+                '<span style="color:#68d391;font-weight:700">Push LARGE</span>');
+              formatted = formatted.replace(/Push the Range-Pan/g, 
+                '<span style="color:#b794f4;font-weight:700">Push the Range-Pan</span>');
+              formatted = formatted.replace(/Push Range/g, 
+                '<span style="color:#b794f4;font-weight:700">Push Range</span>');
+              // Style Hold CLR
+              formatted = formatted.replace(/Hold CLR/g, 
+                '<span style="font-weight:700;color:#fc8181">Hold CLR</span>');
+              // Style arrows
+              formatted = formatted.replace(/→/g, '<span style="color:#f6e05e;font-weight:600"> → </span>');
+              return formatted;
+            };
+            return /* @__PURE__ */ React.createElement("div", null,
+              // Text Size Controls
+              React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", padding: "10px 12px", background: "rgba(0,0,0,0.3)", borderRadius: "8px" } },
+                React.createElement("span", { style: { fontSize: "11px", color: "#a0aec0", fontWeight: "600" } }, "TEXT SIZE"),
+                React.createElement("div", { style: { display: "flex", gap: "4px" } },
+                  [0.85, 1, 1.2, 1.4].map(size => 
+                    React.createElement("button", {
+                      key: size,
+                      style: {
+                        width: "36px",
+                        height: "36px",
+                        background: g1000ts === size ? "rgba(99,179,237,0.3)" : "rgba(255,255,255,0.1)",
+                        border: g1000ts === size ? "2px solid #63b3ed" : "1px solid rgba(255,255,255,0.2)",
+                        borderRadius: "6px",
+                        color: "#fff",
+                        fontSize: (12 + (size - 0.85) * 8) + "px",
+                        fontWeight: "700",
+                        cursor: "pointer"
+                      },
+                      onClick: () => setG1000RefTextSize(size)
+                    }, "A")
+                  )
+                )
+              ),
+              // Knob Legend
+              React.createElement("div", { style: { marginBottom: "16px", padding: "12px", background: "rgba(0,0,0,0.2)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)" } },
+                React.createElement("div", { style: { fontSize: (11 * g1000ts) + "px", color: "#a0aec0", marginBottom: "8px", fontWeight: "600" } }, "FMS KNOB REFERENCE"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: (12 * g1000ts) + "px" } },
+                  React.createElement("div", null, React.createElement("span", { style: { color: "#68d391", fontWeight: "700" } }, "LARGE (outer)"), React.createElement("span", { style: { color: "#a0aec0" } }, " = scroll/select")),
+                  React.createElement("div", null, React.createElement("span", { style: { color: "#f6e05e", fontWeight: "700" } }, "SMALL (inner)"), React.createElement("span", { style: { color: "#a0aec0" } }, " = change values")),
+                  React.createElement("div", null, React.createElement("span", { style: { color: "#63b3ed", fontWeight: "700" } }, "→ RIGHT"), React.createElement("span", { style: { color: "#a0aec0" } }, " = clockwise")),
+                  React.createElement("div", null, React.createElement("span", { style: { color: "#fc8181", fontWeight: "700" } }, "→ LEFT"), React.createElement("span", { style: { color: "#a0aec0" } }, " = counter-clockwise"))
+                )
+              ),
+              // Procedures
+              data.procedures.map((proc, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "16px", padding: (14 * g1000ts) + "px" } }, 
+                /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "700", color: "#63b3ed", marginBottom: (12 * g1000ts) + "px", fontSize: (15 * g1000ts) + "px", display: "flex", alignItems: "center", gap: "10px" } }, 
+                  /* @__PURE__ */ React.createElement("span", { style: { background: "linear-gradient(135deg, #3182ce, #2b6cb0)", padding: (6 * g1000ts) + "px " + (10 * g1000ts) + "px", borderRadius: "6px", fontSize: (13 * g1000ts) + "px", color: "#fff", fontWeight: "700" } }, i + 1), 
+                  proc.name
+                ), 
+                /* @__PURE__ */ React.createElement("ol", { style: { margin: 0, paddingLeft: (28 * g1000ts) + "px", fontSize: (13 * g1000ts) + "px", lineHeight: "2.0" } }, 
+                  proc.steps.map((step, j) => /* @__PURE__ */ React.createElement("li", { key: j, style: { marginBottom: (8 * g1000ts) + "px", color: "#e2e8f0" } }, 
+                    /* @__PURE__ */ React.createElement("span", { dangerouslySetInnerHTML: { __html: formatG1000Step(step) } })
+                  ))
+                ), 
+                proc.note && /* @__PURE__ */ React.createElement("div", { style: { marginTop: (12 * g1000ts) + "px", padding: (10 * g1000ts) + "px " + (14 * g1000ts) + "px", background: "rgba(246,224,94,0.1)", borderLeft: "4px solid #f6e05e", borderRadius: "0 6px 6px 0", fontSize: (12 * g1000ts) + "px", color: "#f6e05e" } }, "\u26A0\uFE0F ", proc.note)
+              ))
+            );
           case "g1000SAR":
-            return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { ...styles.refCard, marginBottom: "16px", background: "linear-gradient(135deg, rgba(237,137,54,0.15), rgba(246,224,94,0.15))", borderColor: "rgba(237,137,54,0.4)" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "20px" } }, "\u{1F50E}"), /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "700", color: "#ed8936", fontSize: "14px" } }, "G1000 Search & Rescue Pattern Setup")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0" } }, "Access via: FPL \u2192 MENU \u2192 Search and Rescue")), data.procedures.map((proc, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "700", color: "#f6e05e", marginBottom: "10px", fontSize: "14px" } }, proc.name), /* @__PURE__ */ React.createElement("ol", { style: { margin: 0, paddingLeft: "24px", fontSize: "12px", lineHeight: "1.8" } }, proc.steps.map((step, j) => /* @__PURE__ */ React.createElement("li", { key: j, style: { marginBottom: "6px", color: "#e2e8f0" } }, step.includes("\u2192") ? /* @__PURE__ */ React.createElement("span", { dangerouslySetInnerHTML: { __html: step.replace(/→/g, '<span style="color:#f6e05e;font-weight:600"> \u2192 </span>') } }) : step))), proc.note && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "10px", padding: "8px 12px", background: "rgba(246,224,94,0.1)", borderLeft: "3px solid #f6e05e", borderRadius: "0 4px 4px 0", fontSize: "11px", color: "#f6e05e" } }, "\u{1F4DD} ", proc.note), proc.diagram && /* @__PURE__ */ React.createElement("pre", { style: { ...styles.pre, marginTop: "12px", fontSize: "10px", color: "#68d391", background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "4px" } }, proc.diagram))));
+            const g1000SarTs = g1000RefTextSize || 1;
+            // Helper to style step text with knob/button formatting
+            const formatG1000SarStep = (step) => {
+              let formatted = step;
+              // Style physical buttons
+              formatted = formatted.replace(/\b(FPL|MENU|ENTER|CLR|ENT|OBS|CDI|NRST|NEW|ACTIVE)\b/g, 
+                '<span style="display:inline-block;padding:2px 8px;background:linear-gradient(180deg, #4a5568, #2d3748);border-radius:4px;font-family:monospace;font-weight:700;color:#f6e05e;border:1px solid #718096;margin:0 2px;font-size:' + (12 * g1000SarTs) + 'px">$1</span>');
+              // Style LARGE (outer) knob references
+              formatted = formatted.replace(/LARGE \(outer\) knob/g, 
+                '<span style="color:#68d391;font-weight:700">LARGE (outer)</span> knob');
+              formatted = formatted.replace(/LARGE knob/g, 
+                '<span style="color:#68d391;font-weight:700">LARGE</span> knob');
+              // Style SMALL (inner) knob references  
+              formatted = formatted.replace(/SMALL \(inner\) knob/g, 
+                '<span style="color:#f6e05e;font-weight:700">SMALL (inner)</span> knob');
+              formatted = formatted.replace(/SMALL knob/g, 
+                '<span style="color:#f6e05e;font-weight:700">SMALL</span> knob');
+              // Style directions
+              formatted = formatted.replace(/→ RIGHT/g, 
+                '<span style="color:#63b3ed;font-weight:700"> → RIGHT</span>');
+              formatted = formatted.replace(/→ LEFT/g, 
+                '<span style="color:#fc8181;font-weight:700"> → LEFT</span>');
+              // Style Push actions
+              formatted = formatted.replace(/Push SMALL/g, 
+                '<span style="color:#f6e05e;font-weight:700">Push SMALL</span>');
+              // Style Turn LARGE/SMALL
+              formatted = formatted.replace(/Turn LARGE knob to/g, 
+                'Turn <span style="color:#68d391;font-weight:700">LARGE</span> knob to');
+              formatted = formatted.replace(/Turn SMALL knob/g, 
+                'Turn <span style="color:#f6e05e;font-weight:700">SMALL</span> knob');
+              // Style quoted menu items
+              formatted = formatted.replace(/'([^']+)'/g, 
+                '<span style="color:#68d391;font-weight:600">\'$1\'</span>');
+              // Style arrows
+              formatted = formatted.replace(/→/g, '<span style="color:#f6e05e;font-weight:600"> → </span>');
+              return formatted;
+            };
+            return /* @__PURE__ */ React.createElement("div", null, 
+              // Text Size Controls
+              React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", padding: "10px 12px", background: "rgba(0,0,0,0.3)", borderRadius: "8px" } },
+                React.createElement("span", { style: { fontSize: "11px", color: "#a0aec0", fontWeight: "600" } }, "TEXT SIZE"),
+                React.createElement("div", { style: { display: "flex", gap: "4px" } },
+                  [0.85, 1, 1.2, 1.4].map(size => 
+                    React.createElement("button", {
+                      key: size,
+                      style: {
+                        width: "36px",
+                        height: "36px",
+                        background: g1000SarTs === size ? "rgba(99,179,237,0.3)" : "rgba(255,255,255,0.1)",
+                        border: g1000SarTs === size ? "2px solid #63b3ed" : "1px solid rgba(255,255,255,0.2)",
+                        borderRadius: "6px",
+                        color: "#fff",
+                        fontSize: (12 + (size - 0.85) * 8) + "px",
+                        fontWeight: "700",
+                        cursor: "pointer"
+                      },
+                      onClick: () => setG1000RefTextSize(size)
+                    }, "A")
+                  )
+                )
+              ),
+              // SAR Unlock Warning
+              /* @__PURE__ */ React.createElement("div", { style: { ...styles.refCard, marginBottom: "16px", background: "rgba(229,62,62,0.15)", borderColor: "rgba(229,62,62,0.4)", padding: (14 * g1000SarTs) + "px" } }, 
+                /* @__PURE__ */ React.createElement("div", { style: { fontSize: (13 * g1000SarTs) + "px", color: "#fc8181", fontWeight: "600", lineHeight: "1.5" } },
+                  "⚠️ IMPORTANT: G1000 SAR feature requires a Garmin SAR unlock card inserted in the TOP SD card slot on the MFD."
+                )
+              ),
+              // Header Card
+              /* @__PURE__ */ React.createElement("div", { style: { ...styles.refCard, marginBottom: "16px", background: "linear-gradient(135deg, rgba(237,137,54,0.15), rgba(246,224,94,0.15))", borderColor: "rgba(237,137,54,0.4)" } }, 
+                /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" } }, 
+                  /* @__PURE__ */ React.createElement("span", { style: { fontSize: "20px" } }, "\u{1F50E}"), 
+                  /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "700", color: "#ed8936", fontSize: (15 * g1000SarTs) + "px" } }, "G1000 Search & Rescue Pattern Setup")
+                ), 
+                /* @__PURE__ */ React.createElement("div", { style: { fontSize: (12 * g1000SarTs) + "px", color: "#a0aec0" } }, "Access via: FPL → MENU → Search and Rescue")
+              ), 
+              // Knob Legend
+              React.createElement("div", { style: { marginBottom: "16px", padding: "12px", background: "rgba(0,0,0,0.2)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)" } },
+                React.createElement("div", { style: { fontSize: (11 * g1000SarTs) + "px", color: "#a0aec0", marginBottom: "8px", fontWeight: "600" } }, "FMS KNOB REFERENCE"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: (12 * g1000SarTs) + "px" } },
+                  React.createElement("div", null, React.createElement("span", { style: { color: "#68d391", fontWeight: "700" } }, "LARGE (outer)"), React.createElement("span", { style: { color: "#a0aec0" } }, " = scroll/select")),
+                  React.createElement("div", null, React.createElement("span", { style: { color: "#f6e05e", fontWeight: "700" } }, "SMALL (inner)"), React.createElement("span", { style: { color: "#a0aec0" } }, " = change values")),
+                  React.createElement("div", null, React.createElement("span", { style: { color: "#63b3ed", fontWeight: "700" } }, "→ RIGHT"), React.createElement("span", { style: { color: "#a0aec0" } }, " = clockwise")),
+                  React.createElement("div", null, React.createElement("span", { style: { color: "#fc8181", fontWeight: "700" } }, "→ LEFT"), React.createElement("span", { style: { color: "#a0aec0" } }, " = counter-clockwise"))
+                )
+              ),
+              // Procedures
+              data.procedures.map((proc, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { ...styles.refCard, marginBottom: "16px", padding: (14 * g1000SarTs) + "px" } }, 
+                /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "700", color: "#f6e05e", marginBottom: (12 * g1000SarTs) + "px", fontSize: (15 * g1000SarTs) + "px" } }, proc.name), 
+                /* @__PURE__ */ React.createElement("ol", { style: { margin: 0, paddingLeft: (28 * g1000SarTs) + "px", fontSize: (13 * g1000SarTs) + "px", lineHeight: "2.0" } }, 
+                  proc.steps.map((step, j) => /* @__PURE__ */ React.createElement("li", { key: j, style: { marginBottom: (8 * g1000SarTs) + "px", color: "#e2e8f0" } }, 
+                    /* @__PURE__ */ React.createElement("span", { dangerouslySetInnerHTML: { __html: formatG1000SarStep(step) } })
+                  ))
+                ), 
+                proc.note && /* @__PURE__ */ React.createElement("div", { style: { marginTop: (12 * g1000SarTs) + "px", padding: (10 * g1000SarTs) + "px " + (14 * g1000SarTs) + "px", background: "rgba(246,224,94,0.1)", borderLeft: "4px solid #f6e05e", borderRadius: "0 6px 6px 0", fontSize: (12 * g1000SarTs) + "px", color: "#f6e05e" } }, "\u{1F4DD} ", proc.note), 
+                proc.diagram && /* @__PURE__ */ React.createElement("pre", { style: { ...styles.pre, marginTop: (14 * g1000SarTs) + "px", fontSize: (11 * g1000SarTs) + "px", color: "#68d391", background: "rgba(0,0,0,0.3)", padding: (14 * g1000SarTs) + "px", borderRadius: "6px" } }, proc.diagram)
+              ))
+            );
           case "gpsConverter":
             return /* @__PURE__ */ React.createElement(GpsConverterWidget, null);
           default:
@@ -10586,6 +11695,7 @@ const tabs = [
       { id: "crosshair", label: "Target", icon: "\u{1F3AF}", isTarget: true },
       { id: "eltAssist", label: "ELT", icon: "\u{1F4E1}", isElt: true },
       { id: "searchPlanner", label: "Search", icon: "\u{1F9ED}", isSearch: true },
+      { id: "commandTools", label: "Command", icon: "\u{1F4CA}", isCommand: true },
       { id: "radio", label: "Radio", icon: "\u{1F4E2}", isRadio: true },
       { id: "coComms", label: "CO Comms", icon: "\u{1F4E1}", isComms: true },
       { id: "emergency", label: "Emergency", icon: "\u{1F6A8}", isEmergency: true },
@@ -10771,7 +11881,7 @@ const tabs = [
       tab.icon,
       " ",
       tab.label
-    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "home" && renderHomeTab(), activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab()), activeTab !== "home" && /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: () => setShowShareModal(true) }, "\u{1F4E4} Share"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")), renderShareModal(), renderEnlargeModal());
+    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "home" && renderHomeTab(), activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab(), activeTab === "commandTools" && renderCommandToolsTab()), activeTab !== "home" && /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: () => setShowShareModal(true) }, "\u{1F4E4} Share"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")), renderShareModal(), renderEnlargeModal());
   };
   ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(CAPObserverLog, null));
 })();
