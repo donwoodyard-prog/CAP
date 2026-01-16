@@ -2664,6 +2664,11 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
       { passes: ["", "", "", ""], estimate: "" }
     ]);
     const [activeTab, setActiveTab] = useState("home");
+    // Helper function to switch tabs and scroll to top
+    const switchTab = (tabId) => {
+      setActiveTab(tabId);
+      window.scrollTo(0, 0);
+    };
     const [commsUnlocked, setCommsUnlocked] = useState(false);
     // Night mode for cockpit operations
     const [nightMode, setNightMode] = useState(false);
@@ -2757,7 +2762,7 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
         description: 'Demonstrates the Crosshair target location technique using two flight passes over a target. Select from three example flights showing different crossing angles and terrain.',
         module: 'crosshair',
         icon: '🎯',
-        color: '#e53e3e',
+        color: '#d69e2e',
         flights: ['kansas', 'texas', 'oregon'],
         defaultFlight: 'kansas'
       }
@@ -5322,7 +5327,7 @@ Events: ${events.length}`;
         { id: "crosshair", icon: "🎯", label: "Target Locate", desc: "Crosshair triangulation tool", color: "#d69e2e" },
         { id: "eltAssist", icon: "📡", label: "ELT Assist", desc: "ELT signal tracking & SARSAT", color: "#ed8936" },
         { id: "searchPlanner", icon: "🧭", label: "Search Planner", desc: "Generate search patterns", color: "#805ad5" },
-        { id: "commandTools", icon: "📊", label: "Command Tools", desc: "Coverage analysis for IC/Planners", color: "#e53e3e" },
+        { id: "commandTools", icon: "📊", label: "Command Tools", desc: "Coverage analysis for IC/Planners", color: "#3182ce" },
         { id: "radio", icon: "📢", label: "Radio Calls", desc: "CAP radio call templates", color: "#3182ce" },
         { id: "coComms", icon: "📻", label: "CO Comms", desc: "Colorado frequencies & callsigns", color: "#2b6cb0" },
         { id: "emergency", icon: "🚨", label: "Emergency", desc: "Emergency procedures & checklists", color: "#c53030" },
@@ -5454,7 +5459,7 @@ Events: ${events.length}`;
                   }
                   setCommsUnlocked(true);
                 }
-                setActiveTab(item.id);
+                switchTab(item.id);
               }
             },
               React.createElement("div", { style: homeStyles.menuIcon }, item.icon),
@@ -5470,11 +5475,11 @@ Events: ${events.length}`;
           React.createElement("div", { style: homeStyles.quickGrid },
             React.createElement("button", {
               style: homeStyles.quickBtn,
-              onClick: () => { setActiveTab("events"); }
+              onClick: () => { switchTab("events"); }
             }, "➕ New Event"),
             React.createElement("button", {
               style: homeStyles.quickBtn,
-              onClick: () => { setActiveTab("times"); }
+              onClick: () => { switchTab("times"); }
             }, "⏱️ Log Time"),
             React.createElement("button", {
               style: homeStyles.quickBtn,
@@ -9856,7 +9861,7 @@ Events: ${events.length}`;
                         detectedGrid: parsed ? spDetectCapGrid(parsed.latDD, parsed.lonDD) : null,
                         patternType: 'expandingSquare'
                       }));
-                      setActiveTab("searchPlanner");
+                      switchTab("searchPlanner");
                     }
                   }, "🌀 EXPANDING SQ"),
                   React.createElement("button", {
@@ -9871,7 +9876,7 @@ Events: ${events.length}`;
                         detectedGrid: parsed ? spDetectCapGrid(parsed.latDD, parsed.lonDD) : null,
                         patternType: 'poiCenteredParallel'
                       }));
-                      setActiveTab("searchPlanner");
+                      switchTab("searchPlanner");
                     }
                   }, "🎯 POI PARALLEL")
                 )
@@ -10609,7 +10614,7 @@ Events: ${events.length}`;
           }
           
           // Switch to Command Tools tab
-          setActiveTab('commandTools');
+          switchTab('commandTools');
         }
         
         // ELT Assist demo
@@ -10844,7 +10849,7 @@ Events: ${events.length}`;
           }
           
           // Switch to ELT Assist tab
-          setActiveTab('eltAssist');
+          switchTab('eltAssist');
         }
         
         // ELT Assist Native Demo (pre-formatted JS data - no parsing needed)
@@ -10933,7 +10938,7 @@ Events: ${events.length}`;
           await new Promise(r => setTimeout(r, 800));
           
           // Switch to ELT Assist tab
-          setActiveTab('eltAssist');
+          switchTab('eltAssist');
         }
         
         // Crosshair Target Locate Demo
@@ -11018,7 +11023,7 @@ Events: ${events.length}`;
           await new Promise(r => setTimeout(r, 800));
           
           // Switch to Crosshair tab
-          setActiveTab('crosshair');
+          switchTab('crosshair');
         }
         
       } catch (err) {
@@ -11258,21 +11263,21 @@ Events: ${events.length}`;
                 demo.module === 'eltAssistNative' && React.createElement("div", { style: { background: "rgba(56,161,105,0.15)", padding: "6px 12px", borderRadius: "6px", fontSize: ts(12), color: "#68d391" } },
                   "\u{1F9ED} " + demo.dataPoints + " DF observations"
                 ),
-                demo.module === 'crosshair' && React.createElement("div", { style: { background: "rgba(229,62,62,0.15)", padding: "6px 12px", borderRadius: "6px", fontSize: ts(12), color: "#fc8181" } },
+                demo.module === 'crosshair' && React.createElement("div", { style: { background: "rgba(214,158,46,0.15)", padding: "6px 12px", borderRadius: "6px", fontSize: ts(12), color: "#d69e2e" } },
                   "🎯 Two-pass intersection data"
                 )
               ),
               // Flight Selector for Crosshair demos
               demo.module === 'crosshair' && demo.flights && window.DEMO_DATA && window.DEMO_DATA[demo.id] && window.DEMO_DATA[demo.id].flights && React.createElement("div", {
                 style: {
-                  background: "rgba(229,62,62,0.1)",
-                  border: "1px solid rgba(229,62,62,0.3)",
+                  background: "rgba(214,158,46,0.1)",
+                  border: "1px solid rgba(214,158,46,0.3)",
                   borderRadius: "8px",
                   padding: "14px",
                   marginBottom: "16px"
                 }
               },
-                React.createElement("div", { style: { fontSize: ts(12), fontWeight: "600", color: "#fc8181", marginBottom: "10px" } }, "✈️ Select Example Flight"),
+                React.createElement("div", { style: { fontSize: ts(12), fontWeight: "600", color: "#d69e2e", marginBottom: "10px" } }, "✈️ Select Example Flight"),
                 React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "8px" } },
                   demo.flights.map(flightKey => {
                     const flightData = window.DEMO_DATA[demo.id].flights[flightKey];
@@ -11284,8 +11289,8 @@ Events: ${events.length}`;
                       style: {
                         padding: "12px 14px",
                         borderRadius: "8px",
-                        border: isSelected ? "2px solid #fc8181" : "1px solid rgba(255,255,255,0.2)",
-                        background: isSelected ? "rgba(229,62,62,0.2)" : "rgba(0,0,0,0.3)",
+                        border: isSelected ? "2px solid #d69e2e" : "1px solid rgba(255,255,255,0.2)",
+                        background: isSelected ? "rgba(214,158,46,0.2)" : "rgba(0,0,0,0.3)",
                         color: isSelected ? "#fff" : "#a0aec0",
                         cursor: "pointer",
                         fontFamily: "inherit",
@@ -11294,7 +11299,7 @@ Events: ${events.length}`;
                       }
                     },
                       React.createElement("div", { style: { fontSize: ts(14), fontWeight: isSelected ? "700" : "500", marginBottom: "4px" } }, flightData.name),
-                      React.createElement("div", { style: { fontSize: ts(11), color: isSelected ? "#fca5a5" : "#718096" } }, flightData.description)
+                      React.createElement("div", { style: { fontSize: ts(11), color: isSelected ? "#f6e05e" : "#718096" } }, flightData.description)
                     );
                   })
                 )
@@ -11302,15 +11307,15 @@ Events: ${events.length}`;
               // Fallback message if demo data not loaded for crosshair
               demo.module === 'crosshair' && demo.flights && (!window.DEMO_DATA || !window.DEMO_DATA[demo.id] || !window.DEMO_DATA[demo.id].flights) && React.createElement("div", {
                 style: {
-                  background: "rgba(229,62,62,0.1)",
-                  border: "1px solid rgba(229,62,62,0.3)",
+                  background: "rgba(214,158,46,0.1)",
+                  border: "1px solid rgba(214,158,46,0.3)",
                   borderRadius: "8px",
                   padding: "14px",
                   marginBottom: "16px",
                   textAlign: "center"
                 }
               },
-                React.createElement("div", { style: { fontSize: ts(13), color: "#fc8181", marginBottom: "8px" } }, "⚠️ Demo data not loaded"),
+                React.createElement("div", { style: { fontSize: ts(13), color: "#d69e2e", marginBottom: "8px" } }, "⚠️ Demo data not loaded"),
                 React.createElement("div", { style: { fontSize: ts(11), color: "#a0aec0" } }, "Make sure demo-data.js is in the same folder as index.html")
               ),
               // Ground Truth Reveal (for training demos)
@@ -11399,7 +11404,7 @@ Events: ${events.length}`;
     const renderCommandToolsTab = () => {
       const cmdStyles = {
         section: { marginBottom: "16px" },
-        sectionHeader: { background: "linear-gradient(135deg, rgba(229,62,62,0.3), rgba(197,48,48,0.2))", borderRadius: "12px 12px 0 0", padding: "14px 16px", fontWeight: "700", fontSize: "15px", color: "#fc8181", display: "flex", alignItems: "center", gap: "10px", borderBottom: "2px solid rgba(229,62,62,0.4)" },
+        sectionHeader: { background: "linear-gradient(135deg, rgba(99,179,237,0.3), rgba(66,153,225,0.2))", borderRadius: "12px 12px 0 0", padding: "14px 16px", fontWeight: "700", fontSize: "15px", color: "#63b3ed", display: "flex", alignItems: "center", gap: "10px", borderBottom: "2px solid rgba(99,179,237,0.4)" },
         sectionBody: { background: "rgba(0,0,0,0.3)", borderRadius: "0 0 12px 12px", padding: "16px", border: "1px solid rgba(255,255,255,0.1)", borderTop: "none" },
         modeTab: { flex: 1, padding: "12px", borderRadius: "8px", border: "2px solid", cursor: "pointer", fontWeight: "600", fontSize: "13px", fontFamily: "inherit", textAlign: "center" },
         input: { width: "100%", background: "rgba(0,0,0,0.4)", border: "2px solid rgba(255,255,255,0.2)", borderRadius: "8px", padding: "14px", fontSize: "16px", color: "#fff", fontFamily: "inherit", marginBottom: "12px" },
@@ -12491,7 +12496,7 @@ Events: ${events.length}`;
                   onClick: () => {
                     // Switch to Search Tools tab and populate with recommendation
                     const rec = cmdState.missionRecommendation;
-                    setActiveTab("searchTools");
+                    switchTab("searchTools");
                     setSearchToolsData(prev => ({
                       ...prev,
                       poiLat: rec.poi.lat.toFixed(6),
@@ -14305,10 +14310,10 @@ const tabs = [
               minWidth: "48px",
               minHeight: "48px"
             },
-            onClick: () => setActiveTab("home"),
+            onClick: () => switchTab("home"),
             title: "Go to Home Screen"
           }, "🏠"),
-          /* @__PURE__ */ React.createElement("div", { style: { ...styles.logo, cursor: "pointer" }, onClick: () => setActiveTab("home") }, 
+          /* @__PURE__ */ React.createElement("div", { style: { ...styles.logo, cursor: "pointer" }, onClick: () => switchTab("home") }, 
             /* @__PURE__ */ React.createElement("img", { 
               src: "https://www.gocivilairpatrol.com/local/public/shared/assets/images/websites/CAP-2017-logo-horizontal-optimized-d73f31575f10142a77f0888cdfb36256.png", 
               alt: "Civil Air Patrol",
@@ -14449,7 +14454,7 @@ const tabs = [
             }
             setCommsUnlocked(true);
           }
-          setActiveTab(tab.id);
+          switchTab(tab.id);
         }
       },
       tab.icon,
