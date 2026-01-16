@@ -10195,6 +10195,48 @@ React.createElement(
           results.errors.push(entry + ' (unrecognized format)');
         });
         
+        // NEW: Interpolate grids between consecutive coordinate points
+        // This finds all grids along a route/path, not just at the endpoints
+        const coordResults = results.grids.filter(r => r.coord);
+        if (coordResults.length >= 2) {
+          // We have multiple coordinates - interpolate between consecutive pairs
+          for (let i = 0; i < coordResults.length - 1; i++) {
+            const p1 = coordResults[i].coord;
+            const p2 = coordResults[i + 1].coord;
+            
+            // Calculate distance and step size (use ~0.5 NM steps for good coverage)
+            const latDiff = p2.latDD - p1.latDD;
+            const lonDiff = p2.lonDD - p1.lonDD;
+            const distNM = Math.sqrt(Math.pow(latDiff * 60, 2) + Math.pow(lonDiff * 60 * Math.cos(p1.latDD * Math.PI / 180), 2));
+            const numSteps = Math.max(Math.ceil(distNM / 0.5), 10); // At least 10 steps, or every 0.5 NM
+            
+            // Step along the path and detect grids
+            for (let step = 1; step < numSteps; step++) {
+              const t = step / numSteps;
+              const interpLat = p1.latDD + t * latDiff;
+              const interpLon = p1.lonDD + t * lonDiff;
+              
+              const interpGridInfo = spDetectCapGrid(interpLat, interpLon);
+              if (interpGridInfo) {
+                // Check if this grid is already in results
+                const baseGrid = interpGridInfo.gridId.replace(/[ABCD]$/, '').trim();
+                const alreadyExists = results.grids.some(r => {
+                  const existingBase = r.gridInfo.gridId.replace(/[ABCD]$/, '').trim();
+                  return existingBase === baseGrid;
+                });
+                
+                if (!alreadyExists) {
+                  results.grids.push({ 
+                    gridInfo: interpGridInfo, 
+                    input: `(interpolated between ${coordResults[i].input} and ${coordResults[i+1].input})`,
+                    interpolated: true
+                  });
+                }
+              }
+            }
+          }
+        }
+        
         // Process results - add unique grids
         const addedGrids = [];
         results.grids.forEach(({ gridInfo, input }) => {
