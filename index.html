@@ -3115,6 +3115,567 @@ Example: "104D2" = Grid 104, quadrant D, enter NE corner`
     const [textSize, setTextSize] = useState("normal");
     // Enlarge modal for viewing text content in extra large format
     const [enlargeModal, setEnlargeModal] = useState({ open: false, title: "", content: "" });
+    
+    // Proficiency Profile state
+    const [proficiencyState, setProficiencyState] = useState({
+      selectedProfile: null,
+      completedItems: {}, // { itemId: timestamp }
+      notes: '',
+      startTime: null
+    });
+    
+    // Proficiency Profile Data (from CAPS 71-4)
+    const proficiencyProfiles = [
+      {
+        id: 1,
+        name: "Visual Search Mission",
+        prereq: "Qualified SAR/DR Mission Pilot",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Plan & brief visual search mission" },
+          { id: "r2", text: "Route search", group: "searchType" },
+          { id: "r3", text: "Parallel track search", group: "searchType" },
+          { id: "r4", text: "Point-based search", group: "searchType" },
+          { id: "r5", text: "Creeping line search", group: "searchType" },
+          { id: "r6", text: "Practice visual search as planned/briefed" },
+          { id: "r7", text: "Review landing procedures with crew" },
+          { id: "r8", text: "Debrief sortie with crew" }
+        ],
+        routine: [
+          { id: "o1", text: "Slow Flight" },
+          { id: "o2", text: "Stalls" },
+          { id: "o3", text: "Steep turns" },
+          { id: "o4", text: "Turns around a point" },
+          { id: "o5", text: "Simulated emergency procedures" },
+          { id: "o6", text: "Normal landing (full flap)" },
+          { id: "o7", text: "Normal landing (no flap)" },
+          { id: "o8", text: "Short-field landing" },
+          { id: "o9", text: "Soft-field landing" },
+          { id: "o10", text: "Simulated forced landing" },
+          { id: "o11", text: "Go-around" },
+          { id: "o12", text: "ILS approach" },
+          { id: "o13", text: "VOR approach" },
+          { id: "o14", text: "GPS approach" }
+        ]
+      },
+      {
+        id: 2,
+        name: "Video Imaging Mission",
+        prereq: "Qualified SAR/DR Mission Pilot",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Plan & brief imaging mission" },
+          { id: "r2", text: "Fly back video or still imagery", group: "imageType" },
+          { id: "r3", text: "DAART operations", group: "imageType" },
+          { id: "r4", text: "Take images of target(s)" },
+          { id: "r5", text: "Download images (DAART)" },
+          { id: "r6", text: "Select images for transmission" },
+          { id: "r7", text: "Process images (DAART)" },
+          { id: "r8", text: "Send images as briefed" },
+          { id: "r9", text: "Review landing procedures with crew" },
+          { id: "r10", text: "Upload imagery to FEMA uploader" },
+          { id: "r11", text: "Debrief sortie with crew" }
+        ],
+        routine: [
+          { id: "o1", text: "Slow Flight" },
+          { id: "o2", text: "Stalls" },
+          { id: "o3", text: "Steep turns" },
+          { id: "o4", text: "Turns around a point" },
+          { id: "o5", text: "Simulated emergency procedures" },
+          { id: "o6", text: "Normal landing (full flap)" },
+          { id: "o7", text: "Normal landing (no flap)" },
+          { id: "o8", text: "Short-field landing" },
+          { id: "o9", text: "Soft-field landing" },
+          { id: "o10", text: "Simulated forced landing" },
+          { id: "o11", text: "Go-around" },
+          { id: "o12", text: "ILS approach" },
+          { id: "o13", text: "VOR approach" },
+          { id: "o14", text: "GPS approach" }
+        ]
+      },
+      {
+        id: 3,
+        name: "Electronic Search Mission",
+        prereq: "Qualified SAR/DR Mission Pilot",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Plan & brief electronic search mission" },
+          { id: "r2", text: "Wing-Null Method", group: "dfMethod" },
+          { id: "r3", text: "L-Tronics DF Unit", group: "dfMethod" },
+          { id: "r4", text: "Becker/Rhotheta DF Unit", group: "dfMethod" },
+          { id: "r5", text: "Practice electronic search as planned" },
+          { id: "r6", text: "Track beacon to source" },
+          { id: "r7", text: "Lead ground/urban DF team to source" },
+          { id: "r8", text: "Provide detailed location info" },
+          { id: "r9", text: "Provide verbal description of target" },
+          { id: "r10", text: "Provide accurate lat/lon coordinates" },
+          { id: "r11", text: "Locate beacon on airfield (if applicable)" },
+          { id: "r12", text: "Review landing procedures with crew" },
+          { id: "r13", text: "Debrief sortie with crew" }
+        ],
+        routine: [
+          { id: "o1", text: "Slow Flight" },
+          { id: "o2", text: "Stalls" },
+          { id: "o3", text: "Steep turns" },
+          { id: "o4", text: "Turns around a point" },
+          { id: "o5", text: "Simulated emergency procedures" },
+          { id: "o6", text: "Normal landing (full flap)" },
+          { id: "o7", text: "Normal landing (no flap)" },
+          { id: "o8", text: "Short-field landing" },
+          { id: "o9", text: "Soft-field landing" },
+          { id: "o10", text: "Simulated forced landing" },
+          { id: "o11", text: "Go-around" },
+          { id: "o12", text: "ILS approach" },
+          { id: "o13", text: "VOR approach" },
+          { id: "o14", text: "GPS approach" }
+        ]
+      },
+      {
+        id: 4,
+        name: "Transportation Mission",
+        prereq: "Qualified Transport Mission Pilot",
+        maxDuration: "2.5 hrs (3.0 HIWG)",
+        required: [
+          { id: "r1", text: "Obtain passenger/cargo weight" },
+          { id: "r2", text: "Determine load distribution" },
+          { id: "r3", text: "Compute weight & balance" },
+          { id: "r4", text: "Compute takeoff/landing performance" },
+          { id: "r5", text: "Check runway lengths & services" },
+          { id: "r6", text: "Obtain WX briefing, NOTAMS, TFRs" },
+          { id: "r7", text: "Determine fuel requirements/alternates" },
+          { id: "r8", text: "Check currency of publications" },
+          { id: "r9", text: "Brief crew responsibilities" },
+          { id: "r10", text: "Review emergency/egress procedures" },
+          { id: "r11", text: "Brief passengers" },
+          { id: "r12", text: "Normal/short/soft field takeoff" },
+          { id: "r13", text: "Perform checklists" },
+          { id: "r14", text: "Compute TAS, GS, ETA, fuel burn" },
+          { id: "r15", text: "Simulated emergency procedures" },
+          { id: "r16", text: "VFR or IFR approach at destination" },
+          { id: "r17", text: "Normal landing (full flaps) - T&G" },
+          { id: "r18", text: "Normal landing (no flaps) - full stop" },
+          { id: "r19", text: "Short-field landing - full stop" },
+          { id: "r20", text: "Soft-field landing - full stop" },
+          { id: "r21", text: "Simulated forced landing" },
+          { id: "r22", text: "ILS approach", group: "ifr" },
+          { id: "r23", text: "VOR approach", group: "ifr" },
+          { id: "r24", text: "GPS approach", group: "ifr" },
+          { id: "r25", text: "Debrief sortie with crew" }
+        ],
+        routine: []
+      },
+      {
+        id: 5,
+        name: "CAPF 91 Practice",
+        prereq: "Qualified SAR/DR Mission Pilot + crew",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Visual search patterns demo", group: "missionType" },
+          { id: "r2", text: "Electronic search patterns demo", group: "missionType" },
+          { id: "r3", text: "Mountain terrain procedures demo", group: "missionType" },
+          { id: "r4", text: "Demonstrate preflight planning" },
+          { id: "r5", text: "Demonstrate risk management" },
+          { id: "r6", text: "Verify uniform/documents" },
+          { id: "r7", text: "Conduct oral review" },
+          { id: "r8", text: "Demonstrate mission maneuvers" },
+          { id: "r9", text: "Demonstrate CRM" },
+          { id: "r10", text: "Emergency procedures demo" },
+          { id: "r11", text: "Review landing procedures" },
+          { id: "r12", text: "Normal landing (full flaps)" },
+          { id: "r13", text: "Normal landing (no flaps)" },
+          { id: "r14", text: "Short-field landing" },
+          { id: "r15", text: "Soft-field landing" },
+          { id: "r16", text: "Simulated forced landing" },
+          { id: "r17", text: "Go-around" },
+          { id: "r18", text: "ILS approach", group: "ifr" },
+          { id: "r19", text: "VOR approach", group: "ifr" },
+          { id: "r20", text: "GPS approach", group: "ifr" },
+          { id: "r21", text: "Debrief with crew" },
+          { id: "r22", text: "Review CAPF 91 with trainee" }
+        ],
+        routine: []
+      },
+      {
+        id: 6,
+        name: "Mountain Search Mission",
+        prereq: "Qualified SAR/DR Mission Pilot",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Plan & brief mountain search" },
+          { id: "r2", text: "Contour search", group: "searchType" },
+          { id: "r3", text: "Steep valley/drainage search", group: "searchType" },
+          { id: "r4", text: "Cove search", group: "searchType" },
+          { id: "r5", text: "Canyon search", group: "searchType" },
+          { id: "r6", text: "Evaluate density altitude impact" },
+          { id: "r7", text: "Ridge crossing procedures" },
+          { id: "r8", text: "Modified racetrack maneuver" },
+          { id: "r9", text: "Teardrop course reversal" },
+          { id: "r10", text: "Escape from high sink/turbulence" },
+          { id: "r11", text: "Emergency course reversal (2000' AGL)" },
+          { id: "r12", text: "Practice mountain search" },
+          { id: "r13", text: "Review landing procedures" },
+          { id: "r14", text: "Debrief sortie with crew" }
+        ],
+        routine: [
+          { id: "o1", text: "Normal landing (full flap)" },
+          { id: "o2", text: "Normal landing (no flap)" },
+          { id: "o3", text: "Short-field landing" },
+          { id: "o4", text: "Soft-field landing" },
+          { id: "o5", text: "Simulated forced landing" },
+          { id: "o6", text: "Go-around" },
+          { id: "o7", text: "ILS approach" },
+          { id: "o8", text: "VOR approach" },
+          { id: "o9", text: "GPS approach" }
+        ]
+      },
+      {
+        id: 7,
+        name: "Basic Aircraft Proficiency",
+        prereq: "Any qualified CAP VFR Pilot",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Ground training completed" },
+          { id: "r2", text: "Plan & brief training block" },
+          { id: "r3", text: "Brief crew responsibilities" },
+          { id: "r4", text: "Review emergency procedures" }
+        ],
+        blocks: [
+          {
+            name: "Block 1: Basic Air Work",
+            items: [
+              { id: "b1-1", text: "Slow flight" },
+              { id: "b1-2", text: "Stalls" },
+              { id: "b1-3", text: "Steep turns" },
+              { id: "b1-4", text: "Turns around a point" },
+              { id: "b1-5", text: "Basic instrument maneuvers" },
+              { id: "b1-6", text: "Simulated emergency procedures" }
+            ]
+          },
+          {
+            name: "Block 2: Takeoffs & Landings",
+            items: [
+              { id: "b2-1", text: "Normal T/O to partial flap landing" },
+              { id: "b2-2", text: "Short field T/O and landing" },
+              { id: "b2-3", text: "Soft field T/O and landing" },
+              { id: "b2-4", text: "Crosswind techniques" },
+              { id: "b2-5", text: "Simulated forced landing" },
+              { id: "b2-6", text: "No-flap landing" },
+              { id: "b2-7", text: "Go-around" }
+            ]
+          },
+          {
+            name: "Block 3: Instrument Procedures",
+            items: [
+              { id: "b3-1", text: "Flight by reference to instruments" },
+              { id: "b3-2", text: "Navigation" },
+              { id: "b3-3", text: "ILS approach" },
+              { id: "b3-4", text: "VOR approach" },
+              { id: "b3-5", text: "GPS approach" },
+              { id: "b3-6", text: "Published missed approach" },
+              { id: "b3-7", text: "Hold" }
+            ]
+          }
+        ],
+        routine: []
+      },
+      {
+        id: 8,
+        name: "Counterdrug Mission",
+        prereq: "Qualified SAR/DR Mission Pilot",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Plan & brief visual search" },
+          { id: "r2", text: "Route search", group: "searchType" },
+          { id: "r3", text: "Parallel track search", group: "searchType" },
+          { id: "r4", text: "Point-based search", group: "searchType" },
+          { id: "r5", text: "Creeping line search", group: "searchType" },
+          { id: "r6", text: "Brief crew responsibilities" },
+          { id: "r7", text: "Review emergency procedures" },
+          { id: "r8", text: "Practice visual searches" },
+          { id: "r9", text: "Review landing procedures" },
+          { id: "r10", text: "Debrief sortie with crew" }
+        ],
+        routine: [
+          { id: "o1", text: "Slow Flight" },
+          { id: "o2", text: "Stalls" },
+          { id: "o3", text: "Steep turns" },
+          { id: "o4", text: "Turns around a point" },
+          { id: "o5", text: "Simulated emergency procedures" },
+          { id: "o6", text: "Normal landing (full flap)" },
+          { id: "o7", text: "Normal landing (no flap)" },
+          { id: "o8", text: "Short-field landing" },
+          { id: "o9", text: "Soft-field landing" },
+          { id: "o10", text: "Simulated forced landing" },
+          { id: "o11", text: "Go-around" },
+          { id: "o12", text: "ILS approach" },
+          { id: "o13", text: "VOR approach" },
+          { id: "o14", text: "GPS approach" }
+        ]
+      },
+      {
+        id: 9,
+        name: "Low-Level Route Survey",
+        prereq: "Qualified SAR/DR Mission Pilot",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Plan & brief route search" },
+          { id: "r2", text: "Route search", group: "searchType" },
+          { id: "r3", text: "Low-level route (min 1000' AGL)", group: "searchType" },
+          { id: "r4", text: "Brief crew responsibilities" },
+          { id: "r5", text: "Review emergency procedures" },
+          { id: "r6", text: "Pre-sortie route study" },
+          { id: "r7", text: "High terrain identified" },
+          { id: "r8", text: "Towers identified" },
+          { id: "r9", text: "Airspace (MOAs, TFRs) identified" },
+          { id: "r10", text: "Uncontrolled airfields identified" },
+          { id: "r11", text: "Bird migration routes checked" },
+          { id: "r12", text: "Practice visual searches" },
+          { id: "r13", text: "Debrief sortie with crew" }
+        ],
+        routine: [
+          { id: "o1", text: "Normal landing (full flap)" },
+          { id: "o2", text: "Normal landing (no flap)" },
+          { id: "o3", text: "Short-field landing" },
+          { id: "o4", text: "Soft-field landing" },
+          { id: "o5", text: "Simulated forced landing" },
+          { id: "o6", text: "Go-around" },
+          { id: "o7", text: "ILS approach" },
+          { id: "o8", text: "VOR approach" },
+          { id: "o9", text: "GPS approach" }
+        ]
+      },
+      {
+        id: 10,
+        name: "High-Performance/Complex",
+        prereq: "Qualified SAR/DR/Transport/IP/OP/CP",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Brief crew responsibilities" },
+          { id: "r2", text: "Review emergency procedures" },
+          { id: "r3", text: "Review POH T/O & landing procedures" },
+          { id: "r4", text: "Normal T/O & partial flap landing" },
+          { id: "r5", text: "Normal landing (full flaps)" },
+          { id: "r6", text: "Short field T/O and landing" },
+          { id: "r7", text: "Soft field T/O and landing" },
+          { id: "r8", text: "No-flap landing" },
+          { id: "r9", text: "Go-around" },
+          { id: "r10", text: "Debrief sortie with crew" }
+        ],
+        routine: []
+      },
+      {
+        id: 11,
+        name: "Glider Aero-Tow",
+        prereq: "Qualified CAP Glider Pilot",
+        maxDuration: "4 tows",
+        required: [
+          { id: "r1", text: "Online Wing Runner Course (30 days)" },
+          { id: "r2", text: "Ground training completed" },
+          { id: "r3", text: "Glider preflight" },
+          { id: "r4", text: "Tow rope/cable inspection" },
+          { id: "r5", text: "Release check" },
+          { id: "r6", text: "Safety briefing conducted" }
+        ],
+        routine: [
+          { id: "o1", text: "Normal takeoff" },
+          { id: "o2", text: "Crosswind takeoff" },
+          { id: "o3", text: "Unassisted takeoff" },
+          { id: "o4", text: "Box Tow" },
+          { id: "o5", text: "Slack rope" },
+          { id: "o6", text: "Descent on tow" },
+          { id: "o7", text: "Non-emergency signals" },
+          { id: "o8", text: "Normal release" },
+          { id: "o9", text: "Simulate instrument failure" },
+          { id: "o10", text: "Soft release (Schweizer)" },
+          { id: "o11", text: "Slow flight" },
+          { id: "o12", text: "Stalls (straight & turning)" },
+          { id: "o13", text: "Steep turns" },
+          { id: "o14", text: "Soaring" },
+          { id: "o15", text: "No divebrake landing" },
+          { id: "o16", text: "Normal landing" },
+          { id: "o17", text: "Downwind landing" },
+          { id: "o18", text: "Simulated off-airport landing" },
+          { id: "o19", text: "Precision landing" }
+        ]
+      },
+      {
+        id: 12,
+        name: "Glider Ground-Launch",
+        prereq: "Qualified CAP Glider Pilot",
+        maxDuration: "10 launches",
+        required: [
+          { id: "r1", text: "Online Wing Runner Course (30 days)" },
+          { id: "r2", text: "Ground training completed" },
+          { id: "r3", text: "Glider preflight" },
+          { id: "r4", text: "Tow rope/cable inspection" },
+          { id: "r5", text: "Release check" },
+          { id: "r6", text: "Safety briefing conducted" }
+        ],
+        routine: [
+          { id: "o1", text: "Normal takeoff" },
+          { id: "o2", text: "Crosswind takeoff" },
+          { id: "o3", text: "Normal release" },
+          { id: "o4", text: "Non-emergency signals" },
+          { id: "o5", text: "Simulate cable break" },
+          { id: "o6", text: "Slow flight" },
+          { id: "o7", text: "Stalls (straight & turning)" },
+          { id: "o8", text: "Steep turns" },
+          { id: "o9", text: "Soaring" },
+          { id: "o10", text: "No divebrake landing" },
+          { id: "o11", text: "Normal landing" },
+          { id: "o12", text: "Downwind landing" },
+          { id: "o13", text: "Simulated off-airport landing" },
+          { id: "o14", text: "Precision landing" }
+        ]
+      },
+      {
+        id: 13,
+        name: "Tow Pilot",
+        prereq: "Qualified CAP Tow Pilot",
+        maxDuration: "2.0 hrs",
+        required: [
+          { id: "r1", text: "Online Tow Pilot Course (30 days)" },
+          { id: "r2", text: "Safety briefing conducted" }
+        ],
+        routine: [
+          { id: "o1", text: "Normal takeoff" },
+          { id: "o2", text: "Crosswind takeoff" },
+          { id: "o3", text: "Boxed tow" },
+          { id: "o4", text: "Problem/emergency release signals" },
+          { id: "o5", text: "Descent on tow" },
+          { id: "o6", text: "Normal release" },
+          { id: "o7", text: "Low altitude release" },
+          { id: "o8", text: "Normal landing" },
+          { id: "o9", text: "Crosswind landing" },
+          { id: "o10", text: "Short field landing" },
+          { id: "o11", text: "Soft field landing" }
+        ]
+      },
+      {
+        id: 14,
+        name: "Cadet Recurrent (Powered)",
+        prereq: "Cadet with Private Pilot Certificate",
+        maxDuration: "1.8 hrs/month",
+        required: [
+          { id: "r1", text: "Review POH T/O & landing procedures" }
+        ],
+        routine: [
+          { id: "o1", text: "Slow Flight" },
+          { id: "o2", text: "Stalls" },
+          { id: "o3", text: "Steep turns" },
+          { id: "o4", text: "Turns around a point" },
+          { id: "o5", text: "Basic instrument maneuvers" },
+          { id: "o6", text: "Normal T/O & partial flap landing" },
+          { id: "o7", text: "Normal landing (full flaps)" },
+          { id: "o8", text: "Short field T/O and landing" },
+          { id: "o9", text: "Soft field T/O and landing" },
+          { id: "o10", text: "No-flap landing" },
+          { id: "o11", text: "Go-around" }
+        ]
+      },
+      {
+        id: 15,
+        name: "Cadet Recurrent (Glider)",
+        prereq: "Cadet with Private Pilot - Glider",
+        maxDuration: "3 tows or 10 launches/month",
+        required: [
+          { id: "r1", text: "Glider preflight" },
+          { id: "r2", text: "Tow rope/cable inspection" },
+          { id: "r3", text: "Release check" },
+          { id: "r4", text: "Safety briefing conducted" }
+        ],
+        routine: [
+          { id: "o1", text: "Normal takeoff" },
+          { id: "o2", text: "Crosswind takeoff" },
+          { id: "o3", text: "Unassisted takeoff" },
+          { id: "o4", text: "Box Tow" },
+          { id: "o5", text: "Descent on tow" },
+          { id: "o6", text: "Non-emergency signals" },
+          { id: "o7", text: "Normal release" },
+          { id: "o8", text: "Soft release (Schweizer)" },
+          { id: "o9", text: "Slow flight" },
+          { id: "o10", text: "Stalls (straight & turning)" },
+          { id: "o11", text: "Steep turns" },
+          { id: "o12", text: "Soaring" },
+          { id: "o13", text: "No divebrake landing" },
+          { id: "o14", text: "Normal landing" },
+          { id: "o15", text: "Downwind landing" },
+          { id: "o16", text: "Precision landing" }
+        ]
+      },
+      {
+        id: 16,
+        name: "Instrument Proficiency",
+        prereq: "CAP Instrument Pilot + Safety Pilot",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Ground training (IPC only)" },
+          { id: "r2", text: "Brief crew responsibilities" },
+          { id: "r3", text: "Review emergency procedures" },
+          { id: "r4", text: "Flight by reference to instruments" },
+          { id: "r5", text: "Navigation" },
+          { id: "r6", text: "Precision approach" },
+          { id: "r7", text: "Non-precision approach" },
+          { id: "r8", text: "Published missed approach" },
+          { id: "r9", text: "Hold" },
+          { id: "r10", text: "Approach with A/P (if equipped)" },
+          { id: "r11", text: "Approach without A/P" },
+          { id: "r12", text: "Debrief sortie with crew" }
+        ],
+        routine: []
+      },
+      {
+        id: 17,
+        name: "IP/CP Right-Seat Proficiency",
+        prereq: "Qualified IP or CP",
+        maxDuration: "1.5 hrs",
+        required: [
+          { id: "r1", text: "Brief crew responsibilities" },
+          { id: "r2", text: "Review emergency procedures" },
+          { id: "r3", text: "Review POH T/O & landing procedures" },
+          { id: "r4", text: "Normal T/O & partial flap landing" },
+          { id: "r5", text: "Normal landing (full flaps)" },
+          { id: "r6", text: "Short field T/O and landing" },
+          { id: "r7", text: "Soft field T/O and landing" },
+          { id: "r8", text: "No-flap landing" },
+          { id: "r9", text: "Go-around" },
+          { id: "r10", text: "Debrief sortie with crew" }
+        ],
+        routine: []
+      },
+      {
+        id: 18,
+        name: "Tsunami Proficiency",
+        prereq: "Qualified SAR/DR MP (tsunami states)",
+        maxDuration: "2.5 hrs",
+        required: [
+          { id: "r1", text: "Plan & brief Tsunami Warning Mission" },
+          { id: "r2", text: "Review Siren & PA systems" },
+          { id: "r3", text: "Test systems (volume down)" },
+          { id: "r4", text: "Practice Tsunami Warning Mission" },
+          { id: "r5", text: "Descent for observation (optional)" },
+          { id: "r6", text: "Review landing procedures" },
+          { id: "r7", text: "Debrief sortie with crew" }
+        ],
+        routine: [
+          { id: "o1", text: "Slow Flight" },
+          { id: "o2", text: "Stalls" },
+          { id: "o3", text: "Steep turns" },
+          { id: "o4", text: "Turns around a point" },
+          { id: "o5", text: "Simulated emergency procedures" },
+          { id: "o6", text: "Normal landing (full flap)" },
+          { id: "o7", text: "Normal landing (no flap)" },
+          { id: "o8", text: "Short-field landing" },
+          { id: "o9", text: "Soft-field landing" },
+          { id: "o10", text: "Simulated forced landing" },
+          { id: "o11", text: "Go-around" },
+          { id: "o12", text: "ILS approach" },
+          { id: "o13", text: "VOR approach" },
+          { id: "o14", text: "GPS approach" }
+        ]
+      }
+    ];
+    
     // Ops Normal Timer
     const [opsTimerEnabled, setOpsTimerEnabled] = useState(false);
     const [opsTimerMinutes, setOpsTimerMinutes] = useState(30);
@@ -5222,6 +5783,29 @@ ${events.map((e) => `
   </tr>
 `).join("")}
 </table></div>
+${proficiencyState.selectedProfile ? `
+<div class="section"><div class="section-title">Proficiency Profile (P${proficiencyState.selectedProfile})</div>
+  <div class="grid grid-2" style="margin-bottom: 10px;">
+    <div class="field"><span class="label">Profile:</span> <span class="value">${proficiencyProfiles.find(p => p.id === proficiencyState.selectedProfile)?.name || ''}</span></div>
+    <div class="field"><span class="label">Started:</span> <span class="value">${proficiencyState.startTime ? new Date(proficiencyState.startTime).toLocaleTimeString() : ''}</span></div>
+  </div>
+  <table><tr><th style="width:40px">\u2713</th><th style="width:80px">Type</th><th>Task</th><th style="width:80px">Time</th></tr>
+  ${(() => {
+    const profile = proficiencyProfiles.find(p => p.id === proficiencyState.selectedProfile);
+    if (!profile) return '';
+    const allItems = [
+      ...(profile.required || []).map(i => ({ ...i, type: 'Required' })),
+      ...(profile.blocks || []).flatMap(b => b.items.map(i => ({ ...i, type: b.name }))),
+      ...(profile.routine || []).map(i => ({ ...i, type: 'Routine' }))
+    ];
+    return allItems.map(item => {
+      const completed = proficiencyState.completedItems[item.id];
+      return '<tr><td style="text-align:center">' + (completed ? '\u2713' : '') + '</td><td>' + escHtml(item.type) + '</td><td>' + escHtml(item.text) + '</td><td>' + (completed ? new Date(completed).toLocaleTimeString() : '') + '</td></tr>';
+    }).join('');
+  })()}
+  </table>
+  ${proficiencyState.notes ? '<div style="margin-top:8px"><span class="label">Notes:</span> ' + escNl(proficiencyState.notes) + '</div>' : ''}
+</div>` : ''}
             <div style="margin-top: 20px; font-size: 8pt; text-align: center; color: #666;">Generated: ${(/* @__PURE__ */ new Date()).toISOString()} | Mission Aircrew Toolkit (MAT)</div>
           </body></html>`);
       printWindow.document.close();
@@ -5802,6 +6386,7 @@ Events: ${events.length}`;
         { id: "mission", icon: "📋", label: "Mission Info", desc: "Aircraft, crew, mission details", color: "#dd6b20" },
         { id: "times", icon: "⏱️", label: "Times & Fuel", desc: "Tach, Hobbs, flight times", color: "#3182ce" },
         { id: "events", icon: "📍", label: "Event Log", desc: "Record observations & positions", color: "#38a169" },
+        { id: "proficiency", icon: "✅", label: "Proficiency", desc: "CAPS 71-4 flight profiles", color: "#38a169" },
         { id: "crosshair", icon: "🎯", label: "Target Locate", desc: "Crosshair triangulation tool", color: "#d69e2e" },
         { id: "eltAssist", icon: "📡", label: "ELT Assist", desc: "ELT signal tracking & SARSAT", color: "#ed8936" },
         { id: "searchPlanner", icon: "🧭", label: "Search Planner", desc: "Generate search patterns", color: "#805ad5" },
@@ -5809,7 +6394,7 @@ Events: ${events.length}`;
         { id: "radio", icon: "📢", label: "Radio Calls", desc: "CAP radio call templates", color: "#3182ce" },
         { id: "coComms", icon: "📻", label: "CO Comms", desc: "Colorado frequencies & callsigns", color: "#2b6cb0" },
         { id: "emergency", icon: "🚨", label: "Emergency", desc: "Emergency procedures & checklists", color: "#c53030" },
-        { id: "reference", icon: "📚", label: "Reference", desc: "Charts, conversions, guides", color: "#718096" },
+        { id: "reference", icon: "📚", label: "Reference", desc: "Charts, conversions, calculators", color: "#718096" },
         { id: "demo", icon: "🎬", label: "Demos", desc: "Interactive examples & tutorials", color: "#805ad5" }
       ];
       
@@ -5946,6 +6531,47 @@ Events: ${events.length}`;
             )
           )
         ),
+        
+        // Active Proficiency Profile Status
+        proficiencyState.selectedProfile && (() => {
+          const profile = proficiencyProfiles.find(p => p.id === proficiencyState.selectedProfile);
+          if (!profile) return null;
+          const requiredItems = [...(profile.required || []), ...(profile.blocks || []).flatMap(b => b.items)];
+          const reqCompleted = requiredItems.filter(item => proficiencyState.completedItems[item.id]).length;
+          const routineItems = profile.routine || [];
+          const routCompleted = routineItems.filter(item => proficiencyState.completedItems[item.id]).length;
+          const progress = requiredItems.length > 0 ? (reqCompleted / requiredItems.length) * 100 : 0;
+          
+          return React.createElement("div", { 
+            style: { 
+              marginTop: "16px", 
+              padding: "16px", 
+              background: "linear-gradient(135deg, rgba(56,161,105,0.2), rgba(49,130,206,0.15))", 
+              borderRadius: "12px", 
+              border: "2px solid rgba(104,211,145,0.4)",
+              cursor: "pointer"
+            },
+            onClick: () => switchTab("proficiency")
+          },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" } },
+              React.createElement("div", null,
+                React.createElement("div", { style: { fontSize: ts("11"), color: "#68d391", fontWeight: "600" } }, "ACTIVE PROFILE P", profile.id),
+                React.createElement("div", { style: { fontSize: ts("16"), fontWeight: "700", color: "#fff" } }, profile.name)
+              ),
+              React.createElement("div", { style: { fontSize: ts("24") } }, progress === 100 ? "✅" : "📋")
+            ),
+            React.createElement("div", { style: { marginBottom: "8px" } },
+              React.createElement("div", { style: { height: "8px", background: "rgba(0,0,0,0.3)", borderRadius: "4px", overflow: "hidden" } },
+                React.createElement("div", { style: { height: "100%", width: progress + "%", background: progress === 100 ? "linear-gradient(90deg, #38a169, #68d391)" : "linear-gradient(90deg, #3182ce, #63b3ed)", transition: "width 0.3s" } })
+              )
+            ),
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: ts("11"), color: "#a0aec0" } },
+              React.createElement("span", null, "Required: ", reqCompleted, "/", requiredItems.length),
+              routineItems.length > 0 && React.createElement("span", null, "Routine: ", routCompleted, "/", routineItems.length),
+              React.createElement("span", { style: { color: "#68d391" } }, "Tap to continue →")
+            )
+          );
+        })(),
         
         // Quick actions section
         React.createElement("div", { style: homeStyles.quickActions },
@@ -13285,6 +13911,226 @@ Events: ${events.length}`;
       );
     };
 
+    // PROFICIENCY PROFILE TAB
+    const renderProficiencyTab = () => {
+      const profile = proficiencyState.selectedProfile ? proficiencyProfiles.find(p => p.id === proficiencyState.selectedProfile) : null;
+      
+      const toggleItem = (itemId) => {
+        setProficiencyState(prev => {
+          const newCompleted = { ...prev.completedItems };
+          if (newCompleted[itemId]) {
+            delete newCompleted[itemId];
+          } else {
+            newCompleted[itemId] = new Date().toISOString();
+          }
+          return { ...prev, completedItems: newCompleted };
+        });
+      };
+      
+      const resetProfile = () => {
+        setProficiencyState({
+          selectedProfile: null,
+          completedItems: {},
+          notes: '',
+          startTime: null
+        });
+      };
+      
+      const startProfile = (profileId) => {
+        setProficiencyState({
+          selectedProfile: profileId,
+          completedItems: {},
+          notes: '',
+          startTime: new Date().toISOString()
+        });
+      };
+      
+      const getCompletionStats = () => {
+        if (!profile) return { required: 0, total: 0, routine: 0, routineTotal: 0 };
+        const requiredItems = profile.required || [];
+        const routineItems = profile.routine || [];
+        const blockItems = profile.blocks ? profile.blocks.flatMap(b => b.items) : [];
+        const allRequired = [...requiredItems, ...blockItems];
+        
+        const reqCompleted = allRequired.filter(item => proficiencyState.completedItems[item.id]).length;
+        const routCompleted = routineItems.filter(item => proficiencyState.completedItems[item.id]).length;
+        
+        return {
+          required: reqCompleted,
+          total: allRequired.length,
+          routine: routCompleted,
+          routineTotal: routineItems.length
+        };
+      };
+      
+      const stats = getCompletionStats();
+      
+      const profStyles = {
+        card: { background: "rgba(45,55,72,0.6)", borderRadius: "12px", padding: "16px", marginBottom: "12px", border: "1px solid rgba(255,255,255,0.1)" },
+        profileBtn: { width: "100%", padding: "16px", marginBottom: "8px", background: "rgba(0,0,0,0.3)", border: "2px solid rgba(99,179,237,0.3)", borderRadius: "10px", color: "#fff", fontSize: "15px", fontWeight: "600", cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center" },
+        checkItem: { display: "flex", alignItems: "center", padding: "14px", marginBottom: "6px", background: "rgba(0,0,0,0.2)", borderRadius: "8px", cursor: "pointer", border: "2px solid transparent", transition: "all 0.2s" },
+        checkBox: { width: "28px", height: "28px", borderRadius: "6px", border: "2px solid", display: "flex", alignItems: "center", justifyContent: "center", marginRight: "12px", fontSize: "16px", flexShrink: 0 },
+        sectionHeader: { fontSize: "14px", fontWeight: "700", color: "#f6e05e", marginBottom: "12px", marginTop: "16px", display: "flex", alignItems: "center", gap: "8px" }
+      };
+      
+      // Profile selection view
+      if (!profile) {
+        return React.createElement("div", null,
+          React.createElement("div", { style: { ...profStyles.card, background: "linear-gradient(135deg, rgba(56,161,105,0.2), rgba(49,130,206,0.2))", borderColor: "rgba(104,211,145,0.4)" } },
+            React.createElement("div", { style: { fontSize: "18px", fontWeight: "700", color: "#68d391", marginBottom: "8px" } }, "\u2705 Flight Proficiency Profiles"),
+            React.createElement("div", { style: { fontSize: "13px", color: "#a0aec0" } }, "CAPS 71-4 AFAM-approved profiles. Select a profile to track task completion during your flight.")
+          ),
+          // Mission info pull
+          (missionInfo.missionNumber || missionInfo.aircraftTailN) && React.createElement("div", { style: { ...profStyles.card, background: "rgba(99,179,237,0.1)", borderColor: "rgba(99,179,237,0.3)" } },
+            React.createElement("div", { style: { fontSize: "12px", color: "#63b3ed", fontWeight: "600", marginBottom: "4px" } }, "Current Mission"),
+            React.createElement("div", { style: { fontSize: "14px", color: "#e2e8f0" } }, 
+              missionInfo.missionNumber && React.createElement("span", null, "Mission: ", missionInfo.missionNumber, " "),
+              missionInfo.aircraftTailN && React.createElement("span", null, "| Aircraft: N", missionInfo.aircraftTailN)
+            )
+          ),
+          React.createElement("div", { style: { fontSize: "13px", fontWeight: "600", color: "#a0aec0", marginBottom: "12px", marginTop: "16px" } }, "SELECT PROFILE:"),
+          proficiencyProfiles.map(p => 
+            React.createElement("button", {
+              key: p.id,
+              onClick: () => startProfile(p.id),
+              style: profStyles.profileBtn
+            },
+              React.createElement("div", null,
+                React.createElement("div", { style: { color: "#68d391" } }, "P", p.id, " - ", p.name),
+                React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", fontWeight: "400", marginTop: "2px" } }, p.prereq, " | Max: ", p.maxDuration)
+              ),
+              React.createElement("span", { style: { fontSize: "20px" } }, "\u25B6")
+            )
+          )
+        );
+      }
+      
+      // Active profile tracking view
+      return React.createElement("div", null,
+        // Header with profile info
+        React.createElement("div", { style: { ...profStyles.card, background: "linear-gradient(135deg, rgba(56,161,105,0.3), rgba(49,130,206,0.2))", borderColor: "rgba(104,211,145,0.5)" } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+            React.createElement("div", null,
+              React.createElement("div", { style: { fontSize: "11px", color: "#68d391", fontWeight: "600" } }, "PROFILE ", profile.id),
+              React.createElement("div", { style: { fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "4px" } }, profile.name),
+              React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0" } }, profile.prereq)
+            ),
+            React.createElement("button", {
+              onClick: resetProfile,
+              style: { padding: "8px 12px", background: "rgba(252,129,129,0.2)", border: "1px solid rgba(252,129,129,0.4)", borderRadius: "6px", color: "#fc8181", fontSize: "12px", fontWeight: "600", cursor: "pointer" }
+            }, "\u2715 Close")
+          ),
+          // Progress bar
+          React.createElement("div", { style: { marginTop: "12px" } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#a0aec0", marginBottom: "4px" } },
+              React.createElement("span", null, "Required: ", stats.required, "/", stats.total),
+              stats.routineTotal > 0 && React.createElement("span", null, "Routine: ", stats.routine, "/", stats.routineTotal)
+            ),
+            React.createElement("div", { style: { height: "8px", background: "rgba(0,0,0,0.3)", borderRadius: "4px", overflow: "hidden" } },
+              React.createElement("div", { style: { height: "100%", width: (stats.total > 0 ? (stats.required / stats.total) * 100 : 0) + "%", background: stats.required === stats.total ? "linear-gradient(90deg, #38a169, #68d391)" : "linear-gradient(90deg, #3182ce, #63b3ed)", transition: "width 0.3s" } })
+            )
+          ),
+          // Start time
+          proficiencyState.startTime && React.createElement("div", { style: { marginTop: "8px", fontSize: "11px", color: "#a0aec0" } },
+            "Started: ", new Date(proficiencyState.startTime).toLocaleTimeString()
+          )
+        ),
+        
+        // Required Items
+        profile.required && profile.required.length > 0 && React.createElement("div", null,
+          React.createElement("div", { style: profStyles.sectionHeader }, "\u{1F7E2} REQUIRED ITEMS"),
+          profile.required.map(item => {
+            const isComplete = !!proficiencyState.completedItems[item.id];
+            return React.createElement("div", {
+              key: item.id,
+              onClick: () => toggleItem(item.id),
+              style: { ...profStyles.checkItem, borderColor: isComplete ? "rgba(104,211,145,0.5)" : "transparent", background: isComplete ? "rgba(104,211,145,0.1)" : "rgba(0,0,0,0.2)" }
+            },
+              React.createElement("div", { style: { ...profStyles.checkBox, borderColor: isComplete ? "#68d391" : "#4a5568", background: isComplete ? "#68d391" : "transparent", color: "#1a202c" } },
+                isComplete ? "\u2713" : ""
+              ),
+              React.createElement("div", { style: { flex: 1 } },
+                React.createElement("div", { style: { fontSize: "14px", color: isComplete ? "#68d391" : "#e2e8f0", fontWeight: "500" } }, item.text),
+                isComplete && React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginTop: "2px" } },
+                  new Date(proficiencyState.completedItems[item.id]).toLocaleTimeString()
+                )
+              )
+            );
+          })
+        ),
+        
+        // Training Blocks (for Profile 7)
+        profile.blocks && profile.blocks.map(block => 
+          React.createElement("div", { key: block.name },
+            React.createElement("div", { style: { ...profStyles.sectionHeader, color: "#63b3ed" } }, "\u{1F4D8} ", block.name),
+            block.items.map(item => {
+              const isComplete = !!proficiencyState.completedItems[item.id];
+              return React.createElement("div", {
+                key: item.id,
+                onClick: () => toggleItem(item.id),
+                style: { ...profStyles.checkItem, borderColor: isComplete ? "rgba(99,179,237,0.5)" : "transparent", background: isComplete ? "rgba(99,179,237,0.1)" : "rgba(0,0,0,0.2)" }
+              },
+                React.createElement("div", { style: { ...profStyles.checkBox, borderColor: isComplete ? "#63b3ed" : "#4a5568", background: isComplete ? "#63b3ed" : "transparent", color: "#1a202c" } },
+                  isComplete ? "\u2713" : ""
+                ),
+                React.createElement("div", { style: { flex: 1 } },
+                  React.createElement("div", { style: { fontSize: "14px", color: isComplete ? "#63b3ed" : "#e2e8f0", fontWeight: "500" } }, item.text),
+                  isComplete && React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginTop: "2px" } },
+                    new Date(proficiencyState.completedItems[item.id]).toLocaleTimeString()
+                  )
+                )
+              );
+            })
+          )
+        ),
+        
+        // Routine Items
+        profile.routine && profile.routine.length > 0 && React.createElement("div", null,
+          React.createElement("div", { style: { ...profStyles.sectionHeader, color: "#f6e05e" } }, "\u{1F7E1} ROUTINE ITEMS (as time permits)"),
+          profile.routine.map(item => {
+            const isComplete = !!proficiencyState.completedItems[item.id];
+            return React.createElement("div", {
+              key: item.id,
+              onClick: () => toggleItem(item.id),
+              style: { ...profStyles.checkItem, borderColor: isComplete ? "rgba(246,224,94,0.5)" : "transparent", background: isComplete ? "rgba(246,224,94,0.1)" : "rgba(0,0,0,0.2)" }
+            },
+              React.createElement("div", { style: { ...profStyles.checkBox, borderColor: isComplete ? "#f6e05e" : "#4a5568", background: isComplete ? "#f6e05e" : "transparent", color: "#1a202c" } },
+                isComplete ? "\u2713" : ""
+              ),
+              React.createElement("div", { style: { flex: 1 } },
+                React.createElement("div", { style: { fontSize: "14px", color: isComplete ? "#f6e05e" : "#e2e8f0", fontWeight: "500" } }, item.text),
+                isComplete && React.createElement("div", { style: { fontSize: "10px", color: "#a0aec0", marginTop: "2px" } },
+                  new Date(proficiencyState.completedItems[item.id]).toLocaleTimeString()
+                )
+              )
+            );
+          })
+        ),
+        
+        // Notes
+        React.createElement("div", { style: { marginTop: "20px" } },
+          React.createElement("div", { style: { ...profStyles.sectionHeader, color: "#a0aec0" } }, "\u{1F4DD} NOTES / JUSTIFICATIONS"),
+          React.createElement("textarea", {
+            value: proficiencyState.notes,
+            onChange: (e) => setProficiencyState(prev => ({ ...prev, notes: e.target.value })),
+            placeholder: "Document any omissions, weather factors, equipment issues, or other notes...",
+            style: { width: "100%", minHeight: "100px", padding: "12px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "8px", color: "#fff", fontSize: "14px", resize: "vertical" }
+          })
+        ),
+        
+        // Summary for documentation
+        React.createElement("div", { style: { ...profStyles.card, marginTop: "16px", background: "rgba(99,179,237,0.1)", borderColor: "rgba(99,179,237,0.3)" } },
+          React.createElement("div", { style: { fontSize: "12px", color: "#63b3ed", fontWeight: "600", marginBottom: "8px" } }, "CAPF 104 SUMMARY"),
+          React.createElement("div", { style: { fontSize: "12px", color: "#e2e8f0", fontFamily: "monospace", background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "6px", whiteSpace: "pre-wrap" } },
+            "Profile P", profile.id, " - ", profile.name, "\n",
+            "Required: ", stats.required, "/", stats.total, " completed\n",
+            stats.routineTotal > 0 ? "Routine: " + stats.routine + "/" + stats.routineTotal + " completed\n" : "",
+            proficiencyState.notes ? "Notes: " + proficiencyState.notes : ""
+          )
+        )
+      );
+    };
+
     const renderReferenceTab = () => {
       const refSections = [
         { id: "radioFrequencies", label: "Frequencies" },
@@ -15810,6 +16656,7 @@ const tabs = [
       { id: "mission", label: "Mission", icon: "\u{1F4CB}" },
       { id: "times", label: "Times", icon: "\u23F1\uFE0F" },
       { id: "events", label: "Events", icon: "\u{1F4CD}" },
+      { id: "proficiency", label: "Profile", icon: "\u2705", isProfile: true },
       { id: "crosshair", label: "Target", icon: "\u{1F3AF}", isTarget: true },
       { id: "eltAssist", label: "ELT", icon: "\u{1F4E1}", isElt: true },
       { id: "searchPlanner", label: "Search", icon: "\u{1F9ED}", isSearch: true },
@@ -16000,7 +16847,7 @@ const tabs = [
       tab.icon,
       " ",
       tab.label
-    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "home" && renderHomeTab(), activeTab === "demo" && renderDemoTab(), activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab(), activeTab === "commandTools" && renderCommandToolsTab()), activeTab !== "home" && activeTab !== "demo" && /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: () => setShowShareModal(true) }, "\u{1F4E4} Share"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")), renderShareModal(), renderEnlargeModal());
+    ))), /* @__PURE__ */ React.createElement("main", { style: styles.content }, activeTab === "home" && renderHomeTab(), activeTab === "demo" && renderDemoTab(), activeTab === "mission" && renderMissionTab(), activeTab === "times" && renderTimesTab(), activeTab === "events" && renderEventsTab(), activeTab === "proficiency" && renderProficiencyTab(), activeTab === "crosshair" && renderCrosshairTab(), activeTab === "eltAssist" && renderEltAssistTab(), activeTab === "radio" && renderRadioTab(), activeTab === "coComms" && renderCoCommsTab(), activeTab === "emergency" && renderEmergencyTab(), activeTab === "reference" && renderReferenceTab(), activeTab === "searchPlanner" && renderSearchPlannerTab(), activeTab === "commandTools" && renderCommandToolsTab()), activeTab !== "home" && activeTab !== "demo" && /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary }, onClick: clearAllData }, "Clear"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: () => setShowShareModal(true) }, "\u{1F4E4} Share"), /* @__PURE__ */ React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #3182ce, #2b6cb0)" }, onClick: exportToCSV }, "\u{1F4CA} CSV"), /* @__PURE__ */ React.createElement("button", { style: styles.button, onClick: generatePDF }, "\u{1F4C4} PDF")), renderShareModal(), renderEnlargeModal());
   };
   ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(CAPObserverLog, null));
 })();
