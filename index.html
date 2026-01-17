@@ -4907,7 +4907,13 @@ Events: ${events.length}`;
         setEvents([newEvent, ...events]);
 
         // Result is displayed inline in the TARGET LOCATION section
-        // No popup needed - scroll to result if needed
+        // Scroll to result after a brief delay to allow React to render
+        setTimeout(() => {
+          const resultSection = document.getElementById('crosshair-result-section');
+          if (resultSection) {
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
       };
 
       const addCurrentPosition = () => {
@@ -5629,7 +5635,9 @@ Events: ${events.length}`;
             }, "\u{1F3AF} CALCULATE INTERSECTION"),
             
             // Result display
-            crosshairResult && React.createElement("div", { style: {
+            crosshairResult && React.createElement("div", { 
+              id: "crosshair-result-section",
+              style: {
               background: "linear-gradient(135deg, rgba(246,224,94,0.15), rgba(237,137,54,0.1))",
               borderRadius: "12px",
               padding: "20px",
