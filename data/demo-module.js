@@ -194,92 +194,115 @@
     },
     
     'crosshair-target-1': {
-      type: 'native',
-      description: 'Crosshair target location data with multiple flight examples',
+      description: 'Crosshair Target Locate demonstrations showing two-pass intersection method',
       flights: {
         'kansas': {
-          name: 'Kansas - Interstate Crossing',
-          description: 'Two-pass intersection over rural Kansas terrain',
-          target: { lat: 38.4521, lon: -98.7634, description: 'Vehicle at highway intersection' },
-          passes: [
+          name: 'Kansas - Classic Cross Pattern',
+          description: 'Near-perpendicular N-S and E-W passes over rural Kansas. Excellent crossing angle for high accuracy.',
+          date: '2024-04-15',
+          segments: [
             {
-              passId: 1,
-              callsign: 'CAP101',
+              name: 'Segment 1 (N-S)',
               points: [
-                { lat: 38.4600, lon: -98.8000, alt: 2500, time: '1430Z' },
-                { lat: 38.4550, lon: -98.7800, alt: 2500, time: '1431Z' },
-                { lat: 38.4510, lon: -98.7600, alt: 2500, time: '1432Z', mark: true },
-                { lat: 38.4470, lon: -98.7400, alt: 2500, time: '1433Z' },
-                { lat: 38.4420, lon: -98.7200, alt: 2500, time: '1434Z' }
+                { lat: 39.10060, lon: -96.58580, time: '2024-04-15T16:00:00Z' },
+                { lat: 39.09770, lon: -96.58560, time: '2024-04-15T16:00:15Z' },
+                { lat: 39.09510, lon: -96.58590, time: '2024-04-15T16:00:30Z' },
+                { lat: 39.09240, lon: -96.58570, time: '2024-04-15T16:00:45Z' },
+                { lat: 39.08990, lon: -96.58585, time: '2024-04-15T16:01:00Z' },
+                { lat: 39.08740, lon: -96.58570, time: '2024-04-15T16:01:15Z' },
+                { lat: 39.08500, lon: -96.58595, time: '2024-04-15T16:01:30Z' },
+                { lat: 39.08240, lon: -96.58565, time: '2024-04-15T16:01:45Z' },
+                { lat: 39.07970, lon: -96.58590, time: '2024-04-15T16:02:00Z' },
+                { lat: 39.07690, lon: -96.58575, time: '2024-04-15T16:02:15Z' }
               ]
             },
             {
-              passId: 2,
-              callsign: 'CAP101',
+              name: 'Segment 2 (E-W)',
               points: [
-                { lat: 38.4300, lon: -98.7700, alt: 2500, time: '1440Z' },
-                { lat: 38.4400, lon: -98.7680, alt: 2500, time: '1441Z' },
-                { lat: 38.4530, lon: -98.7640, alt: 2500, time: '1442Z', mark: true },
-                { lat: 38.4650, lon: -98.7600, alt: 2500, time: '1443Z' },
-                { lat: 38.4780, lon: -98.7560, alt: 2500, time: '1444Z' }
+                { lat: 39.08890, lon: -96.59890, time: '2024-04-15T16:10:00Z' },
+                { lat: 39.08910, lon: -96.59580, time: '2024-04-15T16:10:15Z' },
+                { lat: 39.08880, lon: -96.59270, time: '2024-04-15T16:10:30Z' },
+                { lat: 39.08905, lon: -96.58960, time: '2024-04-15T16:10:45Z' },
+                { lat: 39.08885, lon: -96.58670, time: '2024-04-15T16:11:00Z' },
+                { lat: 39.08910, lon: -96.58370, time: '2024-04-15T16:11:15Z' },
+                { lat: 39.08890, lon: -96.58050, time: '2024-04-15T16:11:30Z' },
+                { lat: 39.08905, lon: -96.57740, time: '2024-04-15T16:11:45Z' },
+                { lat: 39.08880, lon: -96.57420, time: '2024-04-15T16:12:00Z' },
+                { lat: 39.08900, lon: -96.57110, time: '2024-04-15T16:12:15Z' }
               ]
             }
           ]
         },
         'texas': {
-          name: 'Texas - Ranch Search',
-          description: 'Desert terrain with good visibility',
-          target: { lat: 31.2345, lon: -103.5678, description: 'Structure in remote area' },
-          passes: [
+          name: 'Texas - Angled Intersection',
+          description: 'NNE-SSW and WNW-ESE passes near Austin. Shows path wiggle and curve handling.',
+          date: '2024-04-15',
+          segments: [
             {
-              passId: 1,
-              callsign: 'CAP205',
+              name: 'Segment 1 (NNE to SSW)',
               points: [
-                { lat: 31.2500, lon: -103.6000, alt: 3000, time: '0900Z' },
-                { lat: 31.2420, lon: -103.5850, alt: 3000, time: '0901Z' },
-                { lat: 31.2340, lon: -103.5680, alt: 3000, time: '0902Z', mark: true },
-                { lat: 31.2260, lon: -103.5510, alt: 3000, time: '0903Z' },
-                { lat: 31.2180, lon: -103.5340, alt: 3000, time: '0904Z' }
+                { lat: 30.32210, lon: -98.12440, time: '2024-04-15T19:00:00Z' },
+                { lat: 30.31960, lon: -98.12510, time: '2024-04-15T19:00:15Z' },
+                { lat: 30.31710, lon: -98.12460, time: '2024-04-15T19:00:30Z' },
+                { lat: 30.31460, lon: -98.12530, time: '2024-04-15T19:00:45Z' },
+                { lat: 30.31210, lon: -98.12480, time: '2024-04-15T19:01:00Z' },
+                { lat: 30.30960, lon: -98.12540, time: '2024-04-15T19:01:15Z' },
+                { lat: 30.30710, lon: -98.12490, time: '2024-04-15T19:01:30Z' },
+                { lat: 30.30460, lon: -98.12560, time: '2024-04-15T19:01:45Z' },
+                { lat: 30.30210, lon: -98.12500, time: '2024-04-15T19:02:00Z' },
+                { lat: 30.29960, lon: -98.12570, time: '2024-04-15T19:02:15Z' }
               ]
             },
             {
-              passId: 2,
-              callsign: 'CAP205',
+              name: 'Segment 2 (WNW to ESE)',
               points: [
-                { lat: 31.2100, lon: -103.5800, alt: 3000, time: '0910Z' },
-                { lat: 31.2200, lon: -103.5750, alt: 3000, time: '0911Z' },
-                { lat: 31.2350, lon: -103.5680, alt: 3000, time: '0912Z', mark: true },
-                { lat: 31.2500, lon: -103.5610, alt: 3000, time: '0913Z' },
-                { lat: 31.2650, lon: -103.5540, alt: 3000, time: '0914Z' }
+                { lat: 30.30990, lon: -98.14860, time: '2024-04-15T19:12:00Z' },
+                { lat: 30.30930, lon: -98.14480, time: '2024-04-15T19:12:15Z' },
+                { lat: 30.30880, lon: -98.14100, time: '2024-04-15T19:12:30Z' },
+                { lat: 30.30840, lon: -98.13730, time: '2024-04-15T19:12:45Z' },
+                { lat: 30.30810, lon: -98.13360, time: '2024-04-15T19:13:00Z' },
+                { lat: 30.30790, lon: -98.12990, time: '2024-04-15T19:13:15Z' },
+                { lat: 30.30780, lon: -98.12620, time: '2024-04-15T19:13:30Z' },
+                { lat: 30.30790, lon: -98.12240, time: '2024-04-15T19:13:45Z' },
+                { lat: 30.30820, lon: -98.11860, time: '2024-04-15T19:14:00Z' },
+                { lat: 30.30860, lon: -98.11480, time: '2024-04-15T19:14:15Z' }
               ]
             }
           ]
         },
         'oregon': {
           name: 'Oregon - Mountain Terrain',
-          description: 'Challenging mountainous terrain',
-          target: { lat: 44.1234, lon: -121.9876, description: 'Crash site in forest' },
-          passes: [
+          description: 'SSE-NNW and WSW-ENE passes in Cascade foothills. Demonstrates hand-flown track with drift.',
+          date: '2024-04-15',
+          segments: [
             {
-              passId: 1,
-              callsign: 'CAP312',
+              name: 'Segment 1 (SSE to NNW)',
               points: [
-                { lat: 44.1400, lon: -122.0200, alt: 5500, time: '1100Z' },
-                { lat: 44.1320, lon: -122.0050, alt: 5500, time: '1101Z' },
-                { lat: 44.1240, lon: -121.9880, alt: 5500, time: '1102Z', mark: true },
-                { lat: 44.1160, lon: -121.9710, alt: 5500, time: '1103Z' },
-                { lat: 44.1080, lon: -121.9540, alt: 5500, time: '1104Z' }
+                { lat: 44.69110, lon: -122.51420, time: '2024-04-15T20:00:00Z' },
+                { lat: 44.69340, lon: -122.51330, time: '2024-04-15T20:00:15Z' },
+                { lat: 44.69570, lon: -122.51390, time: '2024-04-15T20:00:30Z' },
+                { lat: 44.69790, lon: -122.51310, time: '2024-04-15T20:00:45Z' },
+                { lat: 44.70010, lon: -122.51370, time: '2024-04-15T20:01:00Z' },
+                { lat: 44.70230, lon: -122.51290, time: '2024-04-15T20:01:15Z' },
+                { lat: 44.70450, lon: -122.51350, time: '2024-04-15T20:01:30Z' },
+                { lat: 44.70670, lon: -122.51270, time: '2024-04-15T20:01:45Z' },
+                { lat: 44.70890, lon: -122.51320, time: '2024-04-15T20:02:00Z' },
+                { lat: 44.71110, lon: -122.51250, time: '2024-04-15T20:02:15Z' }
               ]
             },
             {
-              passId: 2,
-              callsign: 'CAP312',
+              name: 'Segment 2 (WSW to ENE)',
               points: [
-                { lat: 44.1000, lon: -121.9950, alt: 5500, time: '1115Z' },
-                { lat: 44.1100, lon: -121.9920, alt: 5500, time: '1116Z' },
-                { lat: 44.1230, lon: -121.9880, alt: 5500, time: '1117Z', mark: true },
-                { lat: 44.1360, lon: -121.9840, alt: 5500, time: '1118Z' },
-                { lat: 44.1490, lon: -121.9800, alt: 5500, time: '1119Z' }
+                { lat: 44.70190, lon: -122.53780, time: '2024-04-15T20:12:00Z' },
+                { lat: 44.70220, lon: -122.53390, time: '2024-04-15T20:12:15Z' },
+                { lat: 44.70260, lon: -122.53010, time: '2024-04-15T20:12:30Z' },
+                { lat: 44.70310, lon: -122.52630, time: '2024-04-15T20:12:45Z' },
+                { lat: 44.70360, lon: -122.52260, time: '2024-04-15T20:13:00Z' },
+                { lat: 44.70400, lon: -122.51890, time: '2024-04-15T20:13:15Z' },
+                { lat: 44.70430, lon: -122.51520, time: '2024-04-15T20:13:30Z' },
+                { lat: 44.70440, lon: -122.51140, time: '2024-04-15T20:13:45Z' },
+                { lat: 44.70430, lon: -122.50760, time: '2024-04-15T20:14:00Z' },
+                { lat: 44.70410, lon: -122.50380, time: '2024-04-15T20:14:15Z' }
               ]
             }
           ]
@@ -606,6 +629,7 @@
       if (dataFiles && dataFiles.length > 0) {
         setDemoLoadStatus('Loading flight tracks...');
         let loadedCount = 0;
+        const allLoadedCoordinates = []; // For grid auto-detection
         
         for (let i = 0; i < dataFiles.length; i++) {
           const filename = dataFiles[i];
@@ -629,6 +653,8 @@
               const parsed = parseKML(kmlText);
               if (parsed.coordinates.length > 0) {
                 loadedCount++;
+                // Store coordinates for later grid detection
+                allLoadedCoordinates.push(...parsed.coordinates);
                 setCmdState(prev => ({
                   ...prev,
                   flights: [...prev.flights, {
@@ -644,6 +670,49 @@
           }
           await new Promise(r => setTimeout(r, 50));
         }
+        
+        // Auto-detect grid from flight data if no grids were pre-specified
+        if (grids.length === 0 && gridCoords.length === 0 && allLoadedCoordinates.length > 0 && spDetectCapGrid) {
+          setDemoLoadStatus('Detecting search grid...');
+          await new Promise(r => setTimeout(r, 100));
+          
+          // Calculate center of all coordinates
+          let sumLat = 0, sumLon = 0;
+          for (const coord of allLoadedCoordinates) {
+            sumLat += coord.lat;
+            sumLon += coord.lon;
+          }
+          const centerLat = sumLat / allLoadedCoordinates.length;
+          const centerLon = sumLon / allLoadedCoordinates.length;
+          
+          const gridInfo = spDetectCapGrid(centerLat, centerLon);
+          if (gridInfo) {
+            const baseGrid = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
+            const qc = gridInfo.corners;
+            const quad = gridInfo.quarterGrid;
+            let fullNorth, fullSouth, fullWest, fullEast;
+            if (quad === 'A') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
+            else if (quad === 'B') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
+            else if (quad === 'C') { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
+            else { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
+            const fullGridCorners = {
+              nw: { lat: fullNorth, lon: fullWest }, ne: { lat: fullNorth, lon: fullEast },
+              sw: { lat: fullSouth, lon: fullWest }, se: { lat: fullSouth, lon: fullEast }
+            };
+            
+            setCmdState(prev => ({
+              ...prev,
+              selectedGrids: [...prev.selectedGrids, {
+                grid: baseGrid, subgrids: ['A', 'B', 'C', 'D'], corners: fullGridCorners,
+                quadrantCorners: qc, detectedQuadrant: quad, gridInfo: gridInfo,
+                coverage: { total: 0, A: 0, B: 0, C: 0, D: 0 }
+              }]
+            }));
+            setDemoLoadStatus('Detected grid: ' + baseGrid);
+            await new Promise(r => setTimeout(r, 300));
+          }
+        }
+        
         setDemoLoadStatus('Demo loaded!');
         await new Promise(r => setTimeout(r, 500));
       }
@@ -704,45 +773,49 @@
 
     // CROSSHAIR DEMO
     if (demo.module === 'crosshair') {
-      setDemoLoadStatus('Loading crosshair demo...');
+      setDemoLoadStatus('Loading flight data...');
       const demoData = DEMO_DATA[demo.id];
-      
       if (!demoData || !demoData.flights) {
-        setDemoLoadStatus('Error: Crosshair demo data not found');
+        setDemoLoadStatus('Error: Demo data not found');
         return;
       }
       
-      const flightKey = crosshairDemoFlight || demo.defaultFlight;
+      // Support both new selectedDemoExamples and legacy crosshairDemoFlight
+      const flightKey = (selectedDemoExamples && selectedDemoExamples[demo.id]) || crosshairDemoFlight || demo.defaultFlight;
       const flightData = demoData.flights[flightKey];
-      
-      if (!flightData || !flightData.passes) {
-        setDemoLoadStatus('Error: Flight data not found');
+      if (!flightData || !flightData.segments || flightData.segments.length < 2) {
+        setDemoLoadStatus('Error: Invalid flight data');
         return;
       }
       
-      setDemoLoadStatus('Loading: ' + flightData.name);
+      setDemoLoadStatus('Processing ' + flightData.name + '...');
+      const points = [];
+      let pointNum = 0;
       
-      const crosshairPoints = [];
-      for (const pass of flightData.passes) {
-        const markPoint = pass.points.find(p => p.mark);
-        if (markPoint) {
-          crosshairPoints.push({
-            id: Date.now() + pass.passId,
-            passNum: pass.passId,
-            lat: markPoint.lat,
-            lon: markPoint.lon,
-            alt: markPoint.alt,
-            time: markPoint.time,
-            callsign: pass.callsign
+      for (const segment of flightData.segments) {
+        setDemoLoadStatus('Loading ' + segment.name);
+        for (const pt of segment.points) {
+          pointNum++;
+          const latDeg = Math.floor(Math.abs(pt.lat));
+          const latMin = ((Math.abs(pt.lat) - latDeg) * 60).toFixed(3);
+          const lonDeg = Math.floor(Math.abs(pt.lon));
+          const lonMin = ((Math.abs(pt.lon) - lonDeg) * 60).toFixed(3);
+          let timeZ = '';
+          if (pt.time) {
+            const match = pt.time.match(/T(\d{2}):(\d{2}):(\d{2})/);
+            if (match) timeZ = match[1] + match[2] + match[3];
+          }
+          points.push({
+            id: Date.now() + Math.random() + pointNum, pointNum, timeZ,
+            latDeg: latDeg.toString(), latMin, lonDeg: lonDeg.toString(), lonMin,
+            dd: { lat: pt.lat, lon: pt.lon }
           });
         }
+        await new Promise(r => setTimeout(r, 100));
       }
       
-      if (setCrosshairPoints) {
-        setCrosshairPoints(crosshairPoints);
-      }
-      
-      setDemoLoadStatus('Loaded ' + flightData.name + ': ' + crosshairPoints.length + ' mark points');
+      setCrosshairPoints(points);
+      setDemoLoadStatus('Loaded ' + points.length + ' points!');
       await new Promise(r => setTimeout(r, 800));
       switchTab('crosshair');
     }
