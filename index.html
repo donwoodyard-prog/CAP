@@ -4906,16 +4906,8 @@ Events: ${events.length}`;
         };
         setEvents([newEvent, ...events]);
 
-        // Cockpit feedback
-        alert(
-          resultObj.targetLabel + "\n" +
-          "Quality: " + resultObj.qualityRating + " (" + resultObj.qualityScore + "%)\n" +
-          "Expected: " + resultObj.expectedAccuracy + "\n\n" +
-          "CAP Grid: " + resultObj.capGrid + "\n" +
-          "DD: " + resultObj.ddText + "\n" +
-          "DDM: " + resultObj.ddmText + "\n" +
-          "DMS: " + resultObj.dmsText
-        );
+        // Result is displayed inline in the TARGET LOCATION section
+        // No popup needed - scroll to result if needed
       };
 
       const addCurrentPosition = () => {
