@@ -19,7 +19,7 @@
   <div id="root"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="demo-module.js"></script>
+  <script src="data/demo-module.js"></script>
   <script src="js/mat-geo.js"></script>
   <script src="js/mat-patterns.js"></script>
   <script src="js/mat-fpl.js"></script>
@@ -507,11 +507,14 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
       showMap: false,
       mapKey: 0, // Increment to force map re-render
       analysisGrids: [], // Stores coverage analysis data for map
-      showEighthGrids: false // Show 1/8 grid subdivision lines in PDF
+      showEighthGrids: false, // Show 1/8 grid subdivision lines in PDF
+      showGapSelector: false, // Show gap selection modal
+      gapOptions: [], // [{gridId, quadrant, coverage, uncoveredCells, corners, isRecommended}]
+      selectedGap: null // Currently selected gap for mission generation
     });
     const cmdFlightColors = ['#f6e05e', '#68d391', '#63b3ed', '#fc8181', '#b794f4', '#f687b3'];
     
-   // Demo module loaded externally from demo-module.js
+   // Demo module loaded externally from data/demo-module.js
 const demoConfigs = window.DEMO_MODULE ? window.DEMO_MODULE.configs : [];
 const [demoLoading, setDemoLoading] = useState(false);
     const [demoLoadStatus, setDemoLoadStatus] = useState('');
@@ -3248,13 +3251,103 @@ Events: ${events.length}`;
     };
 
     const clearAllData = () => {
-      if (confirm("Clear all log data?")) {
+      if (confirm("Clear ALL application data? This will reset everything.")) {
+        // Clear Mission Info
         setMissionInfo({ missionNumber: "", dateZ: getZuluDate(), sortieNumber: "", aircraftTailN: "", logPageNumber: "1", totalPages: "1", observerName: "" });
         setTimes({ tachStart: "", tachShutdown: "", hobbsStart: "", hobbsShutdown: "", takeoffTime: "", landingTime: "", enteredSearchArea: "", departedSearchArea: "" });
         setFuelOil({ fuelGallons: "", fuelCost: "", oilQt: "" });
         setNotes("");
+        
+        // Clear Crew Manifest
+        setCrewManifest([
+          { name: "", capid: "", position: "PIC", qualification: "MP" },
+          { name: "", capid: "", position: "Crew", qualification: "" }
+        ]);
+        
+        // Clear Event Log
         eventSeqRef.current = 1;
         setEvents([createEmptyEvent(1)]);
+        
+        // Clear Target Locations
+        setTargetLocations([
+          { passes: ["", "", "", ""], estimate: "" },
+          { passes: ["", "", "", ""], estimate: "" }
+        ]);
+        
+        // Clear Radio Call Signs
+        setRadioCallSigns({ aircraft: "", missionBase: "" });
+        
+        // Clear Crosshair Target Locate
+        setCrosshairPoints([]);
+        setCrosshairResult(null);
+        setCrosshairAnalysis(null);
+        setCrosshairShowMap(false);
+        setCrosshairMapHtml('');
+        targetSeqRef.current = 0;
+        
+        // Clear ELT Assist
+        setEltObservations([]);
+        setEltResult(null);
+        setEltShowMap(false);
+        setEltShowMapModal(false);
+        setEltMapHtml('');
+        setEltSolutions([]);
+        setEltSettings({ r10: 0.5, k: 2, sigmaTheta: 20, resolution: 0.25, confidenceMode: 'auto', manualUncertainty: 50 });
+        eltSolutionSeqRef.current = 0;
+        eltObsSeqRef.current = 0;
+        
+        // Clear Search Probability Model
+        setAdsbTrack(null);
+        setSarsatPings([]);
+        setSearchProbModel(null);
+        setShowProbModel(false);
+        
+        // Clear Search Planning
+        setSpState(prev => ({
+          ...prev,
+          patternType: 'gridParallelTrack',
+          poiInput: '',
+          poi: null,
+          detectedGrid: null,
+          spacing: 0.5,
+          groundspeed: 90,
+          entryCorner: 'NW',
+          lastPlan: null,
+          planHistory: [],
+          showMap: false,
+          showG1000Guide: false
+        }));
+        
+        // Clear Command Tools / Coverage Analysis
+        setCmdState(prev => ({
+          ...prev,
+          searchAreaMode: 'grid',
+          gridInput: '',
+          selectedGrids: [],
+          pointInput: '',
+          routePoints: [],
+          coverageWidth: 0.5,
+          flights: [],
+          coverageGrid: null,
+          showSettings: false,
+          showMap: false,
+          mapKey: 0,
+          analysisGrids: [],
+          showEighthGrids: false,
+          showGapSelector: false,
+          gapOptions: [],
+          selectedGap: null,
+          flightsOutsideArea: false,
+          someFlightsOutside: false,
+          pointsInsideArea: 0,
+          pointsOutsideArea: 0,
+          detectedFlightGrid: null,
+          missionRecommendation: null,
+          showMissionModal: false,
+          suggestedGrid: null
+        }));
+        
+        console.log('All application data cleared');
       }
     };
     
@@ -8986,7 +9079,7 @@ Events: ${events.length}`;
 const renderDemoTab = () => {
       if (!window.DEMO_MODULE) {
         return React.createElement("div", { style: { padding: "20px", textAlign: "center", color: "#a0aec0" } },
-          "Demo module not loaded. Make sure demo-module.js is in the same folder."
+          "Demo module not loaded. Make sure data/demo-module.js exists."
         );
       }
       
@@ -9956,59 +10049,130 @@ const renderDemoTab = () => {
 
       // Generate mission recommendation for uncovered areas
       const generateMissionRecommendation = () => {
-        // Collect all uncovered cells from all grids
-        let allUncoveredCells = [];
+        // Collect all quarter-grids with their coverage data
+        const gapOptions = [];
+        
         cmdState.selectedGrids.forEach(g => {
-          if (g.uncoveredCells && g.uncoveredCells.length > 0) {
-            allUncoveredCells = allUncoveredCells.concat(g.uncoveredCells);
-          }
+          if (!g.coverage) return;
+          
+          // Get the base grid bounds
+          const gridCorners = g.corners;
+          if (!gridCorners) return;
+          
+          // Process each quarter-grid (A, B, C, D)
+          ['A', 'B', 'C', 'D'].forEach(quad => {
+            const coverage = g.coverage[quad] || 0;
+            if (coverage >= 100) return; // Skip fully covered areas
+            
+            // Only include if this quadrant is in the selected subgrids
+            if (g.subgrids && !g.subgrids.includes(quad)) return;
+            
+            // Calculate quarter-grid corners
+            // A=NW, B=NE, C=SW, D=SE
+            const midLat = (gridCorners.nw.lat + gridCorners.sw.lat) / 2;
+            const midLon = (gridCorners.nw.lon + gridCorners.ne.lon) / 2;
+            
+            let qCorners;
+            switch(quad) {
+              case 'A': // NW
+                qCorners = {
+                  nw: gridCorners.nw,
+                  ne: { lat: gridCorners.nw.lat, lon: midLon },
+                  sw: { lat: midLat, lon: gridCorners.nw.lon },
+                  se: { lat: midLat, lon: midLon }
+                };
+                break;
+              case 'B': // NE
+                qCorners = {
+                  nw: { lat: gridCorners.ne.lat, lon: midLon },
+                  ne: gridCorners.ne,
+                  sw: { lat: midLat, lon: midLon },
+                  se: { lat: midLat, lon: gridCorners.ne.lon }
+                };
+                break;
+              case 'C': // SW
+                qCorners = {
+                  nw: { lat: midLat, lon: gridCorners.sw.lon },
+                  ne: { lat: midLat, lon: midLon },
+                  sw: gridCorners.sw,
+                  se: { lat: gridCorners.sw.lat, lon: midLon }
+                };
+                break;
+              case 'D': // SE
+                qCorners = {
+                  nw: { lat: midLat, lon: midLon },
+                  ne: { lat: midLat, lon: gridCorners.se.lon },
+                  sw: { lat: gridCorners.se.lat, lon: midLon },
+                  se: gridCorners.se
+                };
+                break;
+            }
+            
+            // Filter uncovered cells for this quarter-grid
+            const quadUncovered = (g.uncoveredCells || []).filter(cell => {
+              return cell.lat >= qCorners.sw.lat && cell.lat <= qCorners.nw.lat &&
+                     cell.lon >= qCorners.nw.lon && cell.lon <= qCorners.ne.lon;
+            });
+            
+            gapOptions.push({
+              gridId: g.grid + quad,
+              baseGrid: g.grid,
+              quadrant: quad,
+              coverage: coverage,
+              gapPercent: 100 - coverage,
+              uncoveredCells: quadUncovered,
+              corners: qCorners,
+              isRecommended: false
+            });
+          });
         });
         
-        if (allUncoveredCells.length === 0) {
+        if (gapOptions.length === 0) {
           alert('No uncovered areas to search - coverage is 100%!');
           return;
         }
         
-        // Find the bounding box of uncovered areas
-        let minLat = Infinity, maxLat = -Infinity;
-        let minLon = Infinity, maxLon = -Infinity;
+        // Sort by coverage (lowest first = highest priority)
+        gapOptions.sort((a, b) => a.coverage - b.coverage);
         
-        allUncoveredCells.forEach(cell => {
-          minLat = Math.min(minLat, cell.lat);
-          maxLat = Math.max(maxLat, cell.lat);
-          minLon = Math.min(minLon, cell.lon);
-          maxLon = Math.max(maxLon, cell.lon);
-        });
+        // Mark the first one (lowest coverage) as recommended
+        gapOptions[0].isRecommended = true;
+        
+        // Show the gap selector modal
+        setCmdState(prev => ({ 
+          ...prev, 
+          showGapSelector: true, 
+          gapOptions: gapOptions,
+          selectedGap: null
+        }));
+      };
+      
+      // Generate mission for a specific selected gap
+      const generateMissionForGap = (gap) => {
+        const corners = gap.corners;
         
         // Calculate center point (POI)
-        const centerLat = (minLat + maxLat) / 2;
-        const centerLon = (minLon + maxLon) / 2;
+        const centerLat = (corners.nw.lat + corners.sw.lat) / 2;
+        const centerLon = (corners.nw.lon + corners.ne.lon) / 2;
         
         // Calculate dimensions in NM
         const nmToLat = 1 / 60;
-        const midLat = centerLat;
-        const latSpanNM = (maxLat - minLat) / nmToLat;
-        const lonSpanNM = (maxLon - minLon) * Math.cos(midLat * Math.PI / 180) / nmToLat;
+        const latSpanNM = (corners.nw.lat - corners.sw.lat) / nmToLat;
+        const lonSpanNM = Math.abs(corners.ne.lon - corners.nw.lon) * Math.cos(centerLat * Math.PI / 180) / nmToLat;
         
-        // Determine search orientation (align legs with longer dimension)
+        // Quarter grid is ~7.5 x 7.5 NM, so use appropriate values
         const isNorthSouth = latSpanNM > lonSpanNM;
-        const legLength = Math.max(isNorthSouth ? latSpanNM : lonSpanNM, 2); // Minimum 2 NM
+        const legLength = Math.max(isNorthSouth ? latSpanNM : lonSpanNM, 2);
         const searchWidth = isNorthSouth ? lonSpanNM : latSpanNM;
         
         // Calculate track spacing based on visibility conditions
-        // Default to 0.5 NM for good visibility (can be adjusted)
         const trackSpacing = 0.5;
         const numLegs = Math.ceil(searchWidth / trackSpacing) + 1;
         
         // Calculate estimated search time (assuming 90 knots ground speed)
         const groundSpeed = 90;
         const totalTrackNM = legLength * numLegs;
-        const searchTimeHours = totalTrackNM / groundSpeed;
-        const searchTimeMinutes = Math.round(searchTimeHours * 60);
-        
-        // Detect grid for the center point
-        const gridInfo = spDetectCapGrid(centerLat, centerLon);
-        const gridId = gridInfo ? gridInfo.gridId : 'Unknown';
+        const searchTimeMinutes = Math.round((totalTrackNM / groundSpeed) * 60);
         
         // Format coordinates
         const formatCoord = (lat, lon) => {
@@ -10018,24 +10182,16 @@ const renderDemoTab = () => {
           const latMin = ((Math.abs(lat) - latDeg) * 60).toFixed(2);
           const lonDeg = Math.floor(Math.abs(lon));
           const lonMin = ((Math.abs(lon) - lonDeg) * 60).toFixed(2);
-          return latDeg + '° ' + latMin + "' " + latDir + ', ' + lonDeg + '° ' + lonMin + "' " + lonDir;
-        };
-        
-        // Calculate corner waypoints for the search box
-        const corners = {
-          nw: { lat: maxLat, lon: minLon },
-          ne: { lat: maxLat, lon: maxLon },
-          sw: { lat: minLat, lon: minLon },
-          se: { lat: minLat, lon: maxLon }
+          return latDeg + '\u00B0 ' + latMin + "' " + latDir + ', ' + lonDeg + '\u00B0 ' + lonMin + "' " + lonDir;
         };
         
         // Build recommendation object
         const recommendation = {
           searchType: 'Parallel Track',
           poi: { lat: centerLat, lon: centerLon, formatted: formatCoord(centerLat, centerLon) },
-          gridId: gridId,
+          gridId: gap.gridId,
           orientation: isNorthSouth ? 'North-South legs' : 'East-West legs',
-          initialTrack: isNorthSouth ? '360°/180°' : '090°/270°',
+          initialTrack: isNorthSouth ? '360\u00B0/180\u00B0' : '090\u00B0/270\u00B0',
           legLength: legLength.toFixed(1),
           trackSpacing: trackSpacing.toFixed(1),
           numLegs: numLegs,
@@ -10045,14 +10201,19 @@ const renderDemoTab = () => {
           turnDirection: 'Alternate (standard parallel)',
           altitude: 'AGL per mission brief',
           notes: [
-            'POI centered on largest gap in coverage',
+            'Targeting ' + gap.gridId + ' (' + gap.coverage + '% current coverage)',
             'Track spacing assumes ' + (trackSpacing * 2).toFixed(1) + ' NM total sweep width',
             'Adjust track spacing based on actual visibility and target size',
             'Consider wind direction when selecting initial track'
           ]
         };
         
-        setCmdState(prev => ({ ...prev, missionRecommendation: recommendation, showMissionModal: true }));
+        setCmdState(prev => ({ 
+          ...prev, 
+          missionRecommendation: recommendation, 
+          showMissionModal: true,
+          showGapSelector: false
+        }));
       };
 
       const getCoverageColor = (pct) => {
@@ -10744,6 +10905,272 @@ const renderDemoTab = () => {
                   },
                   style: { ...cmdStyles.btn, flex: 1, padding: "14px", background: "linear-gradient(135deg, #805ad5, #6b46c1)", color: "#fff" }
                 }, "\u{1F9ED} Open in Search Tools")
+              )
+            )
+          )
+        ),
+        // Gap Selector Modal
+        cmdState.showGapSelector && cmdState.gapOptions.length > 0 && React.createElement("div", {
+          style: {
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.9)",
+            zIndex: 10000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px"
+          }
+        },
+          React.createElement("div", {
+            style: {
+              background: "linear-gradient(135deg, #1a202c, #2d3748)",
+              borderRadius: "16px",
+              border: "2px solid #4a5568",
+              maxWidth: "700px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflow: "auto"
+            }
+          },
+            // Modal Header
+            React.createElement("div", {
+              style: {
+                padding: "16px 20px",
+                borderBottom: "2px solid #4a5568",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }
+            },
+              React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "10px" } },
+                React.createElement("span", { style: { fontSize: "24px" } }, "\u{1F3AF}"),
+                React.createElement("span", { style: { fontSize: "18px", fontWeight: "700", color: "#f6e05e" } }, "Select Gap Area to Search")
+              ),
+              React.createElement("button", {
+                onClick: () => setCmdState(prev => ({ ...prev, showGapSelector: false })),
+                style: { background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", fontSize: "20px", cursor: "pointer", padding: "8px 12px", borderRadius: "8px" }
+              }, "\u2715")
+            ),
+            // Modal Body
+            React.createElement("div", { style: { padding: "20px" } },
+              // Instructions
+              React.createElement("div", { style: { background: "rgba(99,179,237,0.1)", border: "1px solid rgba(99,179,237,0.3)", borderRadius: "10px", padding: "14px", marginBottom: "20px" } },
+                React.createElement("div", { style: { fontSize: "13px", color: "#63b3ed", lineHeight: "1.5" } },
+                  "Select a quarter-grid to generate a search pattern. Areas are sorted by priority (lowest coverage first). ",
+                  React.createElement("span", { style: { color: "#f6e05e", fontWeight: "600" } }, "\u2B50 Recommended"),
+                  " indicates the highest priority gap."
+                )
+              ),
+              // Embedded Coverage Map
+              React.createElement("div", { style: { marginBottom: "20px", borderRadius: "12px", overflow: "hidden", border: "2px solid #4a5568" } },
+                React.createElement("div", { style: { padding: "8px 12px", background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                  React.createElement("span", { style: { fontSize: "12px", fontWeight: "600", color: "#f6e05e" } }, "\u{1F5FA}\uFE0F Coverage Map - Red = Gaps"),
+                  React.createElement("div", { style: { display: "flex", gap: "12px", fontSize: "10px" } },
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
+                      React.createElement("div", { style: { width: "12px", height: "3px", background: "#ff00ff" } }),
+                      React.createElement("span", { style: { color: "#a0aec0" } }, "Grid")
+                    ),
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "4px" } },
+                      React.createElement("div", { style: { width: "12px", height: "12px", background: "rgba(229,62,62,0.6)", borderRadius: "2px" } }),
+                      React.createElement("span", { style: { color: "#a0aec0" } }, "Uncovered")
+                    )
+                  )
+                ),
+                React.createElement("div", {
+                  id: "gap-selector-map-" + cmdState.mapKey,
+                  style: { height: "250px", width: "100%" },
+                  ref: (el) => {
+                    if (el && !el._mapInit && typeof L !== 'undefined') {
+                      el._mapInit = true;
+                      setTimeout(() => {
+                        // Calculate bounds from selected grids
+                        let gridLats = [], gridLons = [];
+                        cmdState.selectedGrids.forEach(g => {
+                          if (g.gridBounds) {
+                            gridLats.push(g.gridBounds.minLat, g.gridBounds.maxLat);
+                            gridLons.push(g.gridBounds.minLon, g.gridBounds.maxLon);
+                          } else if (g.corners) {
+                            gridLats.push(g.corners.nw.lat, g.corners.sw.lat);
+                            gridLons.push(g.corners.nw.lon, g.corners.ne.lon);
+                          }
+                        });
+                        
+                        const centerLat = gridLats.length > 0 ? (Math.min(...gridLats) + Math.max(...gridLats)) / 2 : 39;
+                        const centerLon = gridLons.length > 0 ? (Math.min(...gridLons) + Math.max(...gridLons)) / 2 : -105;
+                        
+                        const map = L.map(el).setView([centerLat, centerLon], 10);
+                        el._leafletMap = map;
+                        
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                          attribution: '\u00A9 OpenStreetMap'
+                        }).addTo(map);
+                        
+                        // Draw grid boundaries and quarter-grid lines
+                        cmdState.selectedGrids.forEach(g => {
+                          let c = g.corners;
+                          if (g.gridBounds && !c) {
+                            c = {
+                              nw: { lat: g.gridBounds.maxLat, lon: g.gridBounds.minLon },
+                              ne: { lat: g.gridBounds.maxLat, lon: g.gridBounds.maxLon },
+                              sw: { lat: g.gridBounds.minLat, lon: g.gridBounds.minLon },
+                              se: { lat: g.gridBounds.minLat, lon: g.gridBounds.maxLon }
+                            };
+                          }
+                          if (c) {
+                            // Main grid boundary
+                            const bounds = [[c.sw.lat, c.nw.lon], [c.nw.lat, c.ne.lon]];
+                            L.rectangle(bounds, { color: '#ff00ff', weight: 3, fillOpacity: 0.02 }).addTo(map);
+                            
+                            // Quarter grid lines
+                            const midLat = (c.nw.lat + c.sw.lat) / 2;
+                            const midLon = (c.nw.lon + c.ne.lon) / 2;
+                            L.polyline([[c.nw.lat, midLon], [c.sw.lat, midLon]], { color: '#ff00ff', weight: 2, dashArray: '5, 5', opacity: 0.6 }).addTo(map);
+                            L.polyline([[midLat, c.nw.lon], [midLat, c.ne.lon]], { color: '#ff00ff', weight: 2, dashArray: '5, 5', opacity: 0.6 }).addTo(map);
+                            
+                            // Add quarter grid labels
+                            const labelStyle = { className: 'grid-label', iconSize: [40, 16] };
+                            ['A', 'B', 'C', 'D'].forEach(quad => {
+                              let labelLat, labelLon;
+                              switch(quad) {
+                                case 'A': labelLat = (c.nw.lat + midLat) / 2; labelLon = (c.nw.lon + midLon) / 2; break;
+                                case 'B': labelLat = (c.ne.lat + midLat) / 2; labelLon = (midLon + c.ne.lon) / 2; break;
+                                case 'C': labelLat = (midLat + c.sw.lat) / 2; labelLon = (c.sw.lon + midLon) / 2; break;
+                                case 'D': labelLat = (midLat + c.se.lat) / 2; labelLon = (midLon + c.se.lon) / 2; break;
+                              }
+                              const gapInfo = cmdState.gapOptions.find(gap => gap.baseGrid === g.grid && gap.quadrant === quad);
+                              const coverage = gapInfo ? gapInfo.coverage : (g.coverage && g.coverage[quad]) || 0;
+                              const isRecommended = gapInfo && gapInfo.isRecommended;
+                              L.marker([labelLat, labelLon], {
+                                icon: L.divIcon({
+                                  className: '',
+                                  html: '<div style="background:' + (isRecommended ? '#f6e05e' : 'rgba(0,0,0,0.7)') + ';color:' + (isRecommended ? '#1a202c' : '#fff') + ';padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700;white-space:nowrap;border:' + (isRecommended ? '2px solid #d69e2e' : '1px solid #666') + ';">' + g.grid + quad + ' ' + coverage + '%</div>',
+                                  iconSize: [60, 20],
+                                  iconAnchor: [30, 10]
+                                })
+                              }).addTo(map);
+                            });
+                          }
+                        });
+                        
+                        // Draw flight tracks
+                        cmdState.flights.forEach((flight, fi) => {
+                          if (flight.coordinates && flight.coordinates.length > 1) {
+                            const coords = flight.coordinates.map(c => [c.lat, c.lon]);
+                            L.polyline(coords, { color: '#000', weight: 2, opacity: 0.8 }).addTo(map);
+                          }
+                        });
+                        
+                        // Draw uncovered cells (gaps) - sample for performance
+                        cmdState.selectedGrids.forEach(g => {
+                          if (g.uncoveredCells && g.uncoveredCells.length > 0) {
+                            const maxDots = 300;
+                            const step = Math.max(1, Math.floor(g.uncoveredCells.length / maxDots));
+                            for (let i = 0; i < g.uncoveredCells.length; i += step) {
+                              const cell = g.uncoveredCells[i];
+                              L.circleMarker([cell.lat, cell.lon], {
+                                radius: 4,
+                                color: 'rgba(229,62,62,0.8)',
+                                fillColor: 'rgba(229,62,62,0.5)',
+                                fillOpacity: 0.5,
+                                weight: 1
+                              }).addTo(map);
+                            }
+                          }
+                        });
+                        
+                        // Fit map to grid bounds
+                        if (gridLats.length > 0) {
+                          map.fitBounds([[Math.min(...gridLats), Math.min(...gridLons)], [Math.max(...gridLats), Math.max(...gridLons)]], { padding: [20, 20] });
+                        }
+                      }, 100);
+                    }
+                  }
+                })
+              ),
+              // Gap Options Grid
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px" } },
+                cmdState.gapOptions.map((gap, idx) => 
+                  React.createElement("div", {
+                    key: gap.gridId,
+                    onClick: () => generateMissionForGap(gap),
+                    style: {
+                      background: gap.isRecommended ? "rgba(246,224,94,0.15)" : "rgba(0,0,0,0.3)",
+                      border: gap.isRecommended ? "2px solid #f6e05e" : "1px solid #4a5568",
+                      borderRadius: "12px",
+                      padding: "16px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease"
+                    }
+                  },
+                    // Recommended badge
+                    gap.isRecommended && React.createElement("div", { 
+                      style: { 
+                        display: "inline-block",
+                        background: "linear-gradient(135deg, #f6e05e, #d69e2e)",
+                        color: "#1a202c",
+                        fontSize: "10px",
+                        fontWeight: "700",
+                        padding: "3px 8px",
+                        borderRadius: "10px",
+                        marginBottom: "10px"
+                      } 
+                    }, "\u2B50 RECOMMENDED"),
+                    // Grid ID
+                    React.createElement("div", { style: { fontSize: "18px", fontWeight: "700", color: gap.isRecommended ? "#f6e05e" : "#e2e8f0", marginBottom: "8px" } }, gap.gridId),
+                    // Coverage stats
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" } },
+                      React.createElement("span", { style: { fontSize: "12px", color: "#a0aec0" } }, "Current Coverage"),
+                      React.createElement("span", { style: { fontSize: "16px", fontWeight: "700", color: getCoverageColor(gap.coverage) } }, gap.coverage + "%")
+                    ),
+                    // Coverage bar
+                    React.createElement("div", { style: { background: "rgba(255,255,255,0.1)", borderRadius: "4px", height: "8px", overflow: "hidden", marginBottom: "10px" } },
+                      React.createElement("div", { style: { height: "100%", width: gap.coverage + "%", background: getCoverageColor(gap.coverage), borderRadius: "4px" } })
+                    ),
+                    // Gap percentage
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                      React.createElement("span", { style: { fontSize: "12px", color: "#fc8181" } }, "Gap to Fill"),
+                      React.createElement("span", { style: { fontSize: "14px", fontWeight: "600", color: "#fc8181" } }, gap.gapPercent + "%")
+                    ),
+                    // Click hint
+                    React.createElement("div", { style: { marginTop: "12px", fontSize: "11px", color: "#718096", textAlign: "center" } }, "Click to generate mission")
+                  )
+                )
+              ),
+              // Visual Grid Preview (simplified)
+              React.createElement("div", { style: { marginTop: "24px", padding: "16px", background: "rgba(0,0,0,0.3)", borderRadius: "12px" } },
+                React.createElement("div", { style: { fontSize: "12px", color: "#a0aec0", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "1px" } }, "Coverage Overview"),
+                // Group by base grid
+                [...new Set(cmdState.gapOptions.map(g => g.baseGrid))].map(baseGrid => {
+                  const gridGaps = cmdState.gapOptions.filter(g => g.baseGrid === baseGrid);
+                  return React.createElement("div", { key: baseGrid, style: { marginBottom: "16px" } },
+                    React.createElement("div", { style: { fontSize: "14px", fontWeight: "600", color: "#e2e8f0", marginBottom: "8px" } }, baseGrid),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "4px", maxWidth: "200px" } },
+                      // Show A, B, C, D in correct positions (A=NW, B=NE, C=SW, D=SE)
+                      ['A', 'B', 'C', 'D'].map(quad => {
+                        const gap = gridGaps.find(g => g.quadrant === quad);
+                        const coverage = gap ? gap.coverage : 100;
+                        const isSelected = gap && gap.isRecommended;
+                        return React.createElement("div", {
+                          key: quad,
+                          onClick: () => gap && generateMissionForGap(gap),
+                          style: {
+                            background: getCoverageColor(coverage),
+                            opacity: gap ? 1 : 0.3,
+                            padding: "8px",
+                            borderRadius: "4px",
+                            textAlign: "center",
+                            cursor: gap ? "pointer" : "default",
+                            border: isSelected ? "2px solid #f6e05e" : "2px solid transparent"
+                          }
+                        },
+                          React.createElement("div", { style: { fontSize: "11px", fontWeight: "600", color: "#1a202c" } }, baseGrid + quad),
+                          React.createElement("div", { style: { fontSize: "14px", fontWeight: "700", color: "#1a202c" } }, coverage + "%")
+                        );
+                      })
+                    )
+                  );
+                })
               )
             )
           )
@@ -12792,7 +13219,7 @@ const renderDemoTab = () => {
             React.createElement("button", { style: patternBtnStyle(patternType === 'gridParallelTrack'), onClick: () => setPattern('gridParallelTrack') }, "⬛ Grid Parallel", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Quarter Grid")),
             React.createElement("button", { style: patternBtnStyle(patternType === 'poiCenteredParallel'), onClick: () => setPattern('poiCenteredParallel') }, "🎯 POI Parallel", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Centered on POI")),
             React.createElement("button", { style: patternBtnStyle(patternType === 'expandingSquare'), onClick: () => setPattern('expandingSquare') }, "🌀 Expanding Sq", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Point Source")),
-            React.createElement("button", { style: patternBtnStyle(patternType === 'creepingLine'), onClick: () => setPattern('creepingLine') }, "ã€°️ Creeping Line", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Route/Corridor"))
+            React.createElement("button", { style: patternBtnStyle(patternType === 'creepingLine'), onClick: () => setPattern('creepingLine') }, "\u3030 Creeping Line", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Route/Corridor"))
           )
         ),
         
