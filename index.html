@@ -5234,7 +5234,7 @@ Events: ${events.length}`;
       // - Path 1: #0066cc (dark blue) 
       // - Path 2: #006600 (dark green)
       // - Data points: white fill with colored border
-      const generateCrosshairMapHtml = () => {
+      const generateCrosshairMapHtml = (showInfoPanel = true) => {
         if (!crosshairResult || !crosshairAnalysis) return '';
         
         const path1Coords = crosshairAnalysis.path1Points.map(p => [p.dd.lat, p.dd.lon]);
@@ -5297,38 +5297,38 @@ Events: ${events.length}`;
           '</style>',
           '</head><body>',
           '<div id="map"></div>',
-          '<div class="info-panel">',
-          '<div class="info-header">',
-          '<h3>🎯 ' + crosshairResult.targetLabel + '</h3>',
-          '</div>',
-          '<div class="info-body">',
-          '<div class="cap-grid">',
-          '<div class="cap-grid-label">CAP Grid</div>',
-          '<div class="cap-grid-value">' + crosshairResult.capGrid + '</div>',
-          '</div>',
-          '<div class="coords">',
-          '<div class="coord-row"><span class="coord-label">Latitude N</span><span class="coord-value">' + crosshairResult.latDeg + '° ' + crosshairResult.latMin + "'" + '</span></div>',
-          '<div class="coord-row"><span class="coord-label">Longitude W</span><span class="coord-value">' + crosshairResult.lonDeg + '° ' + crosshairResult.lonMin + "'" + '</span></div>',
-          '<div class="coord-row"><span class="coord-label">DD</span><span class="coord-value">' + crosshairResult.latDD.toFixed(5) + ', ' + crosshairResult.lonDD.toFixed(5) + '</span></div>',
-          '</div>',
-          '<div class="quality-bar">',
-          '<div class="quality-header">',
-          '<span class="quality-label">Solution Quality</span>',
-          '<span class="quality-value">' + crosshairResult.qualityRating + ' (' + crosshairResult.qualityScore + '%)</span>',
-          '</div>',
-          '<div class="quality-track"><div class="quality-fill"></div></div>',
-          '<div class="quality-stats">',
-          '<span>Crossing: ' + Math.round(crosshairResult.crossingAngle) + '°</span>',
-          '<span>Expected: ' + crosshairResult.expectedAccuracy + '</span>',
-          '</div>',
-          '</div>',
-          '<div class="legend">',
-          '<div class="legend-item"><div class="legend-line" style="background:#0066cc"></div> Path 1 (' + path1Coords.length + ')</div>',
-          '<div class="legend-item"><div class="legend-line" style="background:#006600"></div> Path 2 (' + path2Coords.length + ')</div>',
-          '<div class="legend-item"><div class="legend-dot" style="background:#cc0000"></div> Target</div>',
-          '</div>',
-          '</div>',
-          '</div>',
+          showInfoPanel ? '<div class="info-panel">' +
+          '<div class="info-header">' +
+          '<h3>🎯 ' + crosshairResult.targetLabel + '</h3>' +
+          '</div>' +
+          '<div class="info-body">' +
+          '<div class="cap-grid">' +
+          '<div class="cap-grid-label">CAP Grid</div>' +
+          '<div class="cap-grid-value">' + crosshairResult.capGrid + '</div>' +
+          '</div>' +
+          '<div class="coords">' +
+          '<div class="coord-row"><span class="coord-label">Latitude N</span><span class="coord-value">' + crosshairResult.latDeg + '° ' + crosshairResult.latMin + "'" + '</span></div>' +
+          '<div class="coord-row"><span class="coord-label">Longitude W</span><span class="coord-value">' + crosshairResult.lonDeg + '° ' + crosshairResult.lonMin + "'" + '</span></div>' +
+          '<div class="coord-row"><span class="coord-label">DD</span><span class="coord-value">' + crosshairResult.latDD.toFixed(5) + ', ' + crosshairResult.lonDD.toFixed(5) + '</span></div>' +
+          '</div>' +
+          '<div class="quality-bar">' +
+          '<div class="quality-header">' +
+          '<span class="quality-label">Solution Quality</span>' +
+          '<span class="quality-value">' + crosshairResult.qualityRating + ' (' + crosshairResult.qualityScore + '%)</span>' +
+          '</div>' +
+          '<div class="quality-track"><div class="quality-fill"></div></div>' +
+          '<div class="quality-stats">' +
+          '<span>Crossing: ' + Math.round(crosshairResult.crossingAngle) + '°</span>' +
+          '<span>Expected: ' + crosshairResult.expectedAccuracy + '</span>' +
+          '</div>' +
+          '</div>' +
+          '<div class="legend">' +
+          '<div class="legend-item"><div class="legend-line" style="background:#0066cc"></div> Path 1 (' + path1Coords.length + ')</div>' +
+          '<div class="legend-item"><div class="legend-line" style="background:#006600"></div> Path 2 (' + path2Coords.length + ')</div>' +
+          '<div class="legend-item"><div class="legend-dot" style="background:#cc0000"></div> Target</div>' +
+          '</div>' +
+          '</div>' +
+          '</div>' : '',
           '<scr' + 'ipt>',
           'var map=L.map("map").setView([' + targetLat + ',' + targetLon + '],15);',
           'L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"OpenStreetMap"}).addTo(map);',
@@ -5844,30 +5844,50 @@ Events: ${events.length}`;
                 }, "\u{2708}\uFE0F FOREFLIGHT")
               ),
               
-              // View on Map button
-              React.createElement("div", { style: { display: "flex", gap: "8px" } },
-                React.createElement("button", {
-                  onClick: viewOnMapWithTracks,
-                  style: {
-                    flex: 1,
-                    minHeight: "48px",
-                    padding: "12px",
-                    fontSize: ts("12"),
-                    fontWeight: "700",
-                    background: "linear-gradient(135deg, #3182ce, #2b6cb0)",
-                    border: "2px solid #4299e1",
-                    borderRadius: "10px",
-                    color: "#fff",
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                    touchAction: "manipulation"
-                  }
-                }, "\u{1F5FA}\uFE0F VIEW MAP")
+              // Inline Map - Always visible when result exists
+              crosshairAnalysis && React.createElement("div", { style: { 
+                marginTop: "16px",
+                borderRadius: "12px",
+                overflow: "hidden",
+                border: "2px solid #4299e1"
+              } },
+                React.createElement("div", { style: {
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "8px 12px",
+                  background: "linear-gradient(135deg, #2b6cb0, #3182ce)"
+                } },
+                  React.createElement("span", { style: { fontSize: ts("12"), fontWeight: "700", color: "#fff" } }, "\u{1F5FA}\uFE0F TARGET MAP"),
+                  React.createElement("button", {
+                    onClick: popOutCrosshairMap,
+                    style: {
+                      background: "rgba(255,255,255,0.2)",
+                      border: "1px solid rgba(255,255,255,0.4)",
+                      borderRadius: "6px",
+                      padding: "4px 10px",
+                      fontSize: ts("10"),
+                      color: "#fff",
+                      cursor: "pointer",
+                      fontWeight: "600"
+                    }
+                  }, "\u{1F5D7} Pop Out")
+                ),
+                React.createElement("iframe", {
+                  srcDoc: generateCrosshairMapHtml(false),
+                  style: { 
+                    width: "100%", 
+                    height: "300px", 
+                    border: "none",
+                    display: "block"
+                  },
+                  title: "Crosshair Target Map"
+                })
               )
             )
           )
         ),
-        // Inline Map Modal
+        // Inline Map Modal (kept for pop-out functionality)
         crosshairShowMap && React.createElement("div", {
           style: {
             position: "fixed",
