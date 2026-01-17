@@ -113,8 +113,8 @@
           terrain: 'mountainous',
           dataFiles: [
             'data/demo/FlightAware___CAP594_16-Apr-2023__KBJC-KBJC_.kml'
-          ],
-          grids: ['CYS 527A']
+          ]
+          // No grids specified - Command Tools will auto-detect from flight data
         }
       }
     },
@@ -478,6 +478,7 @@
       
       // Get scenario-specific data from DEMO_DATA if available
       let grids = demo.grids || [];
+      let gridCoords = [];
       let dataFiles = demo.dataFiles || [];
       let scenarioName = 'Coverage Analysis';
       
@@ -487,6 +488,7 @@
         const scenario = demoData.scenarios[scenarioKey];
         if (scenario) {
           grids = scenario.grids || grids;
+          gridCoords = scenario.gridCoords || [];
           dataFiles = scenario.dataFiles || dataFiles;
           scenarioName = scenario.name || scenarioName;
           setDemoLoadStatus('Loading scenario: ' + scenarioName);
@@ -494,6 +496,39 @@
         }
       }
       
+      // Handle coordinate-based grid specification (more reliable)
+      for (const gc of gridCoords) {
+        if (spDetectCapGrid) {
+          const gridInfo = spDetectCapGrid(gc.lat, gc.lon);
+          if (gridInfo) {
+            const baseGrid = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
+            const qc = gridInfo.corners;
+            const quad = gridInfo.quarterGrid;
+            let fullNorth, fullSouth, fullWest, fullEast;
+            if (quad === 'A') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
+            else if (quad === 'B') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
+            else if (quad === 'C') { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
+            else { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
+            const fullGridCorners = {
+              nw: { lat: fullNorth, lon: fullWest }, ne: { lat: fullNorth, lon: fullEast },
+              sw: { lat: fullSouth, lon: fullWest }, se: { lat: fullSouth, lon: fullEast }
+            };
+            
+            const subgridsToSelect = gc.quadrant ? [gc.quadrant] : ['A', 'B', 'C', 'D'];
+            
+            setCmdState(prev => ({
+              ...prev,
+              selectedGrids: [...prev.selectedGrids, {
+                grid: baseGrid, subgrids: subgridsToSelect, corners: fullGridCorners,
+                quadrantCorners: qc, detectedQuadrant: quad, gridInfo: gridInfo,
+                coverage: { total: 0, A: 0, B: 0, C: 0, D: 0 }
+              }]
+            }));
+          }
+        }
+      }
+      
+      // Handle string-based grid specification (legacy)
       for (const gridStr of grids) {
         // Support both full grid (e.g., "ICT 142") and quarter grid (e.g., "CYS 527A")
         const quarterMatch = gridStr.match(/^([A-Z]{3})\s*(\d+)([ABCD])$/i);
@@ -504,47 +539,66 @@
           const gridNum = parseInt(quarterMatch ? quarterMatch[2] : fullMatch[2]);
           const specificQuadrant = quarterMatch ? quarterMatch[3].toUpperCase() : null;
           
-          const sectionals = [
-            { id: "ICT", north: 40, south: 36, west: 104, east: 97 },
-            { id: "DEN", north: 40, south: 35.75, west: 111, east: 104 },
-            { id: "CYS", north: 44, south: 40, west: 111, east: 104 }
-          ];
-          const sectional = sectionals.find(s => s.id === sectionalId);
-          if (sectional) {
+          // Known grid center coordinates (more reliable than calculating)
+          // Format: "SECTIONAL-GRIDNUM": { lat, lon }
+          const knownGrids = {
+            "CYS-527": { lat: 40.0625, lon: -105.3125 },  // Lyons/Left Hand Canyon area - based on CAP594 flight
+            "ICT-142": { lat: 38.125, lon: -100.625 },
+            "ICT-143": { lat: 38.125, lon: -100.375 }
+          };
+          
+          const gridKey = sectionalId + "-" + gridNum;
+          let centerLat, centerLon;
+          
+          if (knownGrids[gridKey]) {
+            // Use known coordinates
+            centerLat = knownGrids[gridKey].lat;
+            centerLon = knownGrids[gridKey].lon;
+          } else {
+            // Fall back to calculation for unknown grids
+            const sectionals = [
+              { id: "ICT", north: 40, south: 36, west: 104, east: 97 },
+              { id: "DEN", north: 40, south: 35.75, west: 111, east: 104 },
+              { id: "CYS", north: 44, south: 40, west: 111, east: 104 }
+            ];
+            const sectional = sectionals.find(s => s.id === sectionalId);
+            if (!sectional) continue;
+            
             const gridsPerRow = Math.round((sectional.west - sectional.east) / 0.25);
             const row = Math.floor((gridNum - 1) / gridsPerRow);
             const col = (gridNum - 1) % gridsPerRow;
             const gridNorth = sectional.north - row * 0.25;
             const gridWest = sectional.west - col * 0.25;
-            const centerLat = gridNorth - 0.125;
-            const centerLon = -(gridWest - 0.125);
-            const gridInfo = spDetectCapGrid(centerLat, centerLon);
-            if (gridInfo) {
-              const baseGrid = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
-              const qc = gridInfo.corners;
-              const quad = gridInfo.quarterGrid;
-              let fullNorth, fullSouth, fullWest, fullEast;
-              if (quad === 'A') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
-              else if (quad === 'B') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
-              else if (quad === 'C') { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
-              else { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
-              const fullGridCorners = {
-                nw: { lat: fullNorth, lon: fullWest }, ne: { lat: fullNorth, lon: fullEast },
-                sw: { lat: fullSouth, lon: fullWest }, se: { lat: fullSouth, lon: fullEast }
-              };
-              
-              // If a specific quadrant was specified (e.g., "CYS 527A"), only select that quadrant
-              const subgridsToSelect = specificQuadrant ? [specificQuadrant] : ['A', 'B', 'C', 'D'];
-              
-              setCmdState(prev => ({
-                ...prev,
-                selectedGrids: [...prev.selectedGrids, {
-                  grid: baseGrid, subgrids: subgridsToSelect, corners: fullGridCorners,
-                  quadrantCorners: qc, detectedQuadrant: quad, gridInfo: gridInfo,
-                  coverage: { total: 0, A: 0, B: 0, C: 0, D: 0 }
-                }]
-              }));
-            }
+            centerLat = gridNorth - 0.125;
+            centerLon = -(gridWest - 0.125);
+          }
+          
+          const gridInfo = spDetectCapGrid(centerLat, centerLon);
+          if (gridInfo) {
+            const baseGrid = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
+            const qc = gridInfo.corners;
+            const quad = gridInfo.quarterGrid;
+            let fullNorth, fullSouth, fullWest, fullEast;
+            if (quad === 'A') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
+            else if (quad === 'B') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
+            else if (quad === 'C') { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
+            else { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
+            const fullGridCorners = {
+              nw: { lat: fullNorth, lon: fullWest }, ne: { lat: fullNorth, lon: fullEast },
+              sw: { lat: fullSouth, lon: fullWest }, se: { lat: fullSouth, lon: fullEast }
+            };
+            
+            // If a specific quadrant was specified (e.g., "CYS 527A"), only select that quadrant
+            const subgridsToSelect = specificQuadrant ? [specificQuadrant] : ['A', 'B', 'C', 'D'];
+            
+            setCmdState(prev => ({
+              ...prev,
+              selectedGrids: [...prev.selectedGrids, {
+                grid: baseGrid, subgrids: subgridsToSelect, corners: fullGridCorners,
+                quadrantCorners: qc, detectedQuadrant: quad, gridInfo: gridInfo,
+                coverage: { total: 0, A: 0, B: 0, C: 0, D: 0 }
+              }]
+            }));
           }
         }
       }
