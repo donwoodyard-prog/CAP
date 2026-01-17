@@ -1,1 +1,96 @@
+/* ==========================================================================
+ * MAT Styles: Core Application CSS
+ * ==========================================================================
+ * Description: Base styles for Mission Aircrew Toolkit
+ * Extracted from index.html <style> block
+ * ========================================================================== */
 
+/* === RESET & BASE === */
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Fira Code', monospace;
+  background: #0c1929;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Force 16px minimum for mobile zoom prevention */
+input, select, textarea, button {
+  font-size: 16px !important;
+}
+
+/* === SCROLLBAR STYLING === */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 3px;
+}
+
+/* === NIGHT/RED MODE === */
+/* For cockpit operations - reduces blue light */
+.night-mode {
+  filter: sepia(100%) saturate(300%) hue-rotate(-50deg) brightness(0.7);
+}
+
+.night-mode input,
+.night-mode select,
+.night-mode textarea {
+  filter: sepia(100%) saturate(300%) hue-rotate(-50deg);
+}
+
+/* === FORM VALIDATION === */
+.coord-invalid {
+  border-color: #e53e3e !important;
+  background: rgba(229,62,62,0.2) !important;
+}
+
+/* === ANIMATIONS === */
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.timer-warning {
+  animation: pulse-warning 1s infinite;
+}
+
+/* === SEARCH PLANNER MAP === */
+.search-planner-map {
+  height: 350px;
+  border-radius: 8px;
+  margin: 10px 0;
+  border: 2px solid rgba(56,161,105,0.3);
+}
+
+.sp-grid-info {
+  background: rgba(49,130,206,0.15);
+  border: 1px solid rgba(49,130,206,0.4);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 10px 0;
+}
+
+.sp-coverage {
+  background: rgba(56,161,105,0.15);
+  border: 1px solid rgba(56,161,105,0.4);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 10px 0;
+}
