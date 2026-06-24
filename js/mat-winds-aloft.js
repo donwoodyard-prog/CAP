@@ -68,17 +68,9 @@
   }
   
   /**
-   * Calculate distance between two points in nautical miles (Haversine)
+   * Distance between two points in NM (single source of truth: mat-geo).
    */
-  const calculateDistance = MAT.weather.calculateDistance || function(lat1, lon1, lat2, lon2) {
-    const R = 3440.065; // Earth radius in nm
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  };
+  const calculateDistance = MAT.geo.distanceNM;
   
   /**
    * Interpolate between two wind directions (handles 360° wrap)
@@ -1233,6 +1225,9 @@
             const isa = calculateISADeviation(targetAlt, 
               lower.temperature + ratio * (upper.temperature - lower.temperature));
             
+            // SAFETY: this value is INTERPOLATED between published forecast
+            // levels, not a forecast/measured value. Flag it so the UI can mark
+            // it as estimated (never present estimated data as measured).
             return {
               altitude: targetAlt,
               direction: Math.round(interpolateDirection(lower.direction, upper.direction, ratio)),
@@ -1242,14 +1237,16 @@
               isaDeviation: isa.deviation,
               isaDeviationStr: isa.deviationStr,
               validTime: profile.validTime,
-              forecastHour: profile.forecastHour
+              forecastHour: profile.forecastHour,
+              isInterpolated: true
             };
           }
         }
-        
+
         const closest = levels.find(l => Math.abs(l.altitudeFt - targetAlt) < altitudeStep / 2);
         if (closest) {
           const isa = calculateISADeviation(targetAlt, closest.temperature);
+          // Actual published forecast level (not interpolated).
           return {
             altitude: targetAlt,
             direction: Math.round(closest.direction),
@@ -1259,7 +1256,8 @@
             isaDeviation: isa.deviation,
             isaDeviationStr: isa.deviationStr,
             validTime: profile.validTime,
-            forecastHour: profile.forecastHour
+            forecastHour: profile.forecastHour,
+            isInterpolated: false
           };
         }
         
@@ -1316,7 +1314,13 @@
           if (wind) {
             const color = getWindSpeedColor(wind.speed);
             const barbSvg = renderWindBarbSVG(wind.direction, wind.speed, barbSize, color);
-            svgContent += `<g transform="translate(${x - barbSize/2}, ${y - barbSize/2})">${barbSvg}</g>`;
+            // SAFETY: interpolated cells are estimated, not published levels.
+            // Dim them and add a "~" marker so they aren't read as measured.
+            const estOpacity = wind.isInterpolated ? 0.4 : 1;
+            svgContent += `<g transform="translate(${x - barbSize/2}, ${y - barbSize/2})" opacity="${estOpacity}">${barbSvg}</g>`;
+            if (wind.isInterpolated) {
+              svgContent += `<text x="${x - cellWidth/2 + 3}" y="${y - cellHeight/2 + 11}" font-size="10" fill="#a0aec0" font-style="italic">~</text>`;
+            }
             svgContent += `<rect class="vwp-hit" data-p="${profileIdx}" data-a="${altIdx}" x="${x - cellWidth/2}" y="${y - cellHeight/2}" width="${cellWidth}" height="${cellHeight}" fill="transparent" style="cursor:pointer"/>`;
           }
         });
@@ -1395,7 +1399,7 @@
         legendX += 55;
       });
       
-      svgContent += `<text x="${legendX + 20}" y="${legendY + 10}" fill="#718096" font-size="9">Wind barbs show direction FROM and speed in knots • Touch/hover for details</text>`;
+      svgContent += `<text x="${legendX + 20}" y="${legendY + 10}" fill="#718096" font-size="9">Wind barbs show direction FROM and speed in knots • Touch/hover for details • dim "~" = interpolated (estimated)</text>`;
       
       // Build data table for selected profile
       const buildDataTable = (profileIdx) => {
@@ -1406,10 +1410,11 @@
           const wind = profileData[altIdx];
           if (!wind) return null;
           
-          return React.createElement('tr', { key: altIdx },
-            React.createElement('td', { 
-              style: { padding: '4px 8px', color: '#e2e8f0', fontFamily: 'monospace' } 
-            }, `${alt.toLocaleString()}'`),
+          return React.createElement('tr', { key: altIdx,
+              title: wind.isInterpolated ? 'Interpolated between published forecast levels (estimated)' : '' },
+            React.createElement('td', {
+              style: { padding: '4px 8px', color: wind.isInterpolated ? '#a0aec0' : '#e2e8f0', fontFamily: 'monospace', fontStyle: wind.isInterpolated ? 'italic' : 'normal' }
+            }, `${wind.isInterpolated ? '~' : ''}${alt.toLocaleString()}'`),
             React.createElement('td', { 
               style: { padding: '4px 8px', color: '#e2e8f0', textAlign: 'center' } 
             }, `${wind.direction}°`),

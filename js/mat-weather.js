@@ -37,9 +37,11 @@
   // === API CONFIGURATION ===
   
   // AVWX API (primary - better station search and parsed data)
+  // Auth is handled server-side by the proxy (AWC_PROXY_URL); the client never
+  // sends a token. (A hardcoded AVWX token previously lived here unused and was
+  // removed — rotate that token at avwx.rest if it was ever real.)
   const AVWX_API_BASE = 'https://avwx.rest/api';
-  const AVWX_TOKEN = 'V4QGY_kfqjRJZclqshQ_W52l_3EXBzwm-lvJchrTSm8';
-  
+
   // AWC API (fallback)
   const AWC_API_BASE = 'https://aviationweather.gov/api/data';
   const AWC_PROXY_URL = '/api/weather-proxy.php';
@@ -2292,15 +2294,10 @@ function renderSunriseSunsetError(targetEl, label = 'Sun', message = 'Unable to 
    * Calculate distance between two points (Haversine formula)
    * @returns {number} Distance in nautical miles
    */
+  // Delegates to the single source of truth (mat-geo). Kept as a named export
+  // (MAT.weather.calculateDistance) for the modules that reference it.
   function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 3440.065; // Earth radius in NM
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
+    return MAT.geo.distanceNM(lat1, lon1, lat2, lon2);
   }
   
   /**
@@ -2308,16 +2305,8 @@ function renderSunriseSunsetError(targetEl, label = 'Sun', message = 'Unable to 
    * @returns {number} Bearing in degrees
    */
   function calculateBearing(lat1, lon1, lat2, lon2) {
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const lat1Rad = lat1 * Math.PI / 180;
-    const lat2Rad = lat2 * Math.PI / 180;
-    
-    const y = Math.sin(dLon) * Math.cos(lat2Rad);
-    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
-              Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
-    
-    let bearing = Math.atan2(y, x) * 180 / Math.PI;
-    return (bearing + 360) % 360;
+    // Delegates to the single source of truth (mat-geo).
+    return MAT.geo.bearing(lat1, lon1, lat2, lon2);
   }
   
   /**
