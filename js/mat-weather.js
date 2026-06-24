@@ -3510,6 +3510,46 @@ function renderSunriseSunsetError(targetEl, label = 'Sun', message = 'Unable to 
   // === COMPREHENSIVE WEATHER BRIEFING ===
   
   /**
+   * Fetch active TFRs (from the airspace-overlay module) whose centroid is within
+   * radiusNM of the mission point. TFRs are safety-critical, so they belong in the
+   * briefing, not only on the map. Returns [] if the module/data is unavailable.
+   * @param {number} lat @param {number} lon @param {number} radiusNM (default 100)
+   * @returns {Promise<Array>} nearby TFRs sorted by distance
+   */
+  async function getTfrsNearPoint(lat, lon, radiusNM) {
+    radiusNM = radiusNM || 100;
+    if (!(window.MAT && MAT.airspaceOverlays && MAT.airspaceOverlays.fetchTFRs)) return [];
+    let data;
+    try { data = await MAT.airspaceOverlays.fetchTFRs(); } catch (e) { return []; }
+    const feats = (data && data.features) || [];
+    const out = [];
+    feats.forEach(f => {
+      if (!f.geometry || !f.geometry.coordinates) return;
+      let pts = [];
+      if (f.geometry.type === 'Polygon') pts = f.geometry.coordinates[0] || [];
+      else if (f.geometry.type === 'MultiPolygon') (f.geometry.coordinates || []).forEach(poly => { pts = pts.concat(poly[0] || []); });
+      let sLat = 0, sLon = 0, n = 0;
+      pts.forEach(c => { if (isFinite(c[0]) && isFinite(c[1])) { sLon += c[0]; sLat += c[1]; n++; } });
+      if (!n) return;
+      const cLat = sLat / n, cLon = sLon / n;
+      const dist = calculateDistance(lat, lon, cLat, cLon);
+      if (dist <= radiusNM) {
+        const props = f.properties || {};
+        out.push({
+          title: props.title || 'Temporary Flight Restriction',
+          type: props.type || 'OTHER',
+          notamId: props.notamId || '',
+          facility: props.facility || '',
+          state: props.state || '',
+          distanceNM: Math.round(dist)
+        });
+      }
+    });
+    out.sort((a, b) => a.distanceNM - b.distanceNM);
+    return out;
+  }
+
+  /**
    * Get complete weather briefing for a location
    * @param {number} lat - Latitude
    * @param {number} lon - Longitude
@@ -3683,6 +3723,14 @@ function renderSunriseSunsetError(targetEl, label = 'Sun', message = 'Unable to 
       } catch (e) {
         // Non-critical
         console.warn('CWA fetch failed:', e.message);
+      }
+
+      // Fetch TFRs near the mission (safety-critical — surface in the briefing,
+      // not only on the map). Non-fatal if the TFR source is unavailable.
+      try {
+        briefing.tfrs = await getTfrsNearPoint(lat, lon, 100);
+      } catch (e) {
+        briefing.errors.push('TFR fetch failed: ' + e.message);
       }
       
       // Fetch Winds Aloft (if module loaded)
@@ -5517,6 +5565,7 @@ function renderSunriseSunsetError(targetEl, label = 'Sun', message = 'Unable to 
       // Render AIRMETs/SIGMETs view - COCKPIT OPTIMIZED
       const renderAirmetsView = () => {
         const allAirmets = weatherData?.airmets || [];
+        const tfrs = weatherData?.tfrs || [];
         
         // Apply geographic filtering
         const airmets = filterAdvisoriesByRelevance(allAirmets, selectedStation, advisoryScope);
@@ -5548,7 +5597,7 @@ function renderSunriseSunsetError(targetEl, label = 'Sun', message = 'Unable to 
         });
         
         const activeHazards = Object.entries(hazardTypes).filter(([_, v]) => v.items.length > 0);
-        const noActiveHazards = sigmets.length === 0 && activeHazards.length === 0;
+        const noActiveHazards = sigmets.length === 0 && activeHazards.length === 0 && tfrs.length === 0;
         
         return React.createElement('div', null,
           // Local/National toggle and filter info
@@ -5657,7 +5706,28 @@ function renderSunriseSunsetError(targetEl, label = 'Sun', message = 'Unable to 
               'No significant weather advisories currently in effect'
             )
           ),
-          
+
+          // TFRs section (safety-critical — shown at the very top, within 100 NM)
+          tfrs.length > 0 && React.createElement('div', { style: { marginBottom: '20px' } },
+            React.createElement('div', {
+              style: { fontSize: ts ? ts(20) : '20px', fontWeight: '700', color: '#fc8181', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px' }
+            }, '🚫 Temporary Flight Restrictions (', tfrs.length, ')'),
+            tfrs.slice(0, 8).map((t, i) =>
+              React.createElement('div', {
+                key: 'tfr' + i,
+                style: { background: 'rgba(245, 101, 101, 0.15)', border: '2px solid rgba(245, 101, 101, 0.5)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' }
+              },
+                React.createElement('div', { style: { fontWeight: '700', color: '#fc8181', marginBottom: '6px', fontSize: ts ? ts(17) : '17px' } },
+                  (t.type || 'TFR') + ' — ' + t.distanceNM + ' NM away'),
+                React.createElement('div', { style: { fontSize: ts ? ts(15) : '15px', color: '#e2e8f0', marginBottom: '4px' } }, t.title),
+                (t.notamId || t.facility || t.state) && React.createElement('div', { style: { fontSize: ts ? ts(13) : '13px', color: '#a0aec0' } },
+                  [t.notamId, t.facility, t.state].filter(Boolean).join(' • '))
+              )
+            ),
+            React.createElement('div', { style: { fontSize: ts ? ts(12) : '12px', color: '#a0aec0', fontStyle: 'italic' } },
+              'Within 100 NM of the briefing point. Always verify TFRs at tfr.faa.gov before flight.')
+          ),
+
           // SIGMETs section (highest priority)
           sigmets.length > 0 && React.createElement('div', { style: { marginBottom: '20px' } },
             React.createElement('div', { 
