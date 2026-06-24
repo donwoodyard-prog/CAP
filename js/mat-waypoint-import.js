@@ -176,12 +176,46 @@ const MAT_IMPORT = (function() {
     
     // Also check for Folders and recurse
     // (Already handled by getElementsByTagName which searches all descendants)
-    
+
+    // Reconstruct a track from per-point exports (e.g. Flightradar24) that use
+    // many TIMESTAMPED <Point> placemarks instead of a single <gx:Track>. The
+    // timestamp is the discriminator: a time-ordered series of points is a
+    // track, whereas named waypoints (airports, etc.) carry no per-point time.
+    if (result.tracks.length === 0) {
+      const timed = result.waypoints.filter(w =>
+        w.timestamp != null && isFinite(w.lat) && isFinite(w.lon));
+      if (timed.length >= 5) {
+        timed.sort((a, b) => a.timestamp - b.timestamp);
+        const coords = timed.map(w => ({
+          lon: w.lon, lat: w.lat, alt: w.alt || 0, altFt: w.altFt || 0,
+          time: w.time || null, timestamp: w.timestamp
+        }));
+        const rawName = result.documentName || timed[0].name || 'Track';
+        const trackName = String(rawName).split('/')[0].trim() || 'Track';
+        result.tracks.push({
+          type: WP_TYPE.TRACK,
+          name: trackName,
+          description: result.documentDescription || '',
+          coordinates: coords,
+          pointCount: coords.length,
+          startTime: coords[0].time,
+          endTime: coords[coords.length - 1].time,
+          bounds: calculateBounds(coords),
+          synthesized: true
+        });
+        // These points ARE the track — drop them from waypoints so they aren't
+        // also rendered as thousands of standalone markers.
+        const used = new Set(timed);
+        result.waypoints = result.waypoints.filter(w => !used.has(w));
+        result.source = SOURCE_TYPE.FLIGHTAWARE;
+      }
+    }
+
     // Detect source type
     if (result.source !== SOURCE_TYPE.FLIGHTAWARE) {
       result.source = SOURCE_TYPE.GOOGLE_EARTH;
     }
-    
+
     return result;
   }
   
@@ -231,7 +265,19 @@ const MAT_IMPORT = (function() {
    */
   function parseKMLPoint(placemark, name, description) {
     const point = placemark.getElementsByTagName('Point')[0];
-    return parseKMLPointElement(point, name, description);
+    const wp = parseKMLPointElement(point, name, description);
+    if (wp) {
+      // Capture a timestamp if the placemark carries one (KML <TimeStamp><when>
+      // or gx:TimeStamp). Used to reconstruct a track from per-point exports
+      // (e.g. Flightradar24) that have no single <gx:Track>.
+      const whenEl = placemark.getElementsByTagName('when')[0];
+      if (whenEl && whenEl.textContent) {
+        wp.time = whenEl.textContent.trim();
+        const ts = new Date(wp.time).getTime();
+        wp.timestamp = isNaN(ts) ? null : ts;
+      }
+    }
+    return wp;
   }
   
   /**
