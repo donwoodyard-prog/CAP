@@ -1440,12 +1440,17 @@ const [demoLoading, setDemoLoading] = useState(false);
     }, [missionTimerRunning, missionTimerStart]);
     
     // Comms Timer Effect (hourly alerts at :00)
+    // Runs only on enable/disable so exactly one interval exists. The next-alert
+    // time is tracked in a local closure variable the interval mutates directly
+    // (NOT via a state dependency), so firing an alert doesn't tear down and
+    // recreate the interval. setCommsTimerNextAlert only mirrors it to state for
+    // display/persistence and must NOT be in this effect's dependency array.
     useEffect(() => {
       if (!commsTimerEnabled) {
         setCommsTimerNextAlert(null);
         return;
       }
-      
+
       const calculateNextHour = () => {
         const now = new Date();
         const next = new Date(now);
@@ -1453,18 +1458,17 @@ const [demoLoading, setDemoLoading] = useState(false);
         next.setUTCHours(now.getUTCHours() + 1);
         return next.getTime();
       };
-      
-      setCommsTimerNextAlert(calculateNextHour());
-      
+
+      let nextAlert = calculateNextHour();
+      setCommsTimerNextAlert(nextAlert);
+
       const interval = setInterval(() => {
-        const now = Date.now();
-        const nextAlert = commsTimerNextAlert || calculateNextHour();
-        
         // Check if we've reached the top of the hour
-        if (now >= nextAlert) {
-          const zuluTime = new Date().toISOString().substr(11, 8) + 'Z';
+        if (Date.now() >= nextAlert) {
+          const zuluTime = new Date().toISOString().slice(11, 19) + 'Z';
           setTimerAlert({ type: 'comms', time: zuluTime });
-          setCommsTimerNextAlert(calculateNextHour());
+          nextAlert = calculateNextHour();      // advance locally (no effect re-run)
+          setCommsTimerNextAlert(nextAlert);    // mirror to state for display/persistence
           // Play alert sound
           try {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -1480,9 +1484,9 @@ const [demoLoading, setDemoLoading] = useState(false);
           } catch(e) {}
         }
       }, 1000);
-      
+
       return () => clearInterval(interval);
-    }, [commsTimerEnabled, commsTimerNextAlert]);
+    }, [commsTimerEnabled]);
     
     // Night mode class toggle
     useEffect(() => {
