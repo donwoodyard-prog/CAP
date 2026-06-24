@@ -621,12 +621,38 @@
    */
   function createBaseLayers() {
     const layers = {};
-    
+
     Object.keys(LAYERS.base).forEach(name => {
       layers[name] = createLayer(name);
     });
-    
+
     return layers;
+  }
+
+  /**
+   * Build the pop-out-window base-layer JS — a "var baseLayers = {...};" string
+   * for standalone map windows opened via window.open(). Tile URLs come from
+   * CONFIG (single source of truth); layer names/options reproduce the legacy
+   * pop-out output exactly, so behavior is unchanged. This replaces an identical
+   * block that was copy-pasted into every module's pop-out map generator.
+   * @returns {string}
+   */
+  function getPopoutLayersJS() {
+    const U = CONFIG.USGS_BASE_URL, P = CONFIG.TILE_PATTERN, F = CONFIG.FAA_TILES_BASE_URL;
+    const defs = [
+      ['OpenStreetMap', CONFIG.OSM_URL, '{attribution: "© OpenStreetMap", maxZoom: 19}'],
+      ['USGS Topo', U + '/USGSTopo' + P, '{attribution: "USGS", maxZoom: 16}'],
+      ['USGS Imagery', U + '/USGSImageryOnly' + P, '{attribution: "USGS", maxZoom: 16}'],
+      ['USGS Imagery + Topo', U + '/USGSImageryTopo' + P, '{attribution: "USGS", maxZoom: 16}'],
+      ['USGS Shaded Relief', U + '/USGSShadedReliefOnly' + P, '{attribution: "USGS", maxZoom: 16}'],
+      ['FAA Sectional', F + '/VFR_Sectional' + P, '{attribution: "FAA AIS"}'],
+      ['FAA TAC', F + '/VFR_Terminal' + P, '{attribution: "FAA AIS"}'],
+      ['IFR Low', F + '/IFR_AreaLow' + P, '{attribution: "FAA AIS"}']
+    ];
+    const lines = defs.map(function (d) {
+      return '  "' + d[0] + '": L.tileLayer("' + d[1] + '", ' + d[2] + ')';
+    });
+    return 'var baseLayers = {\n' + lines.join(',\n') + '\n};';
   }
   
   /**
@@ -1113,6 +1139,7 @@
   
   // Layer information
   MAT.maps.LAYERS = LAYERS;
+  MAT.maps.getPopoutLayersJS = getPopoutLayersJS;
   MAT.maps.getLayerInfo = (name) => LAYERS.base[name] || null;
   MAT.maps.getLayerNames = () => Object.keys(LAYERS.base);
   MAT.maps.getLayersByCategory = (category) => {
