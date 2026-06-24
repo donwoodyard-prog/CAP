@@ -487,8 +487,13 @@ const MAT_REFERENCE = (function() {
 
     const renderRefContent = () => {
       const data = referenceData[activeSection];
-      if (!data) return null;
-      
+      // Calculators render via renderCalculator() and don't read referenceData,
+      // so they must NOT be blocked by this gate. (Data-driven sections still
+      // bail when their entry is missing.) This means a new calculator needs only
+      // a nav button + a render case + calcState fields — no reference-data entry.
+      const navSection = REF_SECTIONS.find(s => s.id === activeSection);
+      if (!data && !(navSection && navSection.isCalc)) return null;
+
       switch (activeSection) {
         // ========== GENERAL QUICK REFERENCE ==========
         case "radioFrequencies":
@@ -1600,8 +1605,12 @@ const MAT_REFERENCE = (function() {
             inactiveBorder: "rgba(104,211,145,0.2)"
           }),
           isCalcSection && h("div", { className: "mat-section", style: { marginBottom: 0, marginTop: "12px" } },
-            h("div", { className: "mat-section-header calc-content-header" }, 
-              referenceData[activeSection]?.icon, " ", referenceData[activeSection]?.title),
+            h("div", { className: "mat-section-header calc-content-header" },
+              // Prefer the reference-data title; fall back to the nav label so a
+              // calculator without a reference-data entry still shows a header.
+              referenceData[activeSection]?.title
+                ? (referenceData[activeSection].icon || "") + " " + referenceData[activeSection].title
+                : (calcSections.find(s => s.id === activeSection)?.label || "")),
             h("div", { className: "mat-section-body" }, renderRefContent())
           )
         )

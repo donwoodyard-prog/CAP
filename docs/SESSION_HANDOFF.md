@@ -82,13 +82,16 @@ All captured in **`docs/CAP_DOCTRINE_NOTES.md`** (page-cited).
    needed hand-verification. **Always verify against the actual code + a headless
    run before changing anything.**
 
-3. **Reference-tab calculator gotcha.** `renderRefContent()` (in
-   `js/mat-reference.js`) does `const data = referenceData[activeSection]; if
-   (!data) return null;` *before* its switch. So a new Reference section needs ALL
-   of: (a) a `data/reference-data.js` entry (or it silently renders nothing),
-   (b) a nav button in the REF_SECTIONS list, (c) a render/dispatch case, and for
-   calculators (d) `calcState` fields in index.html. The POD and Bank Angle calcs
-   are worked examples.
+3. **Reference-tab sections.** `renderRefContent()` (in `js/mat-reference.js`)
+   bails with `if (!data && !isCalc) return null` before its switch. **Calculators
+   are now exempt** (hardened 2026-06-24) — a new *calculator* needs only: (a) a
+   nav button in REF_SECTIONS (`isCalc: true`), (b) a render/dispatch case, and
+   (c) `calcState` fields in index.html. A `data/reference-data.js` entry is
+   OPTIONAL for calcs (it gives a nicer header; otherwise the header falls back to
+   the nav label). **Data-driven** sections (general/rho/g1000) still REQUIRE a
+   `reference-data.js` entry or they render blank. The POD and Bank Angle calcs are
+   worked examples. (Earlier this session, the missing entry silently blanked the
+   POD calc until found — that footgun is now closed for calcs.)
 
 4. **Pop-out maps vs live maps.** Modules generate standalone map HTML strings
    (joined with `'\n'`) for `window.open`. Tile-layer SSOT lives in
