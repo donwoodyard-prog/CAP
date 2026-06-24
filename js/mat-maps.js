@@ -767,17 +767,23 @@
   }
   
   /**
-   * Calculate tiles for a CAP grid square
-   * 
-   * @param {string} gridSquare - CAP grid ID (e.g., "CODEN-123")
-   * @returns {Object|null} Bounds object or null if invalid
+   * Bounds for a CAP grid square, e.g. "DEN 25" or "STL 5D".
+   * Delegates to the single source of truth (MAT.geo.spGridToGeometry).
+   *
+   * @param {string} gridSquare - CAP grid ID (e.g., "DEN 25", "STL 5D")
+   * @returns {Object|null} { north, south, east, west } or null if invalid
    */
   function boundsFromCapGrid(gridSquare) {
-    // CAP grid is complex - for now, return a reasonable default
-    // A proper implementation would parse the grid ID
-    // This is a placeholder that should be enhanced with MAT.geo integration
-    console.warn('MAT.maps: CAP grid parsing not yet implemented, use boundsFromCenter instead');
-    return null;
+    const resolve = window.MAT && window.MAT.geo && window.MAT.geo.spGridToGeometry;
+    if (!resolve) {
+      console.warn('MAT.maps: MAT.geo.spGridToGeometry unavailable; use boundsFromCenter instead');
+      return null;
+    }
+    const geo = resolve(gridSquare);
+    if (!geo) return null;
+    // Prefer the tighter quadrant bounds when a quadrant was specified.
+    const b = geo.quadrantBounds || geo.cell;
+    return { north: b.north, south: b.south, east: b.east, west: b.west };
   }
   
   /**

@@ -31,10 +31,30 @@
     'ATL': { latMin: 30, latMax: 36, lonMin: -88, lonMax: -80 } 
   };
   
-  // CAP Sectionals - 37 VFR sectional charts covering CONUS
-  // Coordinates stored as: north, south = latitude; west, east = absolute longitude values
-  // Based on FAA VFR Sectional Chart boundaries
-  // Source: Apps4Av CapChartFetcher.java (BSD-2-Clause license)
+  // CAP Sectionals - VFR sectional charts covering CONUS.
+  //
+  // SINGLE SOURCE OF TRUTH for CAP grid boundaries. Do NOT copy this table
+  // into other modules — import it via MAT.geo.SECTIONALS (or call the MAT.geo
+  // grid functions). Duplicated tables drift and produce inconsistent grids.
+  //
+  // Coordinates stored as: north, south = latitude (positive N);
+  //   west, east = ABSOLUTE (positive) longitude values, so west > east.
+  // These are CAP *grid limits* (not FAA paper-chart neatlines).
+  //
+  // OVERLAP PRECEDENCE ("western chart wins"): where two sectionals overlap,
+  // CAP numbers the overlap using the WESTERN-most chart. findSectional()
+  // honors this implicitly by (a) keeping this array ordered west->east within
+  // each latitude tier and (b) returning the FIRST match. Keep that ordering.
+  // Documented column overlaps along the 36-40N tier: MKC wins 90-91W over STL;
+  // STL wins 84-85W over LUK; LUK wins 78-79W over DCA.
+  //
+  // VERIFIED 2026 against three independent authoritative sources, in exact
+  // agreement on all 37 CONUS charts (bounds + published grid counts):
+  //   - Apps4Av/Avare CapChartFetcher.java (machine-readable, BSD-2-Clause)
+  //   - Official CAP cap-es.net "Conventional Grid Table for the CONUS"
+  //   - CAP Appendix E "Gridding" (confirms western-wins precedence)
+  // Grid counts per chart (rows*cols) e.g. STL=448, DEN/LAS=476, PHX=504,
+  // GRB=544, SEA/CYS=576 are reproduced exactly by getSectionalInfo().
   const SECTIONALS = [
     // Northern tier (49°N to ~44°N)
     { id: "SEA", name: "Seattle", north: 49, south: 44.5, west: 125, east: 117 },
@@ -138,10 +158,39 @@
     return { latDeg: lat2 * RAD_TO_DEG, lonDeg: lonNorm };
   }
 
-  function spNormalizeBearing(b) { 
-    b = b % 360; 
-    if (b < 0) b += 360; 
-    return b; 
+  function spNormalizeBearing(b) {
+    b = b % 360;
+    if (b < 0) b += 360;
+    return b;
+  }
+
+  /**
+   * Great-circle distance between two lat/lon points, in NAUTICAL MILES
+   * (haversine). SINGLE SOURCE OF TRUTH — modules should call this instead of
+   * redefining EARTH_RADIUS_NM and the haversine formula locally.
+   * @param {number} lat1 @param {number} lon1 @param {number} lat2 @param {number} lon2
+   * @returns {number} distance in NM
+   */
+  function distanceNM(lat1, lon1, lat2, lon2) {
+    const dLat = (lat2 - lat1) * DEG_TO_RAD;
+    const dLon = (lon2 - lon1) * DEG_TO_RAD;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * DEG_TO_RAD) * Math.cos(lat2 * DEG_TO_RAD) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return EARTH_RADIUS_NM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  /**
+   * Initial great-circle bearing (true course) from point 1 to point 2,
+   * in degrees [0, 360). Single source of truth for forward azimuth.
+   * @returns {number} bearing in degrees
+   */
+  function bearing(lat1, lon1, lat2, lon2) {
+    const dLon = (lon2 - lon1) * DEG_TO_RAD;
+    const y = Math.sin(dLon) * Math.cos(lat2 * DEG_TO_RAD);
+    const x = Math.cos(lat1 * DEG_TO_RAD) * Math.sin(lat2 * DEG_TO_RAD) -
+      Math.sin(lat1 * DEG_TO_RAD) * Math.cos(lat2 * DEG_TO_RAD) * Math.cos(dLon);
+    return spNormalizeBearing(Math.atan2(y, x) * RAD_TO_DEG);
   }
 
   // === COORDINATE PARSING ===
@@ -212,82 +261,24 @@
   }
 
   /**
-   * Parse CAP Grid reference and return center coordinates
+   * Parse CAP Grid reference and return center coordinates.
    * Formats: DEN 25C, DEN-25C, DEN25C, DEN 25, DEN-25, DEN25
+   *
+   * Thin compatibility wrapper over spGridToGeometry() (the single source of
+   * truth). Returns the legacy {latDD, lonDD, fromGrid} shape so existing
+   * callers (spParseCoordinate, etc.) keep working. For cell/quadrant polygons
+   * use spGridToGeometry() directly.
+   *
    * @param {string} input - CAP Grid reference string
-   * @returns {object|null} Coordinate object or null if invalid
+   * @returns {object|null} {latDD, lonDD, fromGrid} or null if invalid
    */
   function spParseCapGrid(input) {
-    if (!input || typeof input !== 'string') return null;
-    input = input.trim().toUpperCase();
-    
-    // Match CAP Grid format: SEC 123A, SEC-123A, SEC123A, SEC 123, SEC-123, SEC123
-    const m = input.match(/^([A-Z]{3})[\s\-]?(\d+)([ABCD])?$/);
-    if (!m) return null;
-    
-    const secId = m[1];
-    const gridNum = parseInt(m[2]);
-    const quadrant = m[3] || null;
-    
-    // Find the sectional
-    const sectional = SECTIONALS.find(s => s.id === secId);
-    if (!sectional) return null;
-    
-    // Calculate grid dimensions
-    const gridsPerRow = Math.round((sectional.west - sectional.east) / GRID_SIZE);
-    const totalRows = Math.round((sectional.north - sectional.south) / GRID_SIZE);
-    const maxGrid = gridsPerRow * totalRows;
-    
-    if (gridNum < 1 || gridNum > maxGrid) return null;
-    
-    // Calculate row and column from grid number (1-indexed)
-    const gridIndex = gridNum - 1;
-    const rowFromNorth = Math.floor(gridIndex / gridsPerRow);
-    const colFromWest = gridIndex % gridsPerRow;
-    
-    // Calculate the 15-minute grid corners (in absolute longitude)
-    const gridWest = sectional.west - colFromWest * GRID_SIZE;
-    const gridEast = gridWest - GRID_SIZE;
-    const gridNorth = sectional.north - rowFromNorth * GRID_SIZE;
-    const gridSouth = gridNorth - GRID_SIZE;
-    
-    // Calculate center coordinates
-    let centerLat, centerLon;
-    
-    if (quadrant) {
-      // Narrow down to 7.5-minute quarter
-      // CAP Grid layout: A=NW, B=NE, C=SW, D=SE
-      const qs = GRID_SIZE / 2; // quadrant size (0.125°)
-      
-      switch (quadrant) {
-        case 'A': // NW quadrant
-          centerLat = gridNorth - qs / 2;
-          centerLon = gridWest - qs / 2;
-          break;
-        case 'B': // NE quadrant
-          centerLat = gridNorth - qs / 2;
-          centerLon = gridWest - qs - qs / 2;
-          break;
-        case 'C': // SW quadrant
-          centerLat = gridNorth - qs - qs / 2;
-          centerLon = gridWest - qs / 2;
-          break;
-        case 'D': // SE quadrant
-          centerLat = gridNorth - qs - qs / 2;
-          centerLon = gridWest - qs - qs / 2;
-          break;
-      }
-    } else {
-      // No quadrant - use center of full 15-minute grid
-      centerLat = (gridNorth + gridSouth) / 2;
-      centerLon = (gridWest + gridEast) / 2;
-    }
-    
-    // Return negative longitude for western hemisphere
-    return { 
-      latDD: centerLat, 
-      lonDD: -centerLon,
-      fromGrid: secId + ' ' + gridNum + (quadrant || '')
+    const geo = spGridToGeometry(input);
+    if (!geo) return null;
+    return {
+      latDD: geo.center.lat,
+      lonDD: geo.center.lon,
+      fromGrid: geo.gridId
     };
   }
 
@@ -406,54 +397,38 @@
     else if (!isNorth && isWest) quadrant = "C"; // SW
     else quadrant = "D";                          // SE
     
-    // Calculate quadrant corner coordinates (7.5 minute = 0.125 degree)
-    const qs = GRID_SIZE / 2;
-    let nwLat, nwLon, seLat, seLon;
-    
-    switch (quadrant) {
-      case "A": // NW quadrant
-        nwLat = gridNorth;
-        seLat = gridNorth - qs;
-        nwLon = -gridWest;
-        seLon = -(gridWest - qs);
-        break;
-      case "B": // NE quadrant
-        nwLat = gridNorth;
-        seLat = gridNorth - qs;
-        nwLon = -(gridWest - qs);
-        seLon = -(gridWest - 2 * qs);
-        break;
-      case "C": // SW quadrant
-        nwLat = gridNorth - qs;
-        seLat = gridNorth - 2 * qs;
-        nwLon = -gridWest;
-        seLon = -(gridWest - qs);
-        break;
-      case "D": // SE quadrant
-        nwLat = gridNorth - qs;
-        seLat = gridNorth - 2 * qs;
-        nwLon = -(gridWest - qs);
-        seLon = -(gridWest - 2 * qs);
-        break;
-    }
-    
+    // Full 15-minute grid cell bounds (signed longitude: west < east)
+    const cell = {
+      north: gridNorth,
+      south: gridNorth - GRID_SIZE,
+      west: -gridWest,
+      east: -(gridWest - GRID_SIZE)
+    };
+
+    // 7.5-minute quadrant bounds, derived from the shared helper so detection
+    // and grid-string resolution can never disagree.
+    const qBounds = quadrantBounds(cell, quadrant);
+
     // Simple magnetic variation estimate (rough approximation for CONUS)
     // For more accurate values, use a proper magnetic model
     const magVariation = Math.round((-0.15 * lon - 5) * 10) / 10;
-    
-    return { 
+
+    return {
       gridId: sectional.id + ' ' + gridNum + quadrant,
       sectionalId: sectional.id,
       sectionalName: sectional.name,
       gridNumber: gridNum,
       quarterGrid: quadrant,
+      quadrant: quadrant,                 // canonical alias for quarterGrid
       cellId: Math.abs(Math.floor(lat)) + String(Math.abs(Math.floor(lon))).slice(-2) + quadrant,
       magVariation: magVariation,
-      corners: { 
-        nw: { lat: nwLat, lon: nwLon }, 
-        ne: { lat: nwLat, lon: seLon }, 
-        sw: { lat: seLat, lon: nwLon }, 
-        se: { lat: seLat, lon: seLon } 
+      cell: cell,                          // full 15' cell bounds (signed lon)
+      quadrantBounds: qBounds,             // 7.5' quadrant bounds (signed lon)
+      corners: {                           // 7.5' quadrant corners (back-compat)
+        nw: { lat: qBounds.north, lon: qBounds.west },
+        ne: { lat: qBounds.north, lon: qBounds.east },
+        sw: { lat: qBounds.south, lon: qBounds.west },
+        se: { lat: qBounds.south, lon: qBounds.east }
       }
     };
   }
@@ -493,6 +468,86 @@
         lat: (north + south) / 2,
         lon: (west + east) / 2
       }
+    };
+  }
+
+  /**
+   * Compute the bounds of a 7.5-minute quadrant (A/B/C/D) within a 15-minute
+   * grid cell. Single source of truth for the quadrant subdivision used by
+   * both point->grid detection and grid-string->geometry.
+   *
+   * CAP quadrant layout (within a 15' cell):
+   *        West <--------> East
+   *         |    A   |   B   |   North
+   *         +--------+-------+
+   *         |    C   |   D   |   South
+   *
+   * @param {object} cell - 15' cell bounds {north, south, west, east} (signed lon)
+   * @param {string} quadrant - "A" | "B" | "C" | "D"
+   * @returns {object|null} 7.5' quadrant bounds {north, south, west, east} (signed lon)
+   */
+  function quadrantBounds(cell, quadrant) {
+    if (!cell || !quadrant) return null;
+    const midLat = (cell.north + cell.south) / 2;
+    const midLon = (cell.west + cell.east) / 2; // west < east in signed lon
+    switch (quadrant) {
+      case "A": return { north: cell.north, south: midLat,     west: cell.west, east: midLon };   // NW
+      case "B": return { north: cell.north, south: midLat,     west: midLon,    east: cell.east }; // NE
+      case "C": return { north: midLat,     south: cell.south, west: cell.west, east: midLon };   // SW
+      case "D": return { north: midLat,     south: cell.south, west: midLon,    east: cell.east }; // SE
+      default:  return null;
+    }
+  }
+
+  /**
+   * Canonical "CAP grid string -> full geometry" resolver.
+   * THE single source of truth for turning an identifier like "STL 5D",
+   * "DEN-25", or "ICT142" into coordinates and cell/quadrant polygons.
+   * All callers (UI, demos, command tools, overlays) should use this instead
+   * of re-deriving grid math from a local sectional table.
+   *
+   * @param {string} input - CAP grid reference (SEC, SEC NN, SEC NNq; q in A-D)
+   * @returns {object|null} {
+   *   sectionalId, sectionalName, gridNumber, quadrant (or null),
+   *   gridId, center:{lat,lon},
+   *   cell:{north,south,west,east},            // full 15' cell, signed lon
+   *   quadrantBounds:{north,south,west,east}|null  // 7.5' quadrant, signed lon
+   * } or null if the string is unparseable / out of range.
+   */
+  function spGridToGeometry(input) {
+    if (!input || typeof input !== "string") return null;
+    const m = input.trim().toUpperCase().match(/^([A-Z]{3})[\s\-]?(\d+)([ABCD])?$/);
+    if (!m) return null;
+
+    const secId = m[1];
+    const gridNum = parseInt(m[2], 10);
+    const quadrant = m[3] || null;
+
+    const sectional = SECTIONALS.find(s => s.id === secId);
+    if (!sectional) return null;
+
+    const cell = getGridBounds(secId, gridNum);
+    if (!cell) return null; // grid number out of range for this sectional
+
+    const cellBounds = { north: cell.north, south: cell.south, west: cell.west, east: cell.east };
+    let qBounds = null;
+    let center;
+    if (quadrant) {
+      qBounds = quadrantBounds(cellBounds, quadrant);
+      center = { lat: (qBounds.north + qBounds.south) / 2, lon: (qBounds.west + qBounds.east) / 2 };
+    } else {
+      center = { lat: cell.center.lat, lon: cell.center.lon };
+    }
+
+    return {
+      sectionalId: secId,
+      sectionalName: sectional.name,
+      gridNumber: gridNum,
+      quadrant: quadrant,
+      gridId: secId + " " + gridNum + (quadrant || ""),
+      center: center,
+      cell: cellBounds,
+      quadrantBounds: qBounds
     };
   }
 
@@ -550,10 +605,15 @@
   // Core geospatial
   MAT.geo.spDestPoint = spDestPoint;
   MAT.geo.spNormalizeBearing = spNormalizeBearing;
+  MAT.geo.distanceNM = distanceNM;
+  MAT.geo.bearing = bearing;
+  MAT.geo.calculateDistance = distanceNM; // alias used by some modules
   
   // Coordinate parsing
   MAT.geo.spParseCoordinate = spParseCoordinate;
   MAT.geo.spParseCapGrid = spParseCapGrid;
+  MAT.geo.spGridToGeometry = spGridToGeometry;
+  MAT.geo.quadrantBounds = quadrantBounds;
   
   // Coordinate formatting
   MAT.geo.spFormatDDM = spFormatDDM;
@@ -579,8 +639,11 @@
   // Functions
   window.spDestPoint = spDestPoint;
   window.spNormalizeBearing = spNormalizeBearing;
+  window.spDistanceNM = distanceNM;
+  window.spBearing = bearing;
   window.spParseCoordinate = spParseCoordinate;
   window.spParseCapGrid = spParseCapGrid;
+  window.spGridToGeometry = spGridToGeometry;
   window.spFormatDDM = spFormatDDM;
   window.spFormatCoordDDM = spFormatCoordDDM;
   window.spFormatForeFlight = spFormatForeFlight;

@@ -95,47 +95,10 @@
   // ========================================
   // SECTIONAL CHART DATA
   // ========================================
-  
-  const SECTIONALS = [
-    { id: "SEA", north: 49, south: 44.5, west: 125, east: 117 },
-    { id: "GTF", north: 49, south: 44.5, west: 117, east: 109 },
-    { id: "BIL", north: 49, south: 44.5, west: 109, east: 101 },
-    { id: "MSP", north: 49, south: 44.5, west: 101, east: 93 },
-    { id: "GRB", north: 48.25, south: 44, west: 93, east: 85 },
-    { id: "LHN", north: 48, south: 44, west: 85, east: 77 },
-    { id: "MON", north: 48, south: 44, west: 77, east: 69 },
-    { id: "HFX", north: 48, south: 44, west: 69, east: 61 },
-    { id: "LMT", north: 44.5, south: 40, west: 125, east: 117 },
-    { id: "SLC", north: 44.5, south: 40, west: 117, east: 109 },
-    { id: "CYS", north: 44.5, south: 40, west: 109, east: 101 },
-    { id: "OMA", north: 44.5, south: 40, west: 101, east: 93 },
-    { id: "ORD", north: 44, south: 40, west: 93, east: 85 },
-    { id: "DET", north: 44, south: 40, west: 85, east: 77 },
-    { id: "NYC", north: 44, south: 40, west: 77, east: 69 },
-    { id: "SFO", north: 40, south: 36, west: 125, east: 118 },
-    { id: "LAS", north: 40, south: 35.75, west: 118, east: 111 },
-    { id: "DEN", north: 40, south: 35.75, west: 111, east: 104 },
-    { id: "ICT", north: 40, south: 36, west: 104, east: 97 },
-    { id: "MKC", north: 40, south: 36, west: 97, east: 90 },
-    { id: "STL", north: 40, south: 36, west: 91, east: 84 },
-    { id: "LUK", north: 40, south: 36, west: 85, east: 78 },
-    { id: "DCA", north: 40, south: 36, west: 79, east: 72 },
-    { id: "LAX", north: 36, south: 32, west: 121.5, east: 115 },
-    { id: "PHX", north: 35.75, south: 31.25, west: 116, east: 109 },
-    { id: "ABQ", north: 36, south: 32, west: 109, east: 102 },
-    { id: "DFW", north: 36, south: 32, west: 102, east: 95 },
-    { id: "MEM", north: 36, south: 32, west: 95, east: 88 },
-    { id: "ATL", north: 36, south: 32, west: 88, east: 81 },
-    { id: "CLT", north: 36, south: 32, west: 81, east: 75 },
-    { id: "ELP", north: 32, south: 28, west: 109, east: 103 },
-    { id: "SAT", north: 32, south: 28, west: 103, east: 97 },
-    { id: "HOU", north: 32, south: 28, west: 97, east: 91 },
-    { id: "MSY", north: 32, south: 28, west: 91, east: 85 },
-    { id: "JAX", north: 32, south: 28, west: 85, east: 79 },
-    { id: "BRO", north: 28, south: 24, west: 103, east: 97 },
-    { id: "MIA", north: 28, south: 24, west: 83, east: 77 }
-  ];
-  
+  // CAP sectional boundaries are owned by mat-geo.js (MAT.geo.SECTIONALS) — the
+  // single source of truth. This module resolves grids via MAT.geo.* functions
+  // (getSpGridToGeometry / spDetectCapGrid) and keeps no local copy.
+
   // ========================================
   // HELPER FUNCTIONS
   // ========================================
@@ -197,6 +160,45 @@
     }
     console.warn('MAT_COMMANDTOOLS: spParseCoordinate not found');
     return null;
+  };
+
+  /**
+   * Get spGridToGeometry (the CAP-grid single source of truth) from MAT.geo.
+   * Resolves a grid string like "DEN 25C" to center + cell + quadrant bounds.
+   */
+  const getSpGridToGeometry = () => {
+    if (typeof MAT !== 'undefined' && MAT.geo && MAT.geo.spGridToGeometry) {
+      return MAT.geo.spGridToGeometry;
+    }
+    if (typeof window.spGridToGeometry === 'function') {
+      return window.spGridToGeometry;
+    }
+    console.warn('MAT_COMMANDTOOLS: spGridToGeometry not found');
+    return null;
+  };
+
+  /**
+   * Build full 15' cell corners {nw,ne,sw,se} for a grid. Prefers the
+   * gridInfo.cell now returned by spDetectCapGrid; falls back to resolving the
+   * base grid id through the single source of truth. No hand-rolled +/-0.125
+   * expansion — that math lives only in mat-geo.js.
+   * @returns {object|null} corners or null if the grid can't be resolved
+   */
+  const cornersFromGridInfo = (gridInfo) => {
+    let cell = gridInfo && gridInfo.cell;
+    if (!cell && gridInfo && gridInfo.gridId) {
+      const resolve = getSpGridToGeometry();
+      const baseId = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
+      const geo = resolve ? resolve(baseId) : null;
+      cell = geo && geo.cell;
+    }
+    if (!cell) return null;
+    return {
+      nw: { lat: cell.north, lon: cell.west },
+      ne: { lat: cell.north, lon: cell.east },
+      sw: { lat: cell.south, lon: cell.west },
+      se: { lat: cell.south, lon: cell.east }
+    };
   };
   
   // ========================================
@@ -838,28 +840,14 @@
             }
             
             if (!gridInfo) continue;
-            
+
             const qc = gridInfo.corners;
             const quad = gridInfo.quarterGrid;
-            
-            let fullNorth, fullSouth, fullWest, fullEast;
-            if (quad === 'A') {
-              fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125;
-            } else if (quad === 'B') {
-              fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon;
-            } else if (quad === 'C') {
-              fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125;
-            } else {
-              fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon;
-            }
-            
-            const fullGridCorners = {
-              nw: { lat: fullNorth, lon: fullWest },
-              ne: { lat: fullNorth, lon: fullEast },
-              sw: { lat: fullSouth, lon: fullWest },
-              se: { lat: fullSouth, lon: fullEast }
-            };
-            
+
+            // Full 15' cell corners from the single source of truth (mat-geo).
+            const fullGridCorners = cornersFromGridInfo(gridInfo);
+            if (!fullGridCorners) continue;
+
             const isMainGrid = gridId === cluster.gridId;
             const subgrids = isMainGrid && cluster.activeQuadrants.length > 0 
               ? cluster.activeQuadrants 
@@ -969,28 +957,14 @@
         }
         
         if (!gridInfo) continue;
-        
+
         const qc = gridInfo.corners;
         const quad = gridInfo.quarterGrid;
-        
-        let fullNorth, fullSouth, fullWest, fullEast;
-        if (quad === 'A') {
-          fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125;
-        } else if (quad === 'B') {
-          fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon;
-        } else if (quad === 'C') {
-          fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125;
-        } else {
-          fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon;
-        }
-        
-        const fullGridCorners = {
-          nw: { lat: fullNorth, lon: fullWest },
-          ne: { lat: fullNorth, lon: fullEast },
-          sw: { lat: fullSouth, lon: fullWest },
-          se: { lat: fullSouth, lon: fullEast }
-        };
-        
+
+        // Full 15' cell corners from the single source of truth (mat-geo).
+        const fullGridCorners = cornersFromGridInfo(gridInfo);
+        if (!fullGridCorners) continue;
+
         const isMainGrid = gridId === cluster.gridId;
         const subgrids = isMainGrid && cluster.activeQuadrants.length > 0 
           ? cluster.activeQuadrants 
@@ -1038,46 +1012,33 @@
           const quadrant = gridMatch[3] ? gridMatch[3].toUpperCase() : null;
           const subQuadrant = gridMatch[4] ? gridMatch[4].toUpperCase() : null;
           
-          const sectional = SECTIONALS.find(s => s.id === sectionalId);
-          if (sectional) {
-            const gridsPerRow = Math.round((sectional.west - sectional.east) / 0.25);
-            const row = Math.floor((gridNum - 1) / gridsPerRow);
-            const col = (gridNum - 1) % gridsPerRow;
-            
-            const gridNorth = sectional.north - row * 0.25;
-            const gridWest = sectional.west - col * 0.25;
-            
+          // Resolve via the single source of truth (mat-geo). Include the
+          // parent quadrant in the lookup so geo.quadrantBounds is the 7.5'
+          // quadrant; eighth grids subdivide that quadrant with the same helper.
+          const resolveGrid = getSpGridToGeometry();
+          const geo = resolveGrid ? resolveGrid(sectionalId + ' ' + gridNum + (quadrant || '')) : null;
+          if (geo) {
             let centerLat, centerLon;
             let isEighthGrid = false;
             let eighthGridId = null;
-            
+
             if (quadrant && subQuadrant) {
               isEighthGrid = true;
               eighthGridId = sectionalId + ' ' + gridNum + quadrant + subQuadrant;
-              const qs = 0.125;
-              const es = 0.0625;
-              
-              let qNorth, qSouth, qWest, qEast;
-              if (quadrant === 'A') { qNorth = gridNorth; qSouth = gridNorth - qs; qWest = gridWest; qEast = gridWest - qs; }
-              else if (quadrant === 'B') { qNorth = gridNorth; qSouth = gridNorth - qs; qWest = gridWest - qs; qEast = gridWest - 2*qs; }
-              else if (quadrant === 'C') { qNorth = gridNorth - qs; qSouth = gridNorth - 2*qs; qWest = gridWest; qEast = gridWest - qs; }
-              else { qNorth = gridNorth - qs; qSouth = gridNorth - 2*qs; qWest = gridWest - qs; qEast = gridWest - 2*qs; }
-              
-              if (subQuadrant === 'A') { centerLat = qNorth - es/2; centerLon = -(qWest - es/2); }
-              else if (subQuadrant === 'B') { centerLat = qNorth - es/2; centerLon = -(qWest - es - es/2); }
-              else if (subQuadrant === 'C') { centerLat = qNorth - es - es/2; centerLon = -(qWest - es/2); }
-              else { centerLat = qNorth - es - es/2; centerLon = -(qWest - es - es/2); }
-            } else if (quadrant) {
-              const qs = 0.125;
-              if (quadrant === 'A') { centerLat = gridNorth - qs/2; centerLon = -(gridWest - qs/2); }
-              else if (quadrant === 'B') { centerLat = gridNorth - qs/2; centerLon = -(gridWest - qs - qs/2); }
-              else if (quadrant === 'C') { centerLat = gridNorth - qs - qs/2; centerLon = -(gridWest - qs/2); }
-              else { centerLat = gridNorth - qs - qs/2; centerLon = -(gridWest - qs - qs/2); }
+              const qbHelper = (typeof MAT !== 'undefined' && MAT.geo) ? MAT.geo.quadrantBounds : null;
+              const eb = qbHelper ? qbHelper(geo.quadrantBounds, subQuadrant) : null;
+              if (eb) {
+                centerLat = (eb.north + eb.south) / 2;
+                centerLon = (eb.west + eb.east) / 2;
+              } else {
+                centerLat = geo.center.lat;
+                centerLon = geo.center.lon;
+              }
             } else {
-              centerLat = gridNorth - 0.125;
-              centerLon = -(gridWest - 0.125);
+              centerLat = geo.center.lat;
+              centerLon = geo.center.lon;
             }
-            
+
             const gridInfo = spDetectCapGrid(centerLat, centerLon);
             if (gridInfo) {
               if (isEighthGrid) {
@@ -1091,7 +1052,7 @@
               results.errors.push(entry + ' (grid calculation error)');
             }
           } else {
-            results.errors.push(entry + ' (unknown sectional)');
+            results.errors.push(entry + ' (unknown sectional or out-of-range grid)');
           }
           return;
         }
@@ -1159,60 +1120,24 @@
         
         const qc = gridInfo.corners;
         const quad = gridInfo.quarterGrid;
-        
-        let gridCorners;
-        
-        if (isEighthGrid) {
-          const qs = 0.125;
-          const es = 0.0625;
-          
-          let fullNorth, fullSouth, fullWest, fullEast;
-          if (quad === 'A') {
-            fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - qs; fullWest = qc.nw.lon; fullEast = qc.ne.lon + qs;
-          } else if (quad === 'B') {
-            fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - qs; fullWest = qc.nw.lon - qs; fullEast = qc.ne.lon;
-          } else if (quad === 'C') {
-            fullNorth = qc.nw.lat + qs; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + qs;
-          } else {
-            fullNorth = qc.nw.lat + qs; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - qs; fullEast = qc.ne.lon;
-          }
-          
-          let qNorth, qSouth, qWest, qEast;
-          if (quadrant === 'A') { qNorth = fullNorth; qSouth = fullNorth - qs; qWest = fullWest; qEast = fullWest + qs; }
-          else if (quadrant === 'B') { qNorth = fullNorth; qSouth = fullNorth - qs; qWest = fullWest + qs; qEast = fullEast; }
-          else if (quadrant === 'C') { qNorth = fullNorth - qs; qSouth = fullSouth; qWest = fullWest; qEast = fullWest + qs; }
-          else { qNorth = fullNorth - qs; qSouth = fullSouth; qWest = fullWest + qs; qEast = fullEast; }
-          
-          let eNorth, eSouth, eWest, eEast;
-          if (subQuadrant === 'A') { eNorth = qNorth; eSouth = qNorth - es; eWest = qWest; eEast = qWest + es; }
-          else if (subQuadrant === 'B') { eNorth = qNorth; eSouth = qNorth - es; eWest = qWest + es; eEast = qEast; }
-          else if (subQuadrant === 'C') { eNorth = qNorth - es; eSouth = qSouth; eWest = qWest; eEast = qWest + es; }
-          else { eNorth = qNorth - es; eSouth = qSouth; eWest = qWest + es; eEast = qEast; }
-          
-          gridCorners = {
-            nw: { lat: eNorth, lon: eWest },
-            ne: { lat: eNorth, lon: eEast },
-            sw: { lat: eSouth, lon: eWest },
-            se: { lat: eSouth, lon: eEast }
-          };
-        } else {
-          let fullNorth, fullSouth, fullWest, fullEast;
-          if (quad === 'A') {
-            fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125;
-          } else if (quad === 'B') {
-            fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon;
-          } else if (quad === 'C') {
-            fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125;
-          } else {
-            fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon;
-          }
-          
-          gridCorners = {
-            nw: { lat: fullNorth, lon: fullWest },
-            ne: { lat: fullNorth, lon: fullEast },
-            sw: { lat: fullSouth, lon: fullWest },
-            se: { lat: fullSouth, lon: fullEast }
-          };
+
+        // All corners derive from the 15' cell (single source of truth). Eighth
+        // grids subdivide cell -> parent quadrant -> sub quadrant with the shared
+        // quadrantBounds helper instead of hand-rolled +/-0.125 / 0.0625 math.
+        const qbHelper = (typeof MAT !== 'undefined' && MAT.geo) ? MAT.geo.quadrantBounds : null;
+        const cellB = gridInfo.cell;
+        const cornersOf = (b) => ({
+          nw: { lat: b.north, lon: b.west },
+          ne: { lat: b.north, lon: b.east },
+          sw: { lat: b.south, lon: b.west },
+          se: { lat: b.south, lon: b.east }
+        });
+
+        let gridCorners = cellB ? cornersOf(cellB) : (qc ? { nw: qc.nw, ne: qc.ne, sw: qc.sw, se: qc.se } : null);
+        if (isEighthGrid && qbHelper && cellB) {
+          const qb = qbHelper(cellB, quadrant);
+          const eb = qbHelper(qb, subQuadrant);
+          if (eb) gridCorners = cornersOf(eb);
         }
         
         addedGrids.push(gridId);

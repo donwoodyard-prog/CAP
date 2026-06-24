@@ -39,7 +39,7 @@
   // CONSTANTS
   // ========================================
   
-  const EARTH_RADIUS_NM = 3440.065;
+  // EARTH_RADIUS_NM removed — distance now comes from MAT.geo.distanceNM (SSOT).
   const DEG_TO_RAD = Math.PI / 180;
   const RAD_TO_DEG = 180 / Math.PI;
   
@@ -223,19 +223,9 @@
    * @param {number} lon2 - End longitude (decimal degrees)
    * @returns {number} Distance in nautical miles
    */
+  // Delegates to the single source of truth (mat-geo).
   function calcDistanceNM(lat1, lon1, lat2, lon2) {
-    const lat1Rad = lat1 * DEG_TO_RAD;
-    const lat2Rad = lat2 * DEG_TO_RAD;
-    const dLat = (lat2 - lat1) * DEG_TO_RAD;
-    const dLon = (lon2 - lon1) * DEG_TO_RAD;
-    
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1Rad) * Math.cos(lat2Rad) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    
-    return EARTH_RADIUS_NM * c;
+    return MAT.geo.distanceNM(lat1, lon1, lat2, lon2);
   }
   
   /**

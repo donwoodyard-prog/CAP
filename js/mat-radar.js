@@ -198,15 +198,9 @@
    * @param {number} lon2 - Longitude of point 2
    * @returns {number} Distance in nautical miles
    */
+  // Delegates to the single source of truth (mat-geo).
   function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 3440.065; // Earth radius in nautical miles
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
+    return MAT.geo.distanceNM(lat1, lon1, lat2, lon2);
   }
   
   /**
@@ -477,17 +471,8 @@
         return null;
       }
       
-      // Calculate distance to each station
-      const calculateDistance = MAT.weather.calculateDistance || function(lat1, lon1, lat2, lon2) {
-        const R = 3440.065; // Earth radius in NM
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-      };
+      // Calculate distance to each station (single source of truth: mat-geo).
+      const calculateDistance = MAT.geo.distanceNM;
       
       let nearest = null;
       let minDistance = Infinity;

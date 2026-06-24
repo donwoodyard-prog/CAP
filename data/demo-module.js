@@ -561,14 +561,11 @@
             const baseGrid = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
             const qc = gridInfo.corners;
             const quad = gridInfo.quarterGrid;
-            let fullNorth, fullSouth, fullWest, fullEast;
-            if (quad === 'A') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
-            else if (quad === 'B') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
-            else if (quad === 'C') { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
-            else { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
+            // Full 15' cell corners from the single source of truth (gridInfo.cell).
+            const c = gridInfo.cell;
             const fullGridCorners = {
-              nw: { lat: fullNorth, lon: fullWest }, ne: { lat: fullNorth, lon: fullEast },
-              sw: { lat: fullSouth, lon: fullWest }, se: { lat: fullSouth, lon: fullEast }
+              nw: { lat: c.north, lon: c.west }, ne: { lat: c.north, lon: c.east },
+              sw: { lat: c.south, lon: c.west }, se: { lat: c.south, lon: c.east }
             };
             
             const subgridsToSelect = gc.quadrant ? [gc.quadrant] : ['A', 'B', 'C', 'D'];
@@ -587,76 +584,35 @@
       
       // Handle string-based grid specification (legacy)
       for (const gridStr of grids) {
-        // Support both full grid (e.g., "ICT 142") and quarter grid (e.g., "CYS 527A")
-        const quarterMatch = gridStr.match(/^([A-Z]{3})\s*(\d+)([ABCD])$/i);
-        const fullMatch = gridStr.match(/^([A-Z]{3})\s*(\d+)$/i);
-        
-        if ((quarterMatch || fullMatch) && spDetectCapGrid) {
-          const sectionalId = (quarterMatch ? quarterMatch[1] : fullMatch[1]).toUpperCase();
-          const gridNum = parseInt(quarterMatch ? quarterMatch[2] : fullMatch[2]);
-          const specificQuadrant = quarterMatch ? quarterMatch[3].toUpperCase() : null;
-          
-          // Known grid center coordinates - VERIFIED against CAP_GRIDS_Cleaned.kmz truth data
-          // Format: "SECTIONAL-GRIDNUM": { lat, lon }
-          const knownGrids = {
-            "CYS-527": { lat: 40.375, lon: -105.375 },    // Verified from truth KMZ
-            "ICT-142": { lat: 38.625, lon: -103.625 },    // Verified from truth KMZ
-            "ICT-143": { lat: 38.625, lon: -103.375 }     // Verified from truth KMZ
+        // Resolve "ICT 142" or quarter grid "CYS 527A" through the single source
+        // of truth (MAT.geo). No local sectional table, no hand-rolled expansion —
+        // see js/mat-geo.js. (Previously a local table here had wrong CYS bounds.)
+        const resolveGrid = (window.MAT && window.MAT.geo && window.MAT.geo.spGridToGeometry) || null;
+        const gridGeo = resolveGrid ? resolveGrid(gridStr) : null;
+        if (gridGeo) {
+          const baseGrid = gridGeo.sectionalId + ' ' + gridGeo.gridNumber;
+          const cell = gridGeo.cell;
+          const fullGridCorners = {
+            nw: { lat: cell.north, lon: cell.west }, ne: { lat: cell.north, lon: cell.east },
+            sw: { lat: cell.south, lon: cell.west }, se: { lat: cell.south, lon: cell.east }
           };
-          
-          const gridKey = sectionalId + "-" + gridNum;
-          let centerLat, centerLon;
-          
-          if (knownGrids[gridKey]) {
-            // Use known coordinates
-            centerLat = knownGrids[gridKey].lat;
-            centerLon = knownGrids[gridKey].lon;
-          } else {
-            // Fall back to calculation for unknown grids
-            const sectionals = [
-              { id: "ICT", north: 40, south: 36, west: 104, east: 97 },
-              { id: "DEN", north: 40, south: 35.75, west: 111, east: 104 },
-              { id: "CYS", north: 44, south: 40, west: 111, east: 104 }
-            ];
-            const sectional = sectionals.find(s => s.id === sectionalId);
-            if (!sectional) continue;
-            
-            const gridsPerRow = Math.round((sectional.west - sectional.east) / 0.25);
-            const row = Math.floor((gridNum - 1) / gridsPerRow);
-            const col = (gridNum - 1) % gridsPerRow;
-            const gridNorth = sectional.north - row * 0.25;
-            const gridWest = sectional.west - col * 0.25;
-            centerLat = gridNorth - 0.125;
-            centerLon = -(gridWest - 0.125);
-          }
-          
-          const gridInfo = spDetectCapGrid(centerLat, centerLon);
-          if (gridInfo) {
-            const baseGrid = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
-            const qc = gridInfo.corners;
-            const quad = gridInfo.quarterGrid;
-            let fullNorth, fullSouth, fullWest, fullEast;
-            if (quad === 'A') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
-            else if (quad === 'B') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
-            else if (quad === 'C') { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
-            else { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
-            const fullGridCorners = {
-              nw: { lat: fullNorth, lon: fullWest }, ne: { lat: fullNorth, lon: fullEast },
-              sw: { lat: fullSouth, lon: fullWest }, se: { lat: fullSouth, lon: fullEast }
-            };
-            
-            // If a specific quadrant was specified (e.g., "CYS 527A"), only select that quadrant
-            const subgridsToSelect = specificQuadrant ? [specificQuadrant] : ['A', 'B', 'C', 'D'];
-            
-            setCmdState(prev => ({
-              ...prev,
-              selectedGrids: [...prev.selectedGrids, {
-                grid: baseGrid, subgrids: subgridsToSelect, corners: fullGridCorners,
-                quadrantCorners: qc, detectedQuadrant: quad, gridInfo: gridInfo,
-                coverage: { total: 0, A: 0, B: 0, C: 0, D: 0 }
-              }]
-            }));
-          }
+          // Quadrant corners for the specified quadrant, or the cell's A quadrant as an anchor.
+          const qb = gridGeo.quadrantBounds || window.MAT.geo.quadrantBounds(cell, 'A');
+          const quadrantCorners = {
+            nw: { lat: qb.north, lon: qb.west }, ne: { lat: qb.north, lon: qb.east },
+            sw: { lat: qb.south, lon: qb.west }, se: { lat: qb.south, lon: qb.east }
+          };
+          // If a specific quadrant was given (e.g., "CYS 527A"), only select that quadrant.
+          const subgridsToSelect = gridGeo.quadrant ? [gridGeo.quadrant] : ['A', 'B', 'C', 'D'];
+
+          setCmdState(prev => ({
+            ...prev,
+            selectedGrids: [...prev.selectedGrids, {
+              grid: baseGrid, subgrids: subgridsToSelect, corners: fullGridCorners,
+              quadrantCorners: quadrantCorners, detectedQuadrant: gridGeo.quadrant || 'A', gridInfo: gridGeo,
+              coverage: { total: 0, A: 0, B: 0, C: 0, D: 0 }
+            }]
+          }));
         }
       }
       
@@ -724,14 +680,11 @@
             const baseGrid = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
             const qc = gridInfo.corners;
             const quad = gridInfo.quarterGrid;
-            let fullNorth, fullSouth, fullWest, fullEast;
-            if (quad === 'A') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
-            else if (quad === 'B') { fullNorth = qc.nw.lat; fullSouth = qc.sw.lat - 0.125; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
-            else if (quad === 'C') { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon; fullEast = qc.ne.lon + 0.125; }
-            else { fullNorth = qc.nw.lat + 0.125; fullSouth = qc.sw.lat; fullWest = qc.nw.lon - 0.125; fullEast = qc.ne.lon; }
+            // Full 15' cell corners from the single source of truth (gridInfo.cell).
+            const c = gridInfo.cell;
             const fullGridCorners = {
-              nw: { lat: fullNorth, lon: fullWest }, ne: { lat: fullNorth, lon: fullEast },
-              sw: { lat: fullSouth, lon: fullWest }, se: { lat: fullSouth, lon: fullEast }
+              nw: { lat: c.north, lon: c.west }, ne: { lat: c.north, lon: c.east },
+              sw: { lat: c.south, lon: c.west }, se: { lat: c.south, lon: c.east }
             };
             
             setCmdState(prev => ({

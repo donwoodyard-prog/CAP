@@ -6038,86 +6038,41 @@ Import: Open MAT → More → Import Data → Paste code`;
           await new Promise(r => setTimeout(r, 100)); // Allow UI to update
           
           for (const gridStr of demo.grids) {
-            // Parse grid string like "ICT 142"
-            const gridMatch = gridStr.match(/^([A-Z]{3})\s*(\d+)$/i);
-            if (gridMatch) {
-              const sectionalId = gridMatch[1].toUpperCase();
-              const gridNum = parseInt(gridMatch[2]);
-              
-              // Calculate a center point for this grid to use with spDetectCapGrid
-              const sectionals = [
-                { id: "ICT", north: 40, south: 36, west: 104, east: 97 },
-                { id: "DEN", north: 40, south: 35.75, west: 111, east: 104 }
-              ];
-              
-              const sectional = sectionals.find(s => s.id === sectionalId);
-              if (sectional) {
-                const gridsPerRow = Math.round((sectional.west - sectional.east) / 0.25);
-                const row = Math.floor((gridNum - 1) / gridsPerRow);
-                const col = (gridNum - 1) % gridsPerRow;
-                const gridNorth = sectional.north - row * 0.25;
-                const gridWest = sectional.west - col * 0.25;
-                const centerLat = gridNorth - 0.125;
-                const centerLon = -(gridWest - 0.125);
-                
-                const gridInfo = spDetectCapGrid(centerLat, centerLon);
-                if (gridInfo) {
-                  const baseGrid = gridInfo.gridId.replace(/[ABCD]$/, '').trim();
-                  const qc = gridInfo.corners;
-                  const quad = gridInfo.quarterGrid;
-                  
-                  // Calculate full 15-minute grid corners from the quarter grid corners
-                  // Quadrant layout: A=NW, B=NE, C=SW, D=SE
-                  // We need to expand the quarter grid to the full grid
-                  let fullNorth, fullSouth, fullWest, fullEast;
-                  
-                  if (quad === 'A') {
-                    // A is NW: our quarter is top-left, expand south and east
-                    fullNorth = qc.nw.lat;
-                    fullSouth = qc.sw.lat - 0.125;  // Extend south by one quarter
-                    fullWest = qc.nw.lon;
-                    fullEast = qc.ne.lon + 0.125;   // Extend east by one quarter
-                  } else if (quad === 'B') {
-                    // B is NE: our quarter is top-right, expand south and west
-                    fullNorth = qc.nw.lat;
-                    fullSouth = qc.sw.lat - 0.125;
-                    fullWest = qc.nw.lon - 0.125;   // Extend west by one quarter
-                    fullEast = qc.ne.lon;
-                  } else if (quad === 'C') {
-                    // C is SW: our quarter is bottom-left, expand north and east
-                    fullNorth = qc.nw.lat + 0.125;  // Extend north by one quarter
-                    fullSouth = qc.sw.lat;
-                    fullWest = qc.nw.lon;
-                    fullEast = qc.ne.lon + 0.125;
-                  } else {
-                    // D is SE: our quarter is bottom-right, expand north and west
-                    fullNorth = qc.nw.lat + 0.125;
-                    fullSouth = qc.sw.lat;
-                    fullWest = qc.nw.lon - 0.125;
-                    fullEast = qc.ne.lon;
-                  }
-                  
-                  const fullGridCorners = {
-                    nw: { lat: fullNorth, lon: fullWest },
-                    ne: { lat: fullNorth, lon: fullEast },
-                    sw: { lat: fullSouth, lon: fullWest },
-                    se: { lat: fullSouth, lon: fullEast }
-                  };
-                  
-                  setCmdState(prev => ({
-                    ...prev,
-                    selectedGrids: [...prev.selectedGrids, {
-                      grid: baseGrid,
-                      subgrids: ['A', 'B', 'C', 'D'],
-                      corners: fullGridCorners,
-                      quadrantCorners: qc,
-                      detectedQuadrant: quad,
-                      gridInfo: gridInfo,
-                      coverage: { total: 0, A: 0, B: 0, C: 0, D: 0 }
-                    }]
-                  }));
-                }
-              }
+            // Resolve "ICT 142" (or quarter grid) through the single source of
+            // truth (MAT.geo). No local sectional table, no quarter->full
+            // expansion math — see js/mat-geo.js.
+            const gridGeo = (window.MAT && window.MAT.geo && window.MAT.geo.spGridToGeometry)
+              ? window.MAT.geo.spGridToGeometry(gridStr) : null;
+            if (gridGeo) {
+              const baseGrid = gridGeo.sectionalId + ' ' + gridGeo.gridNumber;
+              const cell = gridGeo.cell;
+              const fullGridCorners = {
+                nw: { lat: cell.north, lon: cell.west },
+                ne: { lat: cell.north, lon: cell.east },
+                sw: { lat: cell.south, lon: cell.west },
+                se: { lat: cell.south, lon: cell.east }
+              };
+              const qb = gridGeo.quadrantBounds || window.MAT.geo.quadrantBounds(cell, 'A');
+              const quadrantCorners = {
+                nw: { lat: qb.north, lon: qb.west },
+                ne: { lat: qb.north, lon: qb.east },
+                sw: { lat: qb.south, lon: qb.west },
+                se: { lat: qb.south, lon: qb.east }
+              };
+              const subgridsToSelect = gridGeo.quadrant ? [gridGeo.quadrant] : ['A', 'B', 'C', 'D'];
+
+              setCmdState(prev => ({
+                ...prev,
+                selectedGrids: [...prev.selectedGrids, {
+                  grid: baseGrid,
+                  subgrids: subgridsToSelect,
+                  corners: fullGridCorners,
+                  quadrantCorners: quadrantCorners,
+                  detectedQuadrant: gridGeo.quadrant || 'A',
+                  gridInfo: gridGeo,
+                  coverage: { total: 0, A: 0, B: 0, C: 0, D: 0 }
+                }]
+              }));
             }
           }
           

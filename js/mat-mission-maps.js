@@ -2521,65 +2521,69 @@
       return layerGroup;
     }
     
+    // Single source of truth: each CAP cell's rectangle AND label come from
+    // MAT.geo.spDetectCapGrid, so they can never disagree, and sectional
+    // boundaries / western-wins overlap precedence are honored automatically.
+    const detect = window.MAT && window.MAT.geo && window.MAT.geo.spDetectCapGrid;
+    if (!detect) {
+      console.warn('MAT Mission Maps: MAT.geo.spDetectCapGrid unavailable; cannot draw CAP grids');
+      return layerGroup;
+    }
+
     const GRID_SIZE = 0.25; // 15-minute grid
-    
-    // Get bounds with padding
-    const north = Math.ceil(bounds.getNorth() / GRID_SIZE) * GRID_SIZE;
+    const MAX_CELLS = 2000; // safety cap to avoid pathological zoom-out renders
+
+    // Pad the viewport out to whole 15' cells. Sectional cell boundaries are
+    // aligned to the 0.25 deg lattice, so a center sample maps to exactly one cell.
     const south = Math.floor(bounds.getSouth() / GRID_SIZE) * GRID_SIZE;
-    const east = Math.ceil(bounds.getEast() / GRID_SIZE) * GRID_SIZE;
+    const north = Math.ceil(bounds.getNorth() / GRID_SIZE) * GRID_SIZE;
     const west = Math.floor(bounds.getWest() / GRID_SIZE) * GRID_SIZE;
-    
-    // Grid line style - BLUE solid lines (matches Avare Color.BLUE)
-    const gridStyle = {
-      color: '#0000FF',      // Pure blue (Avare Color.BLUE)
-      weight: 2,
-      opacity: 0.85
-    };
-    
-    // Draw horizontal lines (latitude)
-    for (let lat = south; lat <= north; lat += GRID_SIZE) {
-      const line = L.polyline([[lat, west], [lat, east]], gridStyle);
-      line.addTo(layerGroup);
-    }
-    
-    // Draw vertical lines (longitude)
-    for (let lon = west; lon <= east; lon += GRID_SIZE) {
-      const line = L.polyline([[south, lon], [north, lon]], gridStyle);
-      line.addTo(layerGroup);
-    }
-    
-    // Add grid labels at higher zoom levels
-    if (zoom >= 10 && window.MAT?.geo?.spDetectCapGrid) {
-      const labeledGrids = new Set();
-      
-      for (let lat = south + GRID_SIZE/2; lat < north; lat += GRID_SIZE) {
-        for (let lon = west + GRID_SIZE/2; lon < east; lon += GRID_SIZE) {
-          const gridInfo = MAT.geo.spDetectCapGrid(lat, lon);
-          if (gridInfo && !labeledGrids.has(gridInfo.gridId)) {
-            labeledGrids.add(gridInfo.gridId);
-            
-            // Create label at grid center - dark blue with white outline for visibility
-            const label = L.marker([lat, lon], {
-              icon: L.divIcon({
-                className: 'cap-grid-label',
-                html: `<div style="
-                  font-size: 18px;
-                  font-weight: bold;
-                  color: #0000CC;
-                  white-space: nowrap;
-                  text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0 0 4px #fff;
-                  letter-spacing: 0.5px;
-                ">${gridInfo.sectionalId} ${gridInfo.gridNumber}</div>`,
-                iconSize: [90, 24],
-                iconAnchor: [45, 12]
-              })
-            });
-            label.addTo(layerGroup);
-          }
+    const east = Math.ceil(bounds.getEast() / GRID_SIZE) * GRID_SIZE;
+
+    // Grid style - BLUE outline (matches Avare Color.BLUE), no fill
+    const gridStyle = { color: '#0000FF', weight: 2, opacity: 0.85, fill: false };
+    const showLabels = zoom >= 10;
+    const seen = new Set();
+    let count = 0;
+
+    for (let lat = south + GRID_SIZE / 2; lat < north && count < MAX_CELLS; lat += GRID_SIZE) {
+      for (let lon = west + GRID_SIZE / 2; lon < east && count < MAX_CELLS; lon += GRID_SIZE) {
+        const info = detect(lat, lon);
+        if (!info || !info.cell) continue; // outside CAP sectional coverage
+        const key = info.sectionalId + ' ' + info.gridNumber; // dedup by 15' cell
+        if (seen.has(key)) continue;
+        seen.add(key);
+        count++;
+
+        const c = info.cell;
+        L.rectangle([[c.south, c.west], [c.north, c.east]], gridStyle).addTo(layerGroup);
+
+        if (showLabels) {
+          const labelLat = (c.north + c.south) / 2;
+          const labelLon = (c.west + c.east) / 2;
+          L.marker([labelLat, labelLon], {
+            icon: L.divIcon({
+              className: 'cap-grid-label',
+              html: `<div style="
+                font-size: 18px;
+                font-weight: bold;
+                color: #0000CC;
+                white-space: nowrap;
+                text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0 0 4px #fff;
+                letter-spacing: 0.5px;
+              ">${key}</div>`,
+              iconSize: [90, 24],
+              iconAnchor: [45, 12]
+            })
+          }).addTo(layerGroup);
         }
       }
     }
-    
+
+    if (count >= MAX_CELLS) {
+      console.warn('MAT Mission Maps: CAP grid render hit the ' + MAX_CELLS + '-cell cap; zoom in for full coverage');
+    }
+
     return layerGroup;
   }
   
@@ -3969,23 +3973,15 @@
      * Calculate distance between two points in NM
      */
     function calculateLegDistance(lat1, lon1, lat2, lon2) {
-      const R = 3440.065;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      // Single source of truth (mat-geo).
+      return window.MAT.geo.distanceNM(lat1, lon1, lat2, lon2);
     }
-    
+
     /**
-     * Calculate bearing between two points
+     * Calculate bearing between two points (delegates to mat-geo).
      */
     function calculateLegBearing(lat1, lon1, lat2, lon2) {
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const lat1Rad = lat1 * Math.PI / 180;
-      const lat2Rad = lat2 * Math.PI / 180;
-      const y = Math.sin(dLon) * Math.cos(lat2Rad);
-      const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
-      return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+      return window.MAT.geo.bearing(lat1, lon1, lat2, lon2);
     }
     
     /**

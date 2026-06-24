@@ -94,7 +94,7 @@
   // CONSTANTS
   // ========================================
   
-  const EARTH_RADIUS_NM = 3440.065;  // Earth radius in nautical miles
+  // EARTH_RADIUS_NM removed — distance now comes from MAT.geo.distanceNM (SSOT).
   const NM_TO_METERS = 1852;
   const NM_TO_FEET = 6076.12;
   
@@ -155,24 +155,9 @@
    * @param {Object} p2 - {lat, lng} end point
    * @returns {number} Distance in nautical miles
    */
+  // Single source of truth (mat-geo). p1/p2 are Leaflet latlng {lat,lng}.
   function calculateDistance(p1, p2) {
-    // Use MAT.geo if available
-    if (window.MAT?.geo?.calculateDistance) {
-      return MAT.geo.calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
-    }
-    
-    // Fallback Haversine calculation
-    const lat1 = p1.lat * Math.PI / 180;
-    const lat2 = p2.lat * Math.PI / 180;
-    const dLat = (p2.lat - p1.lat) * Math.PI / 180;
-    const dLon = (p2.lng - p1.lng) * Math.PI / 180;
-    
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1) * Math.cos(lat2) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    
-    return EARTH_RADIUS_NM * c;
+    return MAT.geo.distanceNM(p1.lat, p1.lng, p2.lat, p2.lng);
   }
   
   /**

@@ -59,27 +59,16 @@
   /**
    * Calculate distance in nautical miles
    */
+  // Delegates to the single source of truth (mat-geo).
   function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 3440.065; // Earth radius in nautical miles
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
+    return MAT.geo.distanceNM(lat1, lon1, lat2, lon2);
   }
-  
+
   /**
-   * Calculate bearing from point 1 to point 2
+   * Calculate bearing from point 1 to point 2 (delegates to mat-geo).
    */
   function calculateBearing(lat1, lon1, lat2, lon2) {
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
-    const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
-              Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
-    let brng = Math.atan2(y, x) * 180 / Math.PI;
-    return (brng + 360) % 360;
+    return MAT.geo.bearing(lat1, lon1, lat2, lon2);
   }
   
   /**
