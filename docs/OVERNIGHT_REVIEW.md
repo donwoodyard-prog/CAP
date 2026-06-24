@@ -99,31 +99,34 @@ re-run of every tab still shows 0 console errors.
   "seems to work" with the default, so I left this for you to confirm the
   intended UX before wiring it.
 
-## Genuine findings worth your review (not auto-applied)
+## UX fixes — applied + findings
 
-These are design/UX matters, not bugs — I'm flagging rather than changing them,
-because the app is polished and these involve product decisions. Recommend
-reviewing together:
+When I went to actually apply the UX agent's backlog, most items turned out to
+be **already handled or intentional** (the agent over-claimed here too). The one
+genuinely-missing, high-value item I built and shipped:
 
-### UX (cockpit/field)
-1. **Night mode is a global red filter** (`.night-mode { filter: sepia… hue-rotate(-50deg) … }`,
-   css/mat-styles.css). Inputs get the same hue-rotate, so typed text is
-   red-shifted. This is *intentional* for night-vision preservation (standard
-   aviation practice), but worth confirming it's readable enough during data
-   entry. **Decision needed, not a clear bug.**
-2. **Some secondary text uses low-contrast gray** (#718096) — fine for hints,
-   borderline for anything important in direct sunlight. Could bump to #a0aec0
-   for any operationally-relevant text.
-3. **Empty states** — a few lists (e.g. ELT observations, log) may render blank
-   when empty rather than a "no data yet — tap Add" prompt. Low-risk, friendly
-   enhancement.
-4. **Action feedback** — some actions use `alert()`; an in-app toast
-   (success/error) would feel more responsive and less blocking in flight.
-5. **Destructive actions** (clear/reset mission data) — consider a clear danger
-   color + explicit confirm copy.
+- **✅ Non-blocking toast notifications** (`js/mat-toast.js` → `MAT.toast`). Pure
+  DOM (doesn't touch the React tree), auto-dismiss, tap-to-close, inherits night
+  mode. Replaced blocking `alert()` for: copy-to-clipboard, mission import,
+  share-code copy, Form 104 import, ForeFlight route copy, FPL download, DDM
+  copy. Verified headless (renders correctly, 0 errors). This was the agent's
+  #1 recommendation and the only one that was actually absent.
 
-(These came from the UX agent; I've kept only the plausible ones and dropped its
-speculative/unverified claims.)
+What the agent flagged that was **already done / intentional** (verified):
+- **Destructive-action confirmation** — already present: `clearAllData` uses
+  `confirm("Clear ALL application data? This will reset everything.")`
+  (index.html:4379) and data-protection uses a "cannot be undone" confirm.
+- **Empty states** — already present: ELT shows "STEP 1 / STEP 2" guidance and
+  "No observations yet"; Command Tools shows "Step 1: Upload Flight Tracks /
+  Step 2: Define Search Area".
+- **Night mode** — the global red filter is the *intended* night-vision design
+  (standard aviation practice), not a bug.
+- **Touch targets** — design system already defines `--mat-touch-min: 44px`;
+  home tiles and primary controls are large.
+
+Remaining low-value polish (optional, your call): a slight contrast bump on the
+muted `#718096` secondary text for sunlight legibility; wiring a few more
+success `alert()`s to toasts. Not done — diminishing returns on an already-polished UI.
 
 ---
 
