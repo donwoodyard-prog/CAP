@@ -139,3 +139,76 @@ FPL export mirror these. p222 confirms entry heading = **true north − mag var*
 
 _(Ch.7 section is sub-agent-synthesized with page cites; spot-verify specifics
 against the slides before shipping doctrine-derived UI text.)_
+
+---
+
+# Additional primary sources (OneDrive, 2026-06-24)
+
+Inflight Guide (NESA, Jul 2021, 148p), RT-600 user manual (54p), Becker SAR-DF 517
+manual (36p), "Prosecuting 406/121.5 MHz Distress Beacons", MP Flight Training Plan.
+
+## Grid system — VALIDATED ✅ (Inflight Guide p84)
+- **Conventional grid = 15′×15′** cells, numbered L→R / top→bottom per sectional;
+  quarter-grids 7.5′×7.5′ as A,B (top) / C,D (bottom). This is exactly the app's
+  system. Authoritative example **"MEM 353 = 32°45′N–33°N, 90°45′W–91°W"** —
+  **app reproduces it EXACTLY** (verified via mat-geo). Second independent
+  confirmation after capgrids.com.
+- A separate "Cell Grid" system (1°×1° → 30′×30′ A/B/C/D, named by SE corner, e.g.
+  MEM 353 = 32090AA) also exists; app uses the Conventional system. Fine.
+
+## POD table — CONFIRMED authoritative (Inflight Guide p94/106 = CAPF 104a)
+The table transcribed above (from training-deck p71) is the authoritative one. (An
+agent OCR of the Inflight Guide copy had a couple of obvious errors — e.g. 58% vs
+the correct 85% at 1000′/0.5mi/open/4mi, and an impossible "heavy-tree 40-80%" row;
+trust the table above.) Cumulative-POD is a non-linear lookup, not addition.
+
+## ELT detection range vs ALTITUDE — NEW authoritative table (Inflight Guide p70)
+Detection range scales with altitude (≈ line-of-sight, terrain-limited):
+```
+ 1,500′→16 NM   3,000′→26   5,000′→32   7,000′→44   10,000′→69
+12,000′→82     14,000′→95  16,000′→108  20,000′→133  30,000′→200  40,000′→265
+```
+This is **altitude→detection-range** (how far off you can hear an ELT), distinct
+from the app's **signal-strength→range** estimate. Good basis for an ELT-range
+calculator. (LOS ≈ 1.23·√ft is optimistic; this table is the CAP reference.)
+
+## ⚠️ ELT signal-strength→range model is NOT manufacturer-validated (RT-600 p32)
+The RT-600 manual **explicitly disclaims** any strength→distance relationship:
+"RHOTHETA does not offer … any guaranteed minimum range or distance." The unit
+shows **relative** field strength only (0–99% bar + squelch threshold). So the
+app's `r0 = r10·2^((10−strength)/k)` (r10≈8 NM, k≈3) is **app-specific theory, not
+RT-600-backed.** Action: label such range output as *approximate/theoretical*, and
+prefer the p70 altitude table for any "detection range" claim.
+
+## 406 MHz facts (Prosecuting 406/121.5 doc) — ELT Assist reference
+- 19 channels, **406.022–406.076 MHz** (Ch-1 406.022 = Reference; Ch-2 406.025 &
+  Ch-3 406.028 = SAR mode; Ch-4/5/6 in use today).
+- **Becker SAR-DF 517 only detects 406.025/406.028** (±0.005), i.e. 2 of 19
+  channels — a real limitation. **RT-600 monitors all** 406 channels (CAP is
+  upgrading 517→RT-600).
+- 406 homing on 121.5 is **0.025 W + 7″ antenna → <1/10 the radiated power** of
+  legacy 0.1 W/24″ beacons ⇒ often detectable only within **a few hundred yards**.
+- GPS-equipped 406 beacons: **<100 yd**; without GPS, **1–3 NM**.
+
+## Search patterns — re-confirmed (Inflight Guide p85–89)
+- **Sector (point-based)** p89: "radial legs from center like spokes… concentrated
+  coverage near center… easier to fly than expanding square." ✅ Confirms the new
+  Sector Search.
+- **Parallel/Grid** p86: **first leg offset ½S from the border**, turns outside the
+  grid. → verify the app's parallel generators apply the ½S first offset.
+- **Expanding Square** p88: 1S/2S/4S/8S doubling, optional 2nd pass +45°.
+- **Contour search** (mountain, qualified crews only) — intentionally not in app.
+
+## Other reference data the app could add (Inflight Guide)
+- **Turn radius / bank-angle** latitude-aware table & formulas (p87).
+- **Visual detection ranges** (p90): person/life-jacket ½ mi; raft ¾ mi; wooded
+  crash ½ mi; desert crash 2 mi. (Could inform "search visibility" input for POD.)
+- Lat/long decimal conversion chart (p110) — app already does this.
+
+## Top doctrine-driven actions (consolidated)
+1. ⭐ **POD-table calculator** (CAPF 104a) — required task O-2004; data captured.
+2. **ELT range:** add the p70 altitude→detection-range table; **label the
+   strength-based estimate as approximate** (not RT-600-validated).
+3. **Parallel/Grid:** confirm ½S first-leg offset.
+4. **406 channel reference** + Becker-vs-RT-600 capability note in ELT Assist.
+5. Optional: bank-angle calculator (p87); Expanding-Square +45° second pass.
