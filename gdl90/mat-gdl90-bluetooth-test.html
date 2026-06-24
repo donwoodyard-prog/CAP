@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAT GDL90 Bluetooth Connection Test</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-card: #0f3460;
+            --accent: #e94560;
+            --accent-hover: #ff6b6b;
+            --text-primary: #eaeaea;
+            --text-secondary: #a0a0a0;
+            --success: #4ecca3;
+            --warning: #ffc107;
+            --error: #e94560;
+            --border: #2a2a4a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        header p {
+            color: var(--text-secondary);
+        }
+
+        .support-status {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .support-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: var(--bg-secondary);
+            font-size: 0.9rem;
+        }
+
+        .support-badge.supported {
+            border: 1px solid var(--success);
+        }
+
+        .support-badge.not-supported {
+            border: 1px solid var(--error);
+            opacity: 0.7;
+        }
+
+        .support-badge .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .support-badge.supported .indicator {
+            background: var(--success);
+        }
+
+        .support-badge.not-supported .indicator {
+            background: var(--error);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 800px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .card h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h2 .icon {
+            font-size: 1.4rem;
+        }
+
+        .connection-panel {
+            grid-column: 1 / -1;
+        }
+
+        .connection-options {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .connection-option {
+            flex: 1;
+            min-width: 200px;
+            padding: 20px;
+            background: var(--bg-card);
+            border-radius: 10px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .connection-option:hover {
+            border-color: var(--accent);
+        }
+
+        .connection-option.selected {
+            border-color: var(--accent);
+            background: rgba(233, 69, 96, 0.1);
+        }
+
+        .connection-option.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .connection-option h3 {
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+
+        .connection-option p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--border);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .status-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+        }
+
+        .status-indicator.connected {
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connecting {
+            background: var(--warning);
+            animation: pulse 0.5s infinite;
+        }
+
+        .status-indicator.error {
+            background: var(--error);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-text {
+            flex: 1;
+        }
+
+        .status-text .label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .status-text .value {
+            font-weight: 600;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: var(--bg-card);
+            border-radius: 8px;
+        }
+
+        .stat-item .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-item .label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        .data-display {
+            height: 300px;
+            overflow-y: auto;
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85rem;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 8px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+            border-left: 3px solid var(--border);
+        }
+
+        .log-entry.info {
+            border-left-color: var(--accent);
+        }
+
+        .log-entry.success {
+            border-left-color: var(--success);
+        }
+
+        .log-entry.warning {
+            border-left-color: var(--warning);
+        }
+
+        .log-entry.error {
+            border-left-color: var(--error);
+        }
+
+        .log-entry .timestamp {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+        }
+
+        .weather-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .weather-item {
+            padding: 12px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .weather-item .station {
+            font-weight: 700;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .weather-item .category {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .category.vfr { background: #4ecca3; color: #000; }
+        .category.mvfr { background: #4dabf7; color: #000; }
+        .category.ifr { background: #e94560; color: #fff; }
+        .category.lifr { background: #9c36b5; color: #fff; }
+
+        .weather-item .raw {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 8px;
+            word-break: break-all;
+        }
+
+        .weather-item .time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .instructions {
+            background: rgba(233, 69, 96, 0.1);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: var(--accent);
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+        }
+
+        .file-input-wrapper {
+            margin-top: 15px;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            display: none;
+        }
+
+        .file-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: var(--bg-card);
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-label:hover {
+            border-color: var(--accent);
+        }
+
+        /* Traffic display */
+        .traffic-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .traffic-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: var(--bg-card);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .traffic-item .callsign {
+            font-weight: 700;
+            font-family: monospace;
+        }
+
+        .traffic-item .details {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛩️ MAT GDL90 Bluetooth Connection</h1>
+            <p>Connect to ADS-B receivers via Bluetooth for weather and traffic data</p>
+            
+            <div class="support-status" id="supportStatus">
+                <!-- Filled by JavaScript -->
+            </div>
+        </header>
+
+        <div class="grid">
+            <!-- Connection Panel -->
+            <div class="card connection-panel">
+                <h2><span class="icon">📡</span> Connection</h2>
+
+                <div class="instructions">
+                    <h3>Before Connecting:</h3>
+                    <ol>
+                        <li>Pair your ADS-B device with your computer/phone via system Bluetooth settings</li>
+                        <li>For GDL 50/52: Enable Bluetooth on the device and pair it</li>
+                        <li>Click "Connect Bluetooth" and select your device from the list</li>
+                        <li>Some devices may require selecting a specific COM port</li>
+                    </ol>
+                </div>
+
+                <div class="connection-options" id="connectionOptions">
+                    <div class="connection-option" data-type="spp" id="optSPP">
+                        <h3>🔌 Bluetooth Serial (SPP)</h3>
+                        <p>Garmin GDL 50/52, Dual XGPS, Bad Elf, most ADS-B receivers</p>
+                    </div>
+                    <div class="connection-option" data-type="ble" id="optBLE">
+                        <h3>📶 Bluetooth Low Energy</h3>
+                        <p>Some newer BLE-based receivers (experimental)</p>
+                    </div>
+                    <div class="connection-option" data-type="file" id="optFile">
+                        <h3>📁 Test File</h3>
+                        <p>Load recorded GDL90 data for testing</p>
+                    </div>
+                </div>
+
+                <div class="status-display">
+                    <div class="status-indicator" id="statusIndicator"></div>
+                    <div class="status-text">
+                        <div class="label">Status</div>
+                        <div class="value" id="statusText">Disconnected</div>
+                    </div>
+                    <div class="status-text">
+                        <div class="label">Device</div>
+                        <div class="value" id="deviceName">None</div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="btnConnect">
+                        <span>📡</span> Connect Bluetooth
+                    </button>
+                    <button class="btn btn-secondary" id="btnDisconnect" disabled>
+                        <span>✖</span> Disconnect
+                    </button>
+                </div>
+
+                <div class="file-input-wrapper" id="fileInputWrapper" style="display: none;">
+                    <label class="file-label" for="fileInput">
+                        <span>📂</span> Choose GDL90 File
+                    </label>
+                    <input type="file" id="fileInput" accept=".gdl90,.bin,.raw">
+                </div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="card">
+                <h2><span class="icon">📊</span> Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="value" id="statBytes">0</div>
+                        <div class="label">Bytes Received</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="statMessages">0</div>
+                        <div class="label">Messages</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="statMETARs">0</div>
+                        <div class="label">METARs</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="statTraffic">0</div>
+                        <div class="label">Traffic</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="statUptime">00:00</div>
+                        <div class="label">Uptime</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="statErrors">0</div>
+                        <div class="label">Errors</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message Log -->
+            <div class="card">
+                <h2><span class="icon">📝</span> Message Log</h2>
+                <div class="data-display" id="logDisplay">
+                    <div class="empty-state">
+                        <div class="icon">📭</div>
+                        <p>No messages yet. Connect to a device to start receiving data.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weather Data -->
+            <div class="card">
+                <h2><span class="icon">🌤️</span> Weather (METARs)</h2>
+                <div class="weather-list" id="weatherList">
+                    <div class="empty-state">
+                        <div class="icon">☁️</div>
+                        <p>No weather data received yet.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAFs -->
+            <div class="card">
+                <h2><span class="icon">📅</span> Forecasts (TAFs)</h2>
+                <div class="weather-list" id="tafList">
+                    <div class="empty-state">
+                        <div class="icon">📅</div>
+                        <p>No TAF data received yet.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Traffic -->
+            <div class="card">
+                <h2><span class="icon">✈️</span> Traffic</h2>
+                <div class="traffic-list" id="trafficList">
+                    <div class="empty-state">
+                        <div class="icon">✈️</div>
+                        <p>No traffic data received yet.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load GDL90 modules -->
+    <script src="mat-gdl90.js"></script>
+    <script src="mat-gdl90-bluetooth.js"></script>
+
+    <script>
+        // State
+        let receiver = null;
+        let connection = null;
+        let selectedType = 'spp';
+        let stats = {
+            bytes: 0,
+            messages: 0,
+            metars: 0,
+            tafs: 0,
+            traffic: 0,
+            errors: 0,
+            startTime: null
+        };
+        let logEntries = [];
+        const MAX_LOG_ENTRIES = 100;
+
+        // DOM Elements
+        const elements = {
+            supportStatus: document.getElementById('supportStatus'),
+            statusIndicator: document.getElementById('statusIndicator'),
+            statusText: document.getElementById('statusText'),
+            deviceName: document.getElementById('deviceName'),
+            btnConnect: document.getElementById('btnConnect'),
+            btnDisconnect: document.getElementById('btnDisconnect'),
+            fileInputWrapper: document.getElementById('fileInputWrapper'),
+            fileInput: document.getElementById('fileInput'),
+            logDisplay: document.getElementById('logDisplay'),
+            weatherList: document.getElementById('weatherList'),
+            tafList: document.getElementById('tafList'),
+            trafficList: document.getElementById('trafficList'),
+            optSPP: document.getElementById('optSPP'),
+            optBLE: document.getElementById('optBLE'),
+            optFile: document.getElementById('optFile'),
+            statBytes: document.getElementById('statBytes'),
+            statMessages: document.getElementById('statMessages'),
+            statMETARs: document.getElementById('statMETARs'),
+            statTraffic: document.getElementById('statTraffic'),
+            statUptime: document.getElementById('statUptime'),
+            statErrors: document.getElementById('statErrors')
+        };
+
+        // Initialize
+        function init() {
+            checkBrowserSupport();
+            setupEventListeners();
+            initReceiver();
+            startStatsUpdate();
+        }
+
+        // Check browser support
+        function checkBrowserSupport() {
+            const webSerial = MATGDL90Bluetooth.isWebSerialSupported();
+            const webBluetooth = MATGDL90Bluetooth.isWebBluetoothSupported();
+
+            let html = '';
+
+            html += `<div class="support-badge ${webSerial ? 'supported' : 'not-supported'}">
+                <div class="indicator"></div>
+                <span>Web Serial (SPP): ${webSerial ? 'Supported' : 'Not Supported'}</span>
+            </div>`;
+
+            html += `<div class="support-badge ${webBluetooth ? 'supported' : 'not-supported'}">
+                <div class="indicator"></div>
+                <span>Web Bluetooth (BLE): ${webBluetooth ? 'Supported' : 'Not Supported'}</span>
+            </div>`;
+
+            elements.supportStatus.innerHTML = html;
+
+            // Update connection options
+            if (!webSerial) {
+                elements.optSPP.classList.add('disabled');
+            }
+            if (!webBluetooth) {
+                elements.optBLE.classList.add('disabled');
+            }
+
+            // Select first available option
+            if (webSerial) {
+                selectConnectionType('spp');
+            } else if (webBluetooth) {
+                selectConnectionType('ble');
+            } else {
+                selectConnectionType('file');
+            }
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            elements.btnConnect.addEventListener('click', handleConnect);
+            elements.btnDisconnect.addEventListener('click', handleDisconnect);
+            elements.fileInput.addEventListener('change', handleFileSelect);
+
+            // Connection type selection
+            document.querySelectorAll('.connection-option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    if (!opt.classList.contains('disabled')) {
+                        selectConnectionType(opt.dataset.type);
+                    }
+                });
+            });
+        }
+
+        // Select connection type
+        function selectConnectionType(type) {
+            selectedType = type;
+
+            document.querySelectorAll('.connection-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+
+            const selected = document.querySelector(`[data-type="${type}"]`);
+            if (selected) {
+                selected.classList.add('selected');
+            }
+
+            // Show/hide file input
+            elements.fileInputWrapper.style.display = type === 'file' ? 'block' : 'none';
+
+            // Update button text
+            if (type === 'file') {
+                elements.btnConnect.innerHTML = '<span>📂</span> Load File';
+            } else {
+                elements.btnConnect.innerHTML = '<span>📡</span> Connect Bluetooth';
+            }
+        }
+
+        // Initialize GDL90 receiver
+        function initReceiver() {
+            receiver = new MATGDL90.GDL90Receiver({
+                onMessage: handleMessage,
+                onWeather: handleWeather,
+                onTraffic: handleTraffic,
+                onOwnship: handleOwnship
+            });
+        }
+
+        // Handle connect button
+        async function handleConnect() {
+            try {
+                if (selectedType === 'file') {
+                    elements.fileInput.click();
+                    return;
+                }
+
+                updateStatus('connecting', 'Connecting...');
+                elements.btnConnect.disabled = true;
+
+                if (selectedType === 'spp') {
+                    connection = new MATGDL90Bluetooth.BluetoothSPPConnection(receiver, {
+                        onStateChange: handleStateChange,
+                        onError: handleError
+                    });
+                } else if (selectedType === 'ble') {
+                    connection = new MATGDL90Bluetooth.BluetoothBLEConnection(receiver, {
+                        onStateChange: handleStateChange,
+                        onError: handleError
+                    });
+                }
+
+                await connection.connect();
+                stats.startTime = Date.now();
+                addLog('success', 'Connected to device');
+
+            } catch (e) {
+                console.error('Connection error:', e);
+                updateStatus('error', 'Connection failed');
+                addLog('error', `Connection failed: ${e.message}`);
+                elements.btnConnect.disabled = false;
+            }
+        }
+
+        // Handle disconnect
+        function handleDisconnect() {
+            if (connection) {
+                connection.disconnect();
+                connection = null;
+            }
+            updateStatus('disconnected', 'Disconnected');
+            elements.btnConnect.disabled = false;
+            elements.btnDisconnect.disabled = true;
+            addLog('info', 'Disconnected');
+        }
+
+        // Handle file selection
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                addLog('info', `Loading file: ${file.name}`);
+                const buffer = await file.arrayBuffer();
+                const data = new Uint8Array(buffer);
+
+                stats.bytes += data.length;
+                stats.startTime = Date.now();
+
+                receiver.feed(data);
+                addLog('success', `Processed ${data.length} bytes from file`);
+
+            } catch (e) {
+                addLog('error', `Failed to load file: ${e.message}`);
+            }
+        }
+
+        // Handle connection state change
+        function handleStateChange(state, previousState) {
+            console.log(`State change: ${previousState} -> ${state}`);
+
+            switch (state) {
+                case 'connected':
+                case 'reading':
+                    updateStatus('connected', state === 'reading' ? 'Receiving data...' : 'Connected');
+                    elements.btnConnect.disabled = true;
+                    elements.btnDisconnect.disabled = false;
+                    break;
+                case 'connecting':
+                    updateStatus('connecting', 'Connecting...');
+                    break;
+                case 'disconnected':
+                    updateStatus('disconnected', 'Disconnected');
+                    elements.btnConnect.disabled = false;
+                    elements.btnDisconnect.disabled = true;
+                    break;
+                case 'error':
+                    updateStatus('error', 'Error');
+                    elements.btnConnect.disabled = false;
+                    elements.btnDisconnect.disabled = true;
+                    break;
+            }
+        }
+
+        // Handle error
+        function handleError(error) {
+            stats.errors++;
+            addLog('error', error.message);
+        }
+
+        // Handle GDL90 message
+        function handleMessage(msg) {
+            stats.messages++;
+
+            if (msg.type === 'heartbeat') {
+                // Don't log every heartbeat
+                return;
+            }
+
+            let text = `Message type: ${msg.type}`;
+            if (msg.type === 'ownship' || msg.type === 'traffic') {
+                text += ` - ${msg.callsign || 'N/A'} at ${msg.altitude || 0}ft`;
+            }
+            addLog('info', text);
+        }
+
+        // Handle weather data
+        function handleWeather(type, data) {
+            if (type === 'metar') {
+                stats.metars++;
+                updateWeatherDisplay(data);
+                addLog('success', `METAR: ${data.stationId}`);
+            } else if (type === 'taf') {
+                stats.tafs++;
+                updateTafDisplay(data);
+                addLog('success', `TAF: ${data.stationId}`);
+            }
+        }
+
+        // Handle traffic
+        function handleTraffic(traffic) {
+            stats.traffic++;
+            updateTrafficDisplay(traffic);
+        }
+
+        // Handle ownship position
+        function handleOwnship(position) {
+            elements.deviceName.textContent = position.callsign || 'Ownship';
+        }
+
+        // Update status display
+        function updateStatus(state, text) {
+            elements.statusIndicator.className = 'status-indicator ' + state;
+            elements.statusText.textContent = text;
+        }
+
+        // Add log entry
+        function addLog(type, message) {
+            const now = new Date();
+            const timestamp = now.toLocaleTimeString();
+
+            logEntries.unshift({ type, message, timestamp });
+
+            if (logEntries.length > MAX_LOG_ENTRIES) {
+                logEntries.pop();
+            }
+
+            let html = '';
+            for (const entry of logEntries) {
+                html += `<div class="log-entry ${entry.type}">
+                    <span class="timestamp">${entry.timestamp}</span> ${entry.message}
+                </div>`;
+            }
+
+            elements.logDisplay.innerHTML = html || '<div class="empty-state"><div class="icon">📭</div><p>No messages yet.</p></div>';
+        }
+
+        // Weather storage
+        const metars = new Map();
+        const tafs = new Map();
+        const trafficMap = new Map();
+
+        // Update weather display
+        function updateWeatherDisplay(metar) {
+            metars.set(metar.stationId, metar);
+
+            let html = '';
+            for (const [station, data] of metars) {
+                const category = data.flightCategory || 'Unknown';
+                const categoryClass = category.toLowerCase();
+
+                html += `<div class="weather-item">
+                    <div class="station">
+                        ${station}
+                        <span class="category ${categoryClass}">${category}</span>
+                    </div>
+                    <div class="raw">${data.rawText || ''}</div>
+                    <div class="time">${data.time || ''}</div>
+                </div>`;
+            }
+
+            elements.weatherList.innerHTML = html || '<div class="empty-state"><div class="icon">☁️</div><p>No weather data.</p></div>';
+        }
+
+        // Update TAF display
+        function updateTafDisplay(taf) {
+            tafs.set(taf.stationId, taf);
+
+            let html = '';
+            for (const [station, data] of tafs) {
+                html += `<div class="weather-item">
+                    <div class="station">${station}</div>
+                    <div class="raw">${data.rawText || ''}</div>
+                    <div class="time">${data.time || ''}</div>
+                </div>`;
+            }
+
+            elements.tafList.innerHTML = html || '<div class="empty-state"><div class="icon">📅</div><p>No TAF data.</p></div>';
+        }
+
+        // Update traffic display
+        function updateTrafficDisplay(traffic) {
+            trafficMap.set(traffic.address, traffic);
+
+            // Remove old traffic (>60 seconds)
+            const now = Date.now();
+            for (const [addr, t] of trafficMap) {
+                if (now - t.timestamp > 60000) {
+                    trafficMap.delete(addr);
+                }
+            }
+
+            let html = '';
+            for (const [addr, t] of trafficMap) {
+                html += `<div class="traffic-item">
+                    <div>
+                        <div class="callsign">${t.callsign || addr.toString(16).toUpperCase()}</div>
+                        <div class="details">${t.altitude || 0}ft | ${t.speed || 0}kts | ${t.heading || 0}°</div>
+                    </div>
+                </div>`;
+            }
+
+            elements.trafficList.innerHTML = html || '<div class="empty-state"><div class="icon">✈️</div><p>No traffic.</p></div>';
+        }
+
+        // Update stats periodically
+        function startStatsUpdate() {
+            setInterval(() => {
+                // Update from connection stats if available
+                if (connection && connection.getStats) {
+                    const connStats = connection.getStats();
+                    stats.bytes = connStats.bytesReceived || stats.bytes;
+                }
+
+                elements.statBytes.textContent = formatBytes(stats.bytes);
+                elements.statMessages.textContent = stats.messages.toLocaleString();
+                elements.statMETARs.textContent = stats.metars;
+                elements.statTraffic.textContent = trafficMap.size;
+                elements.statErrors.textContent = stats.errors;
+
+                if (stats.startTime) {
+                    const elapsed = Math.floor((Date.now() - stats.startTime) / 1000);
+                    const mins = Math.floor(elapsed / 60);
+                    const secs = elapsed % 60;
+                    elements.statUptime.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                }
+            }, 1000);
+        }
+
+        // Format bytes
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>

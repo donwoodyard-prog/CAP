@@ -1,0 +1,163 @@
+MISSION FLIGHT PLAN/BRIEFING FORM
+Tracking Number
+Demo Snowmobile Search
+
+MISSION DATA SECTION
+Mission Number
+23-A-0071
+Mission Name
+Missing Snowmobiler, Mountain Terrain
+Mission Symbol
+A1
+Mission Date
+03/17/2023
+
+MANIFEST, QUALIFICATIONS & AIRCRAFT DETAILS
+Pilot (Name & CAPID)
+Demo , Frank A (555111) MP
+Crew Member / Passenger 1 (Name & CAPID)
+Sample , Pamela L (555222) MS
+Crew Member / Passenger 2 (Name & CAPID)
+Test , Patricia R (555333) MS
+Crew Member / Passenger 3 (Name & CAPID)
+
+Crew Member / Passenger 4 (Name & CAPID)
+
+Crew Member / Passenger 5 (Name & CAPID)
+
+Crew Member / Passenger 6 (Name & CAPID)
+
+Crew Member / Passenger 7 (Name & CAPID)
+
+Crew Contact (Phone, E-mail, etc.)
+208-555-0199 demo.pilot@example.com
+
+Tail Number
+N702CP
+Callsign
+CAP 1070
+Type
+C182/G1000
+TAS (Knots)
+124
+Color/Description
+R/W/B
+CAP
+Member
+Owned
+Fuel (In Hours)
+5
+Home Base
+KBOI
+
+Aircraft & Aircrew Equipment
+Transponder VOR DME
+Autopilot GPS - G1000 CAP FM Radio
+Becker DF Digital Camera Survival Kit
+Other Equipment: ADS-B IN/OUT
+
+RELEASING OFFICERS
+Phone Briefing Briefer (Name & CAPID)
+
+Flight Release Officer (Name & CAPID)
+Capt Demo R. Officer (555444)
+Flight Release DTM (MDT)
+03/17/2023 09:46 AM
+
+Page 1 of 4
+
+BRIEFING INFORMATION
+Facility
+Sortie #
+A0020
+Sortie Type
+Search & Rescue
+Area of Operations
+Kirkham Ridge, Red Mountain Area
+
+Dep. Airport
+KMAN
+Dest. Airport
+KMAN
+ETD (MDT)
+10:00
+ETA (MDT)
+13:00
+
+Base Telephone
+208-555-0110
+Base Callsign
+Nampa Base
+Channels
+Base Air/Ground Air/Air
+CC1 R57P SARS025
+
+Required Radio Checks and Contacts
+Check in at 15 and 45 after the hour
+
+Other Aircraft in Area (Location & Callsign)
+High Bird
+Ground Teams in Area (Location & Callsign)
+Ground Team Alpha
+
+Sortie Objectives
+Search for a missing snowmobiler operating a black and purple snowmobile with red skis. Subject last seen wearing military green outerwear and a green helmet. Begin search at LKP GPS 44.08043, -115.56579 and work the Kirkham Ridge Trail system from Highway 21. Search drainages, draws, and avalanche-prone areas. Document and photograph any snowmobile tracks entering or exiting avalanche zones. Victim may be on foot.
+
+Sortie Deliverables
+Coordinates, photographs, and detailed observations
+
+Actions To Be Taken On Objectives & Deliverables
+Coordinate findings with ground teams on SARS025 and report lat/long immediately
+
+Route of Flight
+KMAN to assigned grid area, systematic search as briefed
+
+Altitude Assignment & restrictions
+1000 AGL
+Airspeed Expected & Restrictions
+As needed
+
+Aircraft Separation (Adjoining Areas)
+N/A
+
+Emergency / Alternate Fields
+Cascade
+
+Military Low Altitude Training Routes
+N/A
+
+Hazards To Flight
+Mountainous terrain, rapidly changing weather, avalanche zones
+
+Weather (Current & Forecast)
+Current Local
+VFR
+Current En Route
+VFR
+Current Area of Operations
+VFR
+Forecast Local
+VFR
+Forecast En Route
+VFR
+Forecast Area of Operations
+VFR
+
+Page 2 of 4
+
+BRIEFING INFORMATION CONTINUED
+Flight Plan Required Flight Plan Filed Flight Plan Opened
+ORM Matrix Complete Low Moderate High Risk Assessment Approval
+
+Special Instructions (Including Risk Mitigation Procedures)
+Maintain terrain clearance, avoid known avalanche paths, monitor winds near ridgelines
+
+Crew Notes
+Maintain sterile cockpit during low-level search. Prioritize visual scanning and photographic documentation. Log all observations with time and coordinates.
+
+
+Results/Deliverables
+ICS-214 completed, 5 photographs captured, 3 GPS track logs recorded
+
+Weather Conditions
+Clear and smooth

@@ -1,0 +1,2103 @@
+{
+  "meta": {
+    "source_dir": "https://radar.weather.gov/ridge/standard/",
+    "notes": [
+      "WSR-88D (NEXRAD) coordinates from NOAA ROC official site list.",
+      "TDWR coordinates from FAA/NWS official documentation.",
+      "Loop GIF URL pattern: https://radar.weather.gov/ridge/standard/{SITE_ID}_loop.gif"
+    ],
+    "count": 204,
+    "by_network": {
+      "TDWR": 45,
+      "WSR-88D": 159
+    },
+    "updated": "2026-01-25"
+  },
+  "sites": [
+    {
+      "network": "WSR-88D",
+      "site_id": "KABR",
+      "site_name": "Aberdeen, SD",
+      "owner": "NWS",
+      "lat": 45.4558,
+      "lon": -98.4131,
+      "elevation_ft": 1383,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KABR_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KENX",
+      "site_name": "Albany, NY",
+      "owner": "NWS",
+      "lat": 42.5864,
+      "lon": -74.0639,
+      "elevation_ft": 1934,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KENX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KABX",
+      "site_name": "Albuquerque, NM",
+      "owner": "NWS",
+      "lat": 35.1497,
+      "lon": -106.8239,
+      "elevation_ft": 5950,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KABX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KAMA",
+      "site_name": "Amarillo, TX",
+      "owner": "NWS",
+      "lat": 35.2333,
+      "lon": -101.7092,
+      "elevation_ft": 3702,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KAMA_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PAHG",
+      "site_name": "Anchorage/Kenai, AK",
+      "owner": "FAA",
+      "lat": 60.7258,
+      "lon": -151.3514,
+      "elevation_ft": 356,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PAHG_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PGUA",
+      "site_name": "Andersen AFB, Guam",
+      "owner": "DOD",
+      "lat": 13.4544,
+      "lon": 144.8111,
+      "elevation_ft": 386,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PGUA_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KFFC",
+      "site_name": "Atlanta, GA",
+      "owner": "NWS",
+      "lat": 33.3636,
+      "lon": -84.5658,
+      "elevation_ft": 972,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KFFC_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KBBX",
+      "site_name": "Beale AFB, CA",
+      "owner": "DOD",
+      "lat": 39.4961,
+      "lon": -121.6317,
+      "elevation_ft": 221,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KBBX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PABC",
+      "site_name": "Bethel, AK",
+      "owner": "FAA",
+      "lat": 60.7919,
+      "lon": -161.8764,
+      "elevation_ft": 193,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PABC_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KBLX",
+      "site_name": "Billings, MT",
+      "owner": "NWS",
+      "lat": 45.8539,
+      "lon": -108.6067,
+      "elevation_ft": 3702,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KBLX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KBGM",
+      "site_name": "Binghamton, NY",
+      "owner": "NWS",
+      "lat": 42.1997,
+      "lon": -75.985,
+      "elevation_ft": 1703,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KBGM_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PACG",
+      "site_name": "Biorka Island/Sitka, AK",
+      "owner": "FAA",
+      "lat": 56.8525,
+      "lon": -135.5294,
+      "elevation_ft": 272,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PACG_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KBMX",
+      "site_name": "Birmingham, AL",
+      "owner": "NWS",
+      "lat": 33.1722,
+      "lon": -86.7697,
+      "elevation_ft": 759,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KBMX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KBIS",
+      "site_name": "Bismarck, ND",
+      "owner": "NWS",
+      "lat": 46.7708,
+      "lon": -100.7606,
+      "elevation_ft": 1755,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KBIS_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KFCX",
+      "site_name": "Blacksburg, VA",
+      "owner": "NWS",
+      "lat": 37.0242,
+      "lon": -80.2742,
+      "elevation_ft": 2965,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KFCX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KCBX",
+      "site_name": "Boise, ID",
+      "owner": "NWS",
+      "lat": 43.4908,
+      "lon": -116.2356,
+      "elevation_ft": 3171,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KCBX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KBOX",
+      "site_name": "Boston, MA",
+      "owner": "NWS",
+      "lat": 41.9556,
+      "lon": -71.1369,
+      "elevation_ft": 232,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KBOX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KBRO",
+      "site_name": "Brownsville, TX",
+      "owner": "NWS",
+      "lat": 25.9161,
+      "lon": -97.4189,
+      "elevation_ft": 88,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KBRO_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KBUF",
+      "site_name": "Buffalo, NY",
+      "owner": "NWS",
+      "lat": 42.9489,
+      "lon": -78.7367,
+      "elevation_ft": 790,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KBUF_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KCXX",
+      "site_name": "Burlington, VT",
+      "owner": "NWS",
+      "lat": 44.5111,
+      "lon": -73.1667,
+      "elevation_ft": 431,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KCXX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "RKSG",
+      "site_name": "Camp Humphreys, KO",
+      "owner": "DOD",
+      "lat": 36.9536,
+      "lon": 127.0219,
+      "elevation_ft": 1521,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/RKSG_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KFDX",
+      "site_name": "Cannon AFB, NM",
+      "owner": "DOD",
+      "lat": 34.6353,
+      "lon": -103.6189,
+      "elevation_ft": 4697,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KFDX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KCBW",
+      "site_name": "Caribou, ME",
+      "owner": "NWS",
+      "lat": 46.0392,
+      "lon": -67.8067,
+      "elevation_ft": 860,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KCBW_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KICX",
+      "site_name": "Cedar City, UT",
+      "owner": "NWS",
+      "lat": 37.5908,
+      "lon": -112.8622,
+      "elevation_ft": 10754,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KICX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KGRK",
+      "site_name": "Central Texas/Ft Hood, TX",
+      "owner": "DOD",
+      "lat": 30.7217,
+      "lon": -97.3828,
+      "elevation_ft": 603,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KGRK_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KCLX",
+      "site_name": "Charleston, SC",
+      "owner": "NWS",
+      "lat": 32.6556,
+      "lon": -81.0422,
+      "elevation_ft": 229,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KCLX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KRLX",
+      "site_name": "Charleston, WV",
+      "owner": "NWS",
+      "lat": 38.3111,
+      "lon": -81.7231,
+      "elevation_ft": 1213,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KRLX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KCYS",
+      "site_name": "Cheyenne, WY",
+      "owner": "NWS",
+      "lat": 41.1519,
+      "lon": -104.8061,
+      "elevation_ft": 6191,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KCYS_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLOT",
+      "site_name": "Chicago, IL",
+      "owner": "NWS",
+      "lat": 41.6044,
+      "lon": -88.0847,
+      "elevation_ft": 760,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLOT_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KILN",
+      "site_name": "Cincinnati/Wilmington, OH",
+      "owner": "NWS",
+      "lat": 39.4203,
+      "lon": -83.8217,
+      "elevation_ft": 1170,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KILN_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KCLE",
+      "site_name": "Cleveland, OH",
+      "owner": "NWS",
+      "lat": 41.4131,
+      "lon": -81.8597,
+      "elevation_ft": 860,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KCLE_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KCAE",
+      "site_name": "Columbia, SC",
+      "owner": "NWS",
+      "lat": 33.9486,
+      "lon": -81.1186,
+      "elevation_ft": 345,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KCAE_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KGWX",
+      "site_name": "Columbus AFB, MS",
+      "owner": "DOD",
+      "lat": 33.8967,
+      "lon": -88.3292,
+      "elevation_ft": 589,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KGWX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KCRP",
+      "site_name": "Corpus Christi, TX",
+      "owner": "NWS",
+      "lat": 27.7842,
+      "lon": -97.5111,
+      "elevation_ft": 142,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KCRP_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KFTG",
+      "site_name": "Denver, CO",
+      "owner": "NWS",
+      "lat": 39.7867,
+      "lon": -104.5458,
+      "elevation_ft": 5609,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KFTG_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDMX",
+      "site_name": "Des Moines, IA",
+      "owner": "NWS",
+      "lat": 41.7311,
+      "lon": -93.7228,
+      "elevation_ft": 1095,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDMX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDTX",
+      "site_name": "Detroit, MI",
+      "owner": "NWS",
+      "lat": 42.6997,
+      "lon": -83.4717,
+      "elevation_ft": 1216,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDTX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDDC",
+      "site_name": "Dodge City, KS",
+      "owner": "NWS",
+      "lat": 37.7608,
+      "lon": -99.9686,
+      "elevation_ft": 2670,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDDC_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDOX",
+      "site_name": "Dover AFB, DE",
+      "owner": "DOD",
+      "lat": 38.8256,
+      "lon": -75.4400,
+      "elevation_ft": 164,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDOX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDLH",
+      "site_name": "Duluth, MN",
+      "owner": "NWS",
+      "lat": 46.8369,
+      "lon": -92.2097,
+      "elevation_ft": 1541,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDLH_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDYX",
+      "site_name": "Dyess AFB, TX",
+      "owner": "DOD",
+      "lat": 32.5386,
+      "lon": -99.2542,
+      "elevation_ft": 1581,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDYX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KEYX",
+      "site_name": "Edwards AFB, CA",
+      "owner": "DOD",
+      "lat": 35.0978,
+      "lon": -117.5608,
+      "elevation_ft": 2872,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KEYX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KEPZ",
+      "site_name": "El Paso, TX",
+      "owner": "NWS",
+      "lat": 31.8731,
+      "lon": -106.6978,
+      "elevation_ft": 4217,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KEPZ_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLRX",
+      "site_name": "Elko, NV",
+      "owner": "NWS",
+      "lat": 40.7397,
+      "lon": -116.8025,
+      "elevation_ft": 6894,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLRX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KBHX",
+      "site_name": "Eureka, CA",
+      "owner": "NWS",
+      "lat": 40.4986,
+      "lon": -124.2917,
+      "elevation_ft": 2515,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KBHX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KVWX",
+      "site_name": "Evansville, IN",
+      "owner": "NWS",
+      "lat": 38.2603,
+      "lon": -87.7247,
+      "elevation_ft": 625,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KVWX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PAPD",
+      "site_name": "Fairbanks/Pedro Dome, AK",
+      "owner": "FAA",
+      "lat": 65.0350,
+      "lon": -147.5014,
+      "elevation_ft": 2706,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PAPD_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KFSX",
+      "site_name": "Flagstaff, AZ",
+      "owner": "NWS",
+      "lat": 34.5744,
+      "lon": -111.1983,
+      "elevation_ft": 7513,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KFSX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KSRX",
+      "site_name": "Fort Smith, AR",
+      "owner": "NWS",
+      "lat": 35.2903,
+      "lon": -94.3617,
+      "elevation_ft": 737,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KSRX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KFDR",
+      "site_name": "Frederick/Altus AFB, OK",
+      "owner": "DOD",
+      "lat": 34.3622,
+      "lon": -98.9764,
+      "elevation_ft": 1315,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KFDR_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KHPX",
+      "site_name": "Ft Campbell, KY",
+      "owner": "DOD",
+      "lat": 36.7369,
+      "lon": -87.2850,
+      "elevation_ft": 624,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KHPX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KPOE",
+      "site_name": "Ft Polk, LA",
+      "owner": "DOD",
+      "lat": 31.1556,
+      "lon": -92.9758,
+      "elevation_ft": 473,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KPOE_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KEOX",
+      "site_name": "Ft Rucker, AL",
+      "owner": "DOD",
+      "lat": 31.4606,
+      "lon": -85.4594,
+      "elevation_ft": 537,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KEOX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KFWS",
+      "site_name": "Ft Worth, TX",
+      "owner": "NWS",
+      "lat": 32.5731,
+      "lon": -97.3031,
+      "elevation_ft": 776,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KFWS_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KAPX",
+      "site_name": "Gaylord, MI",
+      "owner": "NWS",
+      "lat": 44.9072,
+      "lon": -84.7197,
+      "elevation_ft": 1561,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KAPX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KGGW",
+      "site_name": "Glasgow, MT",
+      "owner": "NWS",
+      "lat": 48.2064,
+      "lon": -106.6250,
+      "elevation_ft": 2384,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KGGW_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KGLD",
+      "site_name": "Goodland, KS",
+      "owner": "NWS",
+      "lat": 39.3667,
+      "lon": -101.7003,
+      "elevation_ft": 3715,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KGLD_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMVX",
+      "site_name": "Grand Forks, ND",
+      "owner": "NWS",
+      "lat": 47.5278,
+      "lon": -97.3256,
+      "elevation_ft": 1083,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMVX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KGJX",
+      "site_name": "Grand Junction, CO",
+      "owner": "NWS",
+      "lat": 39.0619,
+      "lon": -108.2139,
+      "elevation_ft": 10098,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KGJX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KGRR",
+      "site_name": "Grand Rapids, MI",
+      "owner": "NWS",
+      "lat": 42.8939,
+      "lon": -85.5447,
+      "elevation_ft": 875,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KGRR_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KTFX",
+      "site_name": "Great Falls, MT",
+      "owner": "NWS",
+      "lat": 47.4597,
+      "lon": -111.3856,
+      "elevation_ft": 3804,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KTFX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KGRB",
+      "site_name": "Green Bay, WI",
+      "owner": "NWS",
+      "lat": 44.4983,
+      "lon": -88.1111,
+      "elevation_ft": 806,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KGRB_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KGSP",
+      "site_name": "Greer, SC",
+      "owner": "NWS",
+      "lat": 34.8833,
+      "lon": -82.2200,
+      "elevation_ft": 1068,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KGSP_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KUEX",
+      "site_name": "Hastings, NE",
+      "owner": "NWS",
+      "lat": 40.3208,
+      "lon": -98.4417,
+      "elevation_ft": 2057,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KUEX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KHDX",
+      "site_name": "Holloman AFB, NM",
+      "owner": "DOD",
+      "lat": 33.0769,
+      "lon": -106.1231,
+      "elevation_ft": 4269,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KHDX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KHGX",
+      "site_name": "Houston, TX",
+      "owner": "NWS",
+      "lat": 29.4719,
+      "lon": -95.0789,
+      "elevation_ft": 115,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KHGX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KHTX",
+      "site_name": "Huntsville/Hytop, AL",
+      "owner": "NWS",
+      "lat": 34.9306,
+      "lon": -86.0833,
+      "elevation_ft": 1859,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KHTX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KIND",
+      "site_name": "Indianapolis, IN",
+      "owner": "NWS",
+      "lat": 39.7075,
+      "lon": -86.2803,
+      "elevation_ft": 887,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KIND_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KJKL",
+      "site_name": "Jackson, KY",
+      "owner": "NWS",
+      "lat": 37.5908,
+      "lon": -83.3131,
+      "elevation_ft": 1461,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KJKL_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDGX",
+      "site_name": "Jackson, MS",
+      "owner": "NWS",
+      "lat": 32.2800,
+      "lon": -89.9847,
+      "elevation_ft": 609,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDGX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KJAX",
+      "site_name": "Jacksonville, FL",
+      "owner": "NWS",
+      "lat": 30.4847,
+      "lon": -81.7019,
+      "elevation_ft": 160,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KJAX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "RODN",
+      "site_name": "Kadena, JP",
+      "owner": "DOD",
+      "lat": 26.3019,
+      "lon": 127.9094,
+      "elevation_ft": 332,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/RODN_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PHKM",
+      "site_name": "Kamuela/Kohala, HI",
+      "owner": "FAA",
+      "lat": 20.1256,
+      "lon": -155.7781,
+      "elevation_ft": 3965,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PHKM_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KEAX",
+      "site_name": "Kansas City, MO",
+      "owner": "NWS",
+      "lat": 38.8103,
+      "lon": -94.2644,
+      "elevation_ft": 1092,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KEAX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KBYX",
+      "site_name": "Key West, FL",
+      "owner": "NWS",
+      "lat": 24.5975,
+      "lon": -81.7033,
+      "elevation_ft": 89,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KBYX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PAKC",
+      "site_name": "King Salmon, AK",
+      "owner": "FAA",
+      "lat": 58.6794,
+      "lon": -156.6294,
+      "elevation_ft": 144,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PAKC_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMRX",
+      "site_name": "Knoxville/Morristown, TN",
+      "owner": "NWS",
+      "lat": 36.1686,
+      "lon": -83.4017,
+      "elevation_ft": 1434,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMRX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "RKJK",
+      "site_name": "Kunsan, KO",
+      "owner": "DOD",
+      "lat": 35.9242,
+      "lon": 126.6222,
+      "elevation_ft": 192,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/RKJK_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KARX",
+      "site_name": "La Crosse, WI",
+      "owner": "NWS",
+      "lat": 43.8228,
+      "lon": -91.1911,
+      "elevation_ft": 1357,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KARX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLCH",
+      "site_name": "Lake Charles, LA",
+      "owner": "NWS",
+      "lat": 30.1253,
+      "lon": -93.2156,
+      "elevation_ft": 137,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLCH_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLGX",
+      "site_name": "Langley Hill, WA",
+      "owner": "NWS",
+      "lat": 47.1158,
+      "lon": -124.1069,
+      "elevation_ft": 354,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLGX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KESX",
+      "site_name": "Las Vegas, NV",
+      "owner": "NWS",
+      "lat": 35.7011,
+      "lon": -114.8917,
+      "elevation_ft": 4947,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KESX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDFX",
+      "site_name": "Laughlin AFB, TX",
+      "owner": "DOD",
+      "lat": 29.2725,
+      "lon": -100.2803,
+      "elevation_ft": 1195,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDFX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KILX",
+      "site_name": "Lincoln, IL",
+      "owner": "NWS",
+      "lat": 40.1506,
+      "lon": -89.3369,
+      "elevation_ft": 731,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KILX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLZK",
+      "site_name": "Little Rock, AR",
+      "owner": "NWS",
+      "lat": 34.8364,
+      "lon": -92.2622,
+      "elevation_ft": 649,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLZK_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KVTX",
+      "site_name": "Los Angeles, CA",
+      "owner": "NWS",
+      "lat": 34.4117,
+      "lon": -119.1792,
+      "elevation_ft": 2806,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KVTX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLVX",
+      "site_name": "Louisville, KY",
+      "owner": "NWS",
+      "lat": 37.9753,
+      "lon": -85.9439,
+      "elevation_ft": 833,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLVX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLBB",
+      "site_name": "Lubbock, TX",
+      "owner": "NWS",
+      "lat": 33.6542,
+      "lon": -101.8142,
+      "elevation_ft": 3377,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLBB_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMQT",
+      "site_name": "Marquette, MI",
+      "owner": "NWS",
+      "lat": 46.5311,
+      "lon": -87.5483,
+      "elevation_ft": 1524,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMQT_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMXX",
+      "site_name": "Maxwell AFB, AL",
+      "owner": "DOD",
+      "lat": 32.5367,
+      "lon": -85.7897,
+      "elevation_ft": 560,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMXX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMAX",
+      "site_name": "Medford, OR",
+      "owner": "NWS",
+      "lat": 42.0811,
+      "lon": -122.7172,
+      "elevation_ft": 7559,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMAX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMLB",
+      "site_name": "Melbourne, FL",
+      "owner": "NWS",
+      "lat": 28.1133,
+      "lon": -80.6542,
+      "elevation_ft": 116,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMLB_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KNQA",
+      "site_name": "Memphis, TN",
+      "owner": "NWS",
+      "lat": 35.3447,
+      "lon": -89.8733,
+      "elevation_ft": 435,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KNQA_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KAMX",
+      "site_name": "Miami, FL",
+      "owner": "NWS",
+      "lat": 25.6111,
+      "lon": -80.4128,
+      "elevation_ft": 111,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KAMX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PAIH",
+      "site_name": "Middleton Island, AK",
+      "owner": "FAA",
+      "lat": 59.4611,
+      "lon": -146.3031,
+      "elevation_ft": 132,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PAIH_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMAF",
+      "site_name": "Midland/Odessa, TX",
+      "owner": "NWS",
+      "lat": 31.9433,
+      "lon": -102.1894,
+      "elevation_ft": 2961,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMAF_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMKX",
+      "site_name": "Milwaukee, WI",
+      "owner": "NWS",
+      "lat": 42.9678,
+      "lon": -88.5506,
+      "elevation_ft": 1022,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMKX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMPX",
+      "site_name": "Minneapolis, MN",
+      "owner": "NWS",
+      "lat": 44.8489,
+      "lon": -93.5656,
+      "elevation_ft": 1101,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMPX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMBX",
+      "site_name": "Minot AFB, ND",
+      "owner": "DOD",
+      "lat": 48.3925,
+      "lon": -100.8644,
+      "elevation_ft": 1590,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMBX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMSX",
+      "site_name": "Missoula, MT",
+      "owner": "NWS",
+      "lat": 47.0411,
+      "lon": -113.9864,
+      "elevation_ft": 7976,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMSX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMOB",
+      "site_name": "Mobile, AL",
+      "owner": "NWS",
+      "lat": 30.6794,
+      "lon": -88.2397,
+      "elevation_ft": 289,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMOB_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PHMO",
+      "site_name": "Molokai, HI",
+      "owner": "FAA",
+      "lat": 21.1328,
+      "lon": -157.1803,
+      "elevation_ft": 1444,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PHMO_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KTYX",
+      "site_name": "Montague/Ft Drum, NY",
+      "owner": "DOD",
+      "lat": 43.7558,
+      "lon": -75.6800,
+      "elevation_ft": 1959,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KTYX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KVAX",
+      "site_name": "Moody AFB, GA",
+      "owner": "DOD",
+      "lat": 30.8903,
+      "lon": -83.0019,
+      "elevation_ft": 330,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KVAX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMHX",
+      "site_name": "Morehead City, NC",
+      "owner": "NWS",
+      "lat": 34.7761,
+      "lon": -76.8764,
+      "elevation_ft": 145,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMHX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KOHX",
+      "site_name": "Nashville, TN",
+      "owner": "NWS",
+      "lat": 36.2472,
+      "lon": -86.5625,
+      "elevation_ft": 676,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KOHX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLIX",
+      "site_name": "New Orleans, LA",
+      "owner": "NWS",
+      "lat": 30.3367,
+      "lon": -89.8256,
+      "elevation_ft": 179,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLIX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KOKX",
+      "site_name": "New York City/Upton, NY",
+      "owner": "NWS",
+      "lat": 40.8656,
+      "lon": -72.8639,
+      "elevation_ft": 199,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KOKX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PAEC",
+      "site_name": "Nome, AK",
+      "owner": "FAA",
+      "lat": 64.5114,
+      "lon": -165.2950,
+      "elevation_ft": 90,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PAEC_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLNX",
+      "site_name": "North Platte, NE",
+      "owner": "NWS",
+      "lat": 41.9578,
+      "lon": -100.5761,
+      "elevation_ft": 3112,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLNX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KIWX",
+      "site_name": "Northern Indiana/North Webster, IN",
+      "owner": "NWS",
+      "lat": 41.3586,
+      "lon": -85.7000,
+      "elevation_ft": 1056,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KIWX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KEVX",
+      "site_name": "Northwest Florida/Eglin AFB, FL",
+      "owner": "DOD",
+      "lat": 30.5644,
+      "lon": -85.9214,
+      "elevation_ft": 221,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KEVX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KTLX",
+      "site_name": "Oklahoma City, OK",
+      "owner": "NWS",
+      "lat": 35.3331,
+      "lon": -97.2778,
+      "elevation_ft": 1277,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KTLX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KOAX",
+      "site_name": "Omaha, NE",
+      "owner": "NWS",
+      "lat": 41.3203,
+      "lon": -96.3667,
+      "elevation_ft": 1262,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KOAX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KPAH",
+      "site_name": "Paducah, KY",
+      "owner": "NWS",
+      "lat": 37.0683,
+      "lon": -88.7719,
+      "elevation_ft": 506,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KPAH_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KPDT",
+      "site_name": "Pendleton, OR",
+      "owner": "NWS",
+      "lat": 45.6906,
+      "lon": -118.8529,
+      "elevation_ft": 1579,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KPDT_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDIX",
+      "site_name": "Philadelphia, PA",
+      "owner": "NWS",
+      "lat": 39.9469,
+      "lon": -74.4108,
+      "elevation_ft": 230,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDIX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KIWA",
+      "site_name": "Phoenix, AZ",
+      "owner": "NWS",
+      "lat": 33.2892,
+      "lon": -111.6700,
+      "elevation_ft": 1426,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KIWA_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KPBZ",
+      "site_name": "Pittsburgh, PA",
+      "owner": "NWS",
+      "lat": 40.5317,
+      "lon": -80.2181,
+      "elevation_ft": 1266,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KPBZ_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KSFX",
+      "site_name": "Pocatello, ID",
+      "owner": "NWS",
+      "lat": 43.1056,
+      "lon": -112.6861,
+      "elevation_ft": 4538,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KSFX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KGYX",
+      "site_name": "Portland, ME",
+      "owner": "NWS",
+      "lat": 43.8914,
+      "lon": -70.2564,
+      "elevation_ft": 474,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KGYX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KRTX",
+      "site_name": "Portland, OR",
+      "owner": "NWS",
+      "lat": 45.7150,
+      "lon": -122.9650,
+      "elevation_ft": 1728,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KRTX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KPUX",
+      "site_name": "Pueblo, CO",
+      "owner": "NWS",
+      "lat": 38.4594,
+      "lon": -104.1817,
+      "elevation_ft": 5362,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KPUX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDVN",
+      "site_name": "Quad Cities/Davenport, IA",
+      "owner": "NWS",
+      "lat": 41.6117,
+      "lon": -90.5808,
+      "elevation_ft": 851,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDVN_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KRAX",
+      "site_name": "Raleigh/Durham, NC",
+      "owner": "NWS",
+      "lat": 35.6656,
+      "lon": -78.4900,
+      "elevation_ft": 462,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KRAX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KUDX",
+      "site_name": "Rapid City, SD",
+      "owner": "NWS",
+      "lat": 44.1250,
+      "lon": -102.8297,
+      "elevation_ft": 3194,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KUDX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KRGX",
+      "site_name": "Reno, NV",
+      "owner": "NWS",
+      "lat": 39.7542,
+      "lon": -119.4619,
+      "elevation_ft": 8394,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KRGX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KRIW",
+      "site_name": "Riverton, WY",
+      "owner": "NWS",
+      "lat": 43.0661,
+      "lon": -108.4772,
+      "elevation_ft": 5631,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KRIW_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KJGX",
+      "site_name": "Robins AFB, GA",
+      "owner": "DOD",
+      "lat": 32.6753,
+      "lon": -83.3511,
+      "elevation_ft": 618,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KJGX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KDAX",
+      "site_name": "Sacramento, CA",
+      "owner": "NWS",
+      "lat": 38.5011,
+      "lon": -121.6778,
+      "elevation_ft": 144,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KDAX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMTX",
+      "site_name": "Salt Lake City, UT",
+      "owner": "NWS",
+      "lat": 41.2628,
+      "lon": -112.4481,
+      "elevation_ft": 6592,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMTX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KSJT",
+      "site_name": "San Angelo, TX",
+      "owner": "NWS",
+      "lat": 31.3711,
+      "lon": -100.4925,
+      "elevation_ft": 2003,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KSJT_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KEWX",
+      "site_name": "San Antonio, TX",
+      "owner": "NWS",
+      "lat": 29.7039,
+      "lon": -98.0286,
+      "elevation_ft": 767,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KEWX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KNKX",
+      "site_name": "San Diego, CA",
+      "owner": "NWS",
+      "lat": 32.9189,
+      "lon": -117.0419,
+      "elevation_ft": 1052,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KNKX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KMUX",
+      "site_name": "San Francisco, CA",
+      "owner": "NWS",
+      "lat": 37.1550,
+      "lon": -121.8983,
+      "elevation_ft": 3549,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KMUX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KHNX",
+      "site_name": "San Joaquin Valley, CA",
+      "owner": "NWS",
+      "lat": 36.3142,
+      "lon": -119.6319,
+      "elevation_ft": 340,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KHNX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "TJUA",
+      "site_name": "San Juan, PR",
+      "owner": "FAA",
+      "lat": 18.1156,
+      "lon": -66.0781,
+      "elevation_ft": 2958,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TJUA_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KSOX",
+      "site_name": "Santa Ana Mountains, CA",
+      "owner": "NWS",
+      "lat": 33.8178,
+      "lon": -117.6358,
+      "elevation_ft": 3105,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KSOX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KATX",
+      "site_name": "Seattle, WA",
+      "owner": "NWS",
+      "lat": 48.1947,
+      "lon": -122.4958,
+      "elevation_ft": 642,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KATX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KSHV",
+      "site_name": "Shreveport, LA",
+      "owner": "NWS",
+      "lat": 32.4508,
+      "lon": -93.8414,
+      "elevation_ft": 387,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KSHV_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KFSD",
+      "site_name": "Sioux Falls, SD",
+      "owner": "NWS",
+      "lat": 43.5878,
+      "lon": -96.7292,
+      "elevation_ft": 1494,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KFSD_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PHKI",
+      "site_name": "South Kauai, HI",
+      "owner": "FAA",
+      "lat": 21.8942,
+      "lon": -159.5522,
+      "elevation_ft": 340,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PHKI_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "PHWA",
+      "site_name": "South Shore, HI",
+      "owner": "FAA",
+      "lat": 19.0950,
+      "lon": -155.5686,
+      "elevation_ft": 1461,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/PHWA_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KOTX",
+      "site_name": "Spokane, WA",
+      "owner": "NWS",
+      "lat": 47.6803,
+      "lon": -117.6267,
+      "elevation_ft": 2448,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KOTX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KSGF",
+      "site_name": "Springfield, MO",
+      "owner": "NWS",
+      "lat": 37.2350,
+      "lon": -93.4006,
+      "elevation_ft": 1375,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KSGF_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLSX",
+      "site_name": "St Louis, MO",
+      "owner": "NWS",
+      "lat": 38.6989,
+      "lon": -90.6828,
+      "elevation_ft": 722,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLSX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KCCX",
+      "site_name": "State College, PA",
+      "owner": "NWS",
+      "lat": 40.9231,
+      "lon": -78.0039,
+      "elevation_ft": 2485,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KCCX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLWX",
+      "site_name": "Sterling, VA",
+      "owner": "NWS",
+      "lat": 38.9753,
+      "lon": -77.4778,
+      "elevation_ft": 404,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLWX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KTLH",
+      "site_name": "Tallahassee, FL",
+      "owner": "NWS",
+      "lat": 30.3975,
+      "lon": -84.3289,
+      "elevation_ft": 177,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KTLH_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KTBW",
+      "site_name": "Tampa Bay, FL",
+      "owner": "NWS",
+      "lat": 27.7056,
+      "lon": -82.4017,
+      "elevation_ft": 122,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KTBW_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KTWX",
+      "site_name": "Topeka, KS",
+      "owner": "NWS",
+      "lat": 38.9969,
+      "lon": -96.2325,
+      "elevation_ft": 1415,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KTWX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KEMX",
+      "site_name": "Tucson, AZ",
+      "owner": "NWS",
+      "lat": 31.8939,
+      "lon": -110.6303,
+      "elevation_ft": 5318,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KEMX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KINX",
+      "site_name": "Tulsa, OK",
+      "owner": "NWS",
+      "lat": 36.1750,
+      "lon": -95.5644,
+      "elevation_ft": 749,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KINX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KVNX",
+      "site_name": "Vance AFB, OK",
+      "owner": "DOD",
+      "lat": 36.7408,
+      "lon": -98.1275,
+      "elevation_ft": 1258,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KVNX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KVBX",
+      "site_name": "Vandenberg AFB, CA",
+      "owner": "DOD",
+      "lat": 34.8383,
+      "lon": -120.3978,
+      "elevation_ft": 1354,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KVBX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KAKQ",
+      "site_name": "Wakefield, VA",
+      "owner": "NWS",
+      "lat": 36.9839,
+      "lon": -77.0078,
+      "elevation_ft": 255,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KAKQ_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KICT",
+      "site_name": "Wichita, KS",
+      "owner": "NWS",
+      "lat": 37.6547,
+      "lon": -97.4428,
+      "elevation_ft": 1399,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KICT_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KLTX",
+      "site_name": "Wilmington, NC",
+      "owner": "NWS",
+      "lat": 33.9892,
+      "lon": -78.4292,
+      "elevation_ft": 145,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KLTX_loop.gif"
+    },
+    {
+      "network": "WSR-88D",
+      "site_id": "KYUX",
+      "site_name": "Yuma, AZ",
+      "owner": "NWS",
+      "lat": 32.4953,
+      "lon": -114.6567,
+      "elevation_ft": 239,
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/KYUX_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TADW",
+      "site_name": "Andrews AFB (ADW), MD",
+      "owner": "FAA",
+      "lat": 38.6947,
+      "lon": -76.8447,
+      "elevation_ft": 346,
+      "wfo": "LWX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TADW_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TATL",
+      "site_name": "Atlanta (ATL), GA",
+      "owner": "FAA",
+      "lat": 33.6469,
+      "lon": -84.2619,
+      "elevation_ft": 1075,
+      "wfo": "FFC",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TATL_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TBWI",
+      "site_name": "Baltimore/Washington (BWI), MD",
+      "owner": "FAA",
+      "lat": 39.0914,
+      "lon": -76.6375,
+      "elevation_ft": 342,
+      "wfo": "LWX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TBWI_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TBOS",
+      "site_name": "Boston (BOS), MA",
+      "owner": "FAA",
+      "lat": 41.8761,
+      "lon": -71.4344,
+      "elevation_ft": 264,
+      "wfo": "BOX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TBOS_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TCLT",
+      "site_name": "Charlotte (CLT), NC",
+      "owner": "FAA",
+      "lat": 35.3331,
+      "lon": -80.8819,
+      "elevation_ft": 871,
+      "wfo": "GSP",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TCLT_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TMDW",
+      "site_name": "Chicago Midway (MDW), IL",
+      "owner": "FAA",
+      "lat": 41.7867,
+      "lon": -87.8664,
+      "elevation_ft": 763,
+      "wfo": "LOT",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TMDW_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TORD",
+      "site_name": "Chicago O'Hare (ORD), IL",
+      "owner": "FAA",
+      "lat": 41.9844,
+      "lon": -88.0456,
+      "elevation_ft": 744,
+      "wfo": "LOT",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TORD_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TLVE",
+      "site_name": "Cleveland (CLE), OH",
+      "owner": "FAA",
+      "lat": 41.3508,
+      "lon": -81.8603,
+      "elevation_ft": 931,
+      "wfo": "CLE",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TLVE_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TCMH",
+      "site_name": "Columbus (CMH), OH",
+      "owner": "FAA",
+      "lat": 40.0006,
+      "lon": -82.7194,
+      "elevation_ft": 1148,
+      "wfo": "ILN",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TCMH_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TCVG",
+      "site_name": "Covington/Cincinnati (CVG), KY",
+      "owner": "FAA",
+      "lat": 39.0644,
+      "lon": -84.5681,
+      "elevation_ft": 1053,
+      "wfo": "ILN",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TCVG_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TDAL",
+      "site_name": "Dallas Love Field (DAL), TX",
+      "owner": "FAA",
+      "lat": 32.9208,
+      "lon": -97.0325,
+      "elevation_ft": 622,
+      "wfo": "FWD",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TDAL_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TDFW",
+      "site_name": "Dallas/Ft Worth (DFW), TX",
+      "owner": "FAA",
+      "lat": 32.5728,
+      "lon": -97.0603,
+      "elevation_ft": 585,
+      "wfo": "FWD",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TDFW_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TDAY",
+      "site_name": "Dayton (DAY), OH",
+      "owner": "FAA",
+      "lat": 39.8994,
+      "lon": -84.1094,
+      "elevation_ft": 1019,
+      "wfo": "ILN",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TDAY_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TDEN",
+      "site_name": "Denver (DEN), CO",
+      "owner": "FAA",
+      "lat": 39.7564,
+      "lon": -104.3606,
+      "elevation_ft": 5701,
+      "wfo": "BOU",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TDEN_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TDTW",
+      "site_name": "Detroit (DTW), MI",
+      "owner": "FAA",
+      "lat": 42.1108,
+      "lon": -83.5153,
+      "elevation_ft": 772,
+      "wfo": "DTX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TDTW_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TIAD",
+      "site_name": "Dulles (IAD), VA",
+      "owner": "FAA",
+      "lat": 38.9461,
+      "lon": -77.4678,
+      "elevation_ft": 473,
+      "wfo": "LWX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TIAD_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TFLL",
+      "site_name": "Fort Lauderdale (FLL), FL",
+      "owner": "FAA",
+      "lat": 26.1422,
+      "lon": -80.3322,
+      "elevation_ft": 120,
+      "wfo": "MFL",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TFLL_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "THOU",
+      "site_name": "Houston Hobby (HOU), TX",
+      "owner": "FAA",
+      "lat": 29.5214,
+      "lon": -95.2428,
+      "elevation_ft": 116,
+      "wfo": "HGX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/THOU_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TIAH",
+      "site_name": "Houston Intercontinental (IAH), TX",
+      "owner": "FAA",
+      "lat": 30.0642,
+      "lon": -95.5683,
+      "elevation_ft": 253,
+      "wfo": "HGX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TIAH_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TIDS",
+      "site_name": "Indianapolis (IND), IN",
+      "owner": "FAA",
+      "lat": 39.6317,
+      "lon": -86.2817,
+      "elevation_ft": 847,
+      "wfo": "IND",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TIDS_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TMCI",
+      "site_name": "Kansas City (MCI), MO",
+      "owner": "FAA",
+      "lat": 39.4942,
+      "lon": -94.7317,
+      "elevation_ft": 1090,
+      "wfo": "EAX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TMCI_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TLAS",
+      "site_name": "Las Vegas (LAS), NV",
+      "owner": "FAA",
+      "lat": 36.1447,
+      "lon": -115.0103,
+      "elevation_ft": 2058,
+      "wfo": "VEF",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TLAS_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TSDF",
+      "site_name": "Louisville (SDF), KY",
+      "owner": "FAA",
+      "lat": 38.0433,
+      "lon": -85.6100,
+      "elevation_ft": 731,
+      "wfo": "LMK",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TSDF_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TMEM",
+      "site_name": "Memphis (MEM), TN",
+      "owner": "FAA",
+      "lat": 35.3456,
+      "lon": -89.7597,
+      "elevation_ft": 483,
+      "wfo": "MEG",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TMEM_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TMIA",
+      "site_name": "Miami (MIA), FL",
+      "owner": "FAA",
+      "lat": 25.7583,
+      "lon": -80.4939,
+      "elevation_ft": 125,
+      "wfo": "MFL",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TMIA_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TMKE",
+      "site_name": "Milwaukee (MKE), WI",
+      "owner": "FAA",
+      "lat": 42.8200,
+      "lon": -88.0486,
+      "elevation_ft": 933,
+      "wfo": "MKX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TMKE_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TMSP",
+      "site_name": "Minneapolis (MSP), MN",
+      "owner": "FAA",
+      "lat": 44.8783,
+      "lon": -92.9311,
+      "elevation_ft": 1120,
+      "wfo": "MPX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TMSP_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TBNA",
+      "site_name": "Nashville (BNA), TN",
+      "owner": "FAA",
+      "lat": 35.9806,
+      "lon": -86.6622,
+      "elevation_ft": 817,
+      "wfo": "OHX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TBNA_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TMSY",
+      "site_name": "New Orleans (MSY), LA",
+      "owner": "FAA",
+      "lat": 30.0125,
+      "lon": -90.4011,
+      "elevation_ft": 99,
+      "wfo": "LIX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TMSY_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TJFK",
+      "site_name": "New York City (JFK), NY",
+      "owner": "FAA",
+      "lat": 40.5947,
+      "lon": -73.8819,
+      "elevation_ft": 112,
+      "wfo": "OKX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TJFK_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TEWR",
+      "site_name": "Newark (EWR), NJ",
+      "owner": "FAA",
+      "lat": 40.6006,
+      "lon": -74.2553,
+      "elevation_ft": 136,
+      "wfo": "OKX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TEWR_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TOKC",
+      "site_name": "Oklahoma City (OKC), OK",
+      "owner": "FAA",
+      "lat": 35.2756,
+      "lon": -97.5114,
+      "elevation_ft": 1308,
+      "wfo": "OUN",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TOKC_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TMCO",
+      "site_name": "Orlando (MCO), FL",
+      "owner": "FAA",
+      "lat": 28.3428,
+      "lon": -81.3261,
+      "elevation_ft": 169,
+      "wfo": "MLB",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TMCO_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TPHL",
+      "site_name": "Philadelphia (PHL), PA",
+      "owner": "FAA",
+      "lat": 39.9489,
+      "lon": -75.0692,
+      "elevation_ft": 153,
+      "wfo": "PHI",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TPHL_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TPHX",
+      "site_name": "Phoenix (PHX), AZ",
+      "owner": "FAA",
+      "lat": 33.4222,
+      "lon": -112.1667,
+      "elevation_ft": 1089,
+      "wfo": "PSR",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TPHX_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TPIT",
+      "site_name": "Pittsburgh (PIT), PA",
+      "owner": "FAA",
+      "lat": 40.4936,
+      "lon": -80.2117,
+      "elevation_ft": 1386,
+      "wfo": "PBZ",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TPIT_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TRDU",
+      "site_name": "Raleigh-Durham (RDU), NC",
+      "owner": "FAA",
+      "lat": 35.9781,
+      "lon": -78.7058,
+      "elevation_ft": 515,
+      "wfo": "RAH",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TRDU_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TSLC",
+      "site_name": "Salt Lake City (SLC), UT",
+      "owner": "FAA",
+      "lat": 40.9669,
+      "lon": -111.9300,
+      "elevation_ft": 4295,
+      "wfo": "SLC",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TSLC_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TSJU",
+      "site_name": "San Juan (SJU), PR",
+      "owner": "FAA",
+      "lat": 18.4861,
+      "lon": -66.1781,
+      "elevation_ft": 157,
+      "wfo": "SJU",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TSJU_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TSTL",
+      "site_name": "St Louis (STL), MO",
+      "owner": "FAA",
+      "lat": 38.8047,
+      "lon": -90.5117,
+      "elevation_ft": 647,
+      "wfo": "LSX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TSTL_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TTPA",
+      "site_name": "Tampa Bay (TPA), FL",
+      "owner": "FAA",
+      "lat": 27.7056,
+      "lon": -82.4019,
+      "elevation_ft": 93,
+      "wfo": "TBW",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TTPA_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TTUL",
+      "site_name": "Tulsa (TUL), OK",
+      "owner": "FAA",
+      "lat": 35.9919,
+      "lon": -95.8275,
+      "elevation_ft": 823,
+      "wfo": "TSA",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TTUL_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TDCA",
+      "site_name": "Washington National (DCA), VA",
+      "owner": "FAA",
+      "lat": 38.8989,
+      "lon": -77.0117,
+      "elevation_ft": 345,
+      "wfo": "LWX",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TDCA_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TPBI",
+      "site_name": "West Palm Beach (PBI), FL",
+      "owner": "FAA",
+      "lat": 26.6900,
+      "lon": -80.2150,
+      "elevation_ft": 133,
+      "wfo": "MFL",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TPBI_loop.gif"
+    },
+    {
+      "network": "TDWR",
+      "site_id": "TICH",
+      "site_name": "Wichita (ICT), KS",
+      "owner": "FAA",
+      "lat": 37.4825,
+      "lon": -97.4328,
+      "elevation_ft": 1350,
+      "wfo": "ICT",
+      "loop_gif_url": "https://radar.weather.gov/ridge/standard/TICH_loop.gif"
+    }
+  ]
+}

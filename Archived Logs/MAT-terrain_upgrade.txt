@@ -1,0 +1,193 @@
+Now let me update `mat-elt.js` to integrate with the terrain module:Now I'll create an updated mat-elt.js that integrates with the terrain module, adding an async version of computeProbableArea:Now let me update the file header to document the terrain integration:Now let me copy both files to outputs:Here are both files. Let me provide a summary:
+
+---
+
+## New Module: `mat-terrain.js`
+
+### USGS EPQS Integration
+| Feature | Description |
+|---------|-------------|
+| **API** | `https://epqs.nationalmap.gov/v1/json` |
+| **Cost** | Free, no API key required |
+| **Accuracy** | 0.53m RMSE, up to 1m LiDAR resolution |
+| **Timeout** | 5 seconds (fail-fast for offline detection) |
+
+### Key Functions
+
+```javascript
+// Query single point elevation
+const elevation = await MAT.terrain.queryElevation(lat, lon);
+
+// Classify terrain at a location (samples 9 points in 5 NM radius)
+const result = await MAT.terrain.classifyTerrain(lat, lon);
+// Returns: { mode: 'flat'|'moderate'|'mountainous', confidence, stats }
+
+// Full analysis with keyword fallback
+const analysis = await MAT.terrain.analyzeTerrain(lat, lon, observations);
+
+// Check API status
+const status = await MAT.terrain.checkApiStatus();
+```
+
+### Terrain Classification Thresholds
+
+| Mode | Elevation Range | Std Dev | Example |
+|------|----------------|---------|---------|
+| **flat** | < 500 ft | < 150 ft | Plains, desert |
+| **moderate** | < 2000 ft | < 500 ft | Foothills, rolling hills |
+| **mountainous** | > 2000 ft | > 500 ft | Canyons, alpine |
+
+### Cache Management
+- Caches up to 500 elevation queries
+- 24-hour expiration
+- Export/import for localStorage persistence
+
+---
+
+## Updated: `mat-elt.js`
+
+### New Async Function
+
+```javascript
+// Terrain-enhanced computation (uses USGS API when online)
+const result = await MAT.elt.computeProbableAreaAsync({
+  observations,
+  settings,
+  useTerrainApi: true  // Set false to force offline mode
+});
+
+// Result now includes:
+result.terrainAnalysis = {
+  mode: 'mountainous',
+  confidence: 'high',
+  source: 'usgs-epqs',
+  stats: { minElevation, maxElevation, range, stdDev }
+};
+```
+
+### Pre-fetching for UX
+
+```javascript
+// Warm the cache when user starts entering observations
+await MAT.elt.prefetchTerrainData(lat, lon, 15);  // 15 NM radius
+```
+
+---
+
+## Integration in index.html
+
+```html
+<!-- Load terrain module BEFORE elt module -->
+<script src="mat-terrain.js"></script>
+<script src="mat-elt.js"></script>
+```
+
+### Usage in Your ELT Calculation Button
+
+```javascript
+// Replace:
+const result = MAT.elt.computeProbableArea(params);
+
+// With:
+const result = await MAT.elt.computeProbableAreaAsync(params);
+
+// The function automatically:
+// 1. Tries USGS API for terrain classification
+// 2. Falls back to keyword detection if offline
+// 3. Returns same structure as before, plus terrainAnalysis
+```
+
+---
+
+## Offline-First Design
+
+| Scenario | Behavior |
+|----------|----------|
+| **Online** | Queries USGS EPQS, classifies terrain, caches results |
+| **Slow connection** | Times out after 5s, uses keyword fallback |
+| **Offline** | Immediately uses keyword detection (no delay) |
+| **Cached** | Uses cached elevations (no API call needed) |
+
+The sync `computeProbableArea()` still works exactly as before for guaranteed offline operation.
+
+Excellent idea! The USGS National Map API could significantly improve the ELT triangulation accuracy by providing **actual terrain data** instead of relying on keyword detection in notes. Let me analyze the API and propose an integration:I found the **USGS Elevation Point Query Service (EPQS)**. Let me check the API documentation:Excellent! I found the API details. Here's my analysis and proposal:
+
+## USGS Elevation Point Query Service (EPQS) - Perfect Fit!
+
+**API Endpoint:** `https://epqs.nationalmap.gov/v1/json?x={lon}&y={lat}&units=Feet&wkid=4326`
+
+**Key Features:**
+- ✅ **Free, no API key required**
+- ✅ **Simple REST API** - single point queries
+- ✅ **High accuracy** - 0.53m RMSE, up to 1m LiDAR resolution in many areas
+- ✅ **Returns elevation in feet** (perfect for aviation)
+- ✅ **CONUS coverage** (all CAP operating areas)
+
+## How This Would Improve ELT Triangulation
+
+Instead of relying on keyword detection in notes, we could:
+
+1. **Query elevation at observation point** → Determine if aircraft is over mountainous terrain
+2. **Query elevation at estimated ELT location** → Calculate terrain roughness in search area
+3. **Sample elevation grid** → Detect canyons, ridges, valleys programmatically
+
+### Terrain Classification Algorithm
+
+```javascript
+async function classifyTerrain(centerLat, centerLon, radiusNm = 5) {
+  // Sample 9 points in a grid around the center
+  const samples = await getElevationSamples(centerLat, centerLon, radiusNm);
+  
+  const elevations = samples.map(s => s.elevation);
+  const min = Math.min(...elevations);
+  const max = Math.max(...elevations);
+  const range = max - min;
+  const stdDev = calculateStdDev(elevations);
+  
+  // Classify based on elevation variability
+  if (range < 500 && stdDev < 100) return 'flat';        // Plains, desert
+  if (range < 1500 && stdDev < 300) return 'moderate';   // Foothills
+  return 'mountainous';                                    // Canyons, alpine
+}
+```
+
+## Proposed Integration Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    MAT ELT Module                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────┐    ┌──────────────┐    ┌───────────────┐  │
+│  │ Observation │───▶│ Terrain API  │───▶│ Bearing Sigma │  │
+│  │   Input     │    │   (online)   │    │  Adjustment   │  │
+│  └─────────────┘    └──────┬───────┘    └───────────────┘  │
+│                            │                                │
+│                     [No Internet?]                          │
+│                            │                                │
+│                            ▼                                │
+│                    ┌──────────────┐                         │
+│                    │  Keyword     │  ◀── Fallback           │
+│                    │  Detection   │      (current method)   │
+│                    └──────────────┘                         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Implementation Plan
+
+I can create a **mat-terrain.js** module that:
+
+1. **Caches elevation queries** to minimize API calls
+2. **Gracefully degrades** to keyword detection when offline
+3. **Pre-fetches terrain** for the search area when connection available
+4. **Integrates with mat-elt.js** to auto-set `terrainMode`
+
+Would you like me to create this module? I'd structure it as:
+
+| File | Purpose |
+|------|---------|
+| `mat-terrain.js` | USGS EPQS API wrapper with caching and offline fallback |
+| Updates to `mat-elt.js` | Hook terrain API into bearing sigma calculation |
+
+The offline-first design means the app works exactly as it does now without internet, but gets smarter terrain classification when connected.

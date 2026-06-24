@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAT Data Protection - Test Page</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0c1929;
+      color: #e2e8f0;
+    }
+    
+    h1 {
+      color: #63b3ed;
+      border-bottom: 2px solid #2d3748;
+      padding-bottom: 10px;
+    }
+    
+    h2 {
+      color: #68d391;
+      margin-top: 30px;
+    }
+    
+    .test-section {
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    
+    .test-controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+      margin-top: 15px;
+    }
+    
+    button {
+      background: #3182ce;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    
+    button:hover {
+      background: #2c5282;
+    }
+    
+    button.danger {
+      background: #e53e3e;
+    }
+    
+    button.danger:hover {
+      background: #c53030;
+    }
+    
+    button.success {
+      background: #38a169;
+    }
+    
+    button.success:hover {
+      background: #2f855a;
+    }
+    
+    .status-box {
+      background: #2d3748;
+      border-left: 4px solid #63b3ed;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    
+    .status-box.success {
+      border-left-color: #68d391;
+    }
+    
+    .status-box.error {
+      border-left-color: #fc8181;
+    }
+    
+    .data-display {
+      background: #000;
+      color: #48bb78;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    
+    input, select {
+      background: #2d3748;
+      border: 1px solid #4a5568;
+      color: #e2e8f0;
+      padding: 8px 12px;
+      border-radius: 4px;
+      width: 100%;
+      font-size: 14px;
+    }
+    
+    label {
+      display: block;
+      margin: 10px 0 5px;
+      font-weight: 500;
+      color: #a0aec0;
+    }
+    
+    .info-badge {
+      display: inline-block;
+      background: #2d3748;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin: 0 5px;
+    }
+    
+    .console-log {
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 11px;
+    }
+    
+    .console-log div {
+      padding: 2px 0;
+      border-bottom: 1px solid #2d3748;
+    }
+  </style>
+</head>
+<body>
+  <h1>🛡️ MAT Data Protection - Test Page</h1>
+  
+  <div class="status-box">
+    <strong>Status:</strong> 
+    <span id="module-status">Initializing...</span>
+  </div>
+
+  <!-- Test 1: Simulate Mission Data -->
+  <div class="test-section">
+    <h2>📊 Test 1: Simulate Mission Data</h2>
+    <p>Add sample data to test auto-save and restoration</p>
+    
+    <div class="test-controls">
+      <button onclick="addEltObservation()">Add ELT Observation</button>
+      <button onclick="addEvent()">Add Event</button>
+      <button onclick="addMissionInfo()">Set Mission Info</button>
+      <button class="danger" onclick="clearAllData()">Clear All Data</button>
+    </div>
+    
+    <div class="status-box" style="margin-top: 15px;">
+      <strong>Current Data:</strong><br>
+      ELT Observations: <span class="info-badge" id="elt-count">0</span>
+      Events: <span class="info-badge" id="events-count">0</span>
+      Mission Active: <span class="info-badge" id="mission-active">false</span>
+    </div>
+  </div>
+
+  <!-- Test 2: Auto-Save Controls -->
+  <div class="test-section">
+    <h2>💾 Test 2: Auto-Save System</h2>
+    <p>Test manual save and view auto-save status</p>
+    
+    <div class="test-controls">
+      <button class="success" onclick="manualSave()">Trigger Manual Save</button>
+      <button onclick="viewLastSave()">View Last Save Time</button>
+      <button onclick="viewSavedData()">View Saved Data</button>
+      <button onclick="exportData()">Export to JSON</button>
+    </div>
+    
+    <div id="save-status" class="status-box" style="display: none; margin-top: 15px;"></div>
+  </div>
+
+  <!-- Test 3: Back Button Protection -->
+  <div class="test-section">
+    <h2>⬅️ Test 3: Back Button Protection</h2>
+    <p>Test browser back button interception</p>
+    
+    <div class="test-controls">
+      <button onclick="simulateBackButton()">Simulate Back Button</button>
+      <button onclick="testWithData()">Test With Data</button>
+      <button onclick="testWithoutData()">Test Without Data</button>
+    </div>
+    
+    <div class="status-box" style="margin-top: 15px;">
+      <strong>Instructions:</strong><br>
+      1. Add mission data using Test 1<br>
+      2. Press browser's actual back button (or use Simulate button)<br>
+      3. Verify confirmation dialog appears<br>
+      4. Test both Cancel and OK responses
+    </div>
+  </div>
+
+  <!-- Test 4: Session Restoration -->
+  <div class="test-section">
+    <h2>🔄 Test 4: Session Restoration</h2>
+    <p>Test session restore on page reload</p>
+    
+    <div class="test-controls">
+      <button onclick="simulateRestore()">Simulate Restore</button>
+      <button onclick="reloadPage()">Reload Page</button>
+      <button class="danger" onclick="clearSavedSession()">Clear Saved Session</button>
+    </div>
+    
+    <div class="status-box" style="margin-top: 15px;">
+      <strong>Instructions:</strong><br>
+      1. Add mission data and wait for auto-save (30s)<br>
+      2. Click "Reload Page" or press F5<br>
+      3. Verify restore prompt appears<br>
+      4. Test both Accept and Decline options
+    </div>
+  </div>
+
+  <!-- Test 5: Configuration -->
+  <div class="test-section">
+    <h2>⚙️ Test 5: Configuration</h2>
+    <p>View and modify protection settings</p>
+    
+    <label>Auto-Save Interval (seconds):</label>
+    <input type="number" id="save-interval" value="30" min="5" max="300">
+    
+    <div class="test-controls" style="margin-top: 15px;">
+      <button onclick="updateConfig()">Update Config</button>
+      <button onclick="viewConfig()">View Current Config</button>
+      <button onclick="resetConfig()">Reset to Defaults</button>
+    </div>
+    
+    <div id="config-display" class="data-display" style="display: none;"></div>
+  </div>
+
+  <!-- Console Log -->
+  <div class="test-section">
+    <h2>📋 Console Log</h2>
+    <p>Real-time monitoring of data protection events</p>
+    
+    <button onclick="clearConsoleLog()">Clear Log</button>
+    <div id="console-log" class="console-log"></div>
+  </div>
+
+  <!-- Load Data Protection Module -->
+  <script src="mat-data-protection.js"></script>
+
+  <!-- Test Script -->
+  <script>
+    // Mock data for testing
+    window.eltObservations = window.eltObservations || [];
+    window.events = window.events || [];
+    window.missionInfo = window.missionInfo || {};
+    
+    // Console logging
+    const consoleLog = document.getElementById('console-log');
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+    
+    function addToConsoleLog(message, type = 'log') {
+      const div = document.createElement('div');
+      const time = new Date().toLocaleTimeString();
+      const colors = { log: '#48bb78', error: '#fc8181', warn: '#f6e05e' };
+      div.style.color = colors[type];
+      div.textContent = `[${time}] ${message}`;
+      consoleLog.insertBefore(div, consoleLog.firstChild);
+      
+      // Keep only last 50 entries
+      while (consoleLog.children.length > 50) {
+        consoleLog.removeChild(consoleLog.lastChild);
+      }
+    }
+    
+    console.log = function(...args) {
+      originalLog.apply(console, args);
+      if (args[0] && args[0].includes('[MAT')) {
+        addToConsoleLog(args.join(' '), 'log');
+      }
+    };
+    
+    console.error = function(...args) {
+      originalError.apply(console, args);
+      if (args[0] && args[0].includes('[MAT')) {
+        addToConsoleLog(args.join(' '), 'error');
+      }
+    };
+    
+    console.warn = function(...args) {
+      originalWarn.apply(console, args);
+      if (args[0] && args[0].includes('[MAT')) {
+        addToConsoleLog(args.join(' '), 'warn');
+      }
+    };
+    
+    // Check module status
+    setTimeout(() => {
+      const status = document.getElementById('module-status');
+      if (window.MAT && window.MAT.dataProtection) {
+        status.innerHTML = '<span style="color: #48bb78">✓ Module Loaded Successfully</span>';
+        updateDataCounts();
+      } else {
+        status.innerHTML = '<span style="color: #fc8181">✗ Module Failed to Load</span>';
+      }
+    }, 500);
+    
+    // Update data counts
+    function updateDataCounts() {
+      document.getElementById('elt-count').textContent = window.eltObservations?.length || 0;
+      document.getElementById('events-count').textContent = window.events?.length || 0;
+      document.getElementById('mission-active').textContent = 
+        localStorage.getItem('mat_mission_active') || 'false';
+    }
+    
+    // Test 1: Add sample data
+    function addEltObservation() {
+      const obs = {
+        id: Date.now(),
+        obsNum: (window.eltObservations?.length || 0) + 1,
+        timeZ: new Date().toISOString().slice(11, 19).replace(/:/g, ''),
+        source: 'df',
+        latDeg: '39',
+        latMin: (Math.random() * 60).toFixed(3),
+        lonDeg: '105',
+        lonMin: (Math.random() * 60).toFixed(3),
+        dfBearing: Math.floor(Math.random() * 360).toString(),
+        strength: Math.floor(Math.random() * 10) + 1,
+        useInCalc: true
+      };
+      
+      window.eltObservations = window.eltObservations || [];
+      window.eltObservations.push(obs);
+      updateDataCounts();
+      addToConsoleLog('Added ELT observation #' + obs.obsNum);
+    }
+    
+    function addEvent() {
+      const event = {
+        id: Date.now(),
+        eventNum: (window.events?.length || 0) + 1,
+        eventType: 'Test Event',
+        timeZ: new Date().toISOString().slice(11, 19).replace(/:/g, ''),
+        notes: 'Test event created at ' + new Date().toLocaleTimeString()
+      };
+      
+      window.events = window.events || [];
+      window.events.push(event);
+      updateDataCounts();
+      addToConsoleLog('Added event #' + event.eventNum);
+    }
+    
+    function addMissionInfo() {
+      window.missionInfo = {
+        missionNumber: 'TEST-' + Math.floor(Math.random() * 1000),
+        missionName: 'Data Protection Test',
+        dateZ: new Date().toISOString().slice(0, 10),
+        aircraftTailN: 'N' + Math.floor(Math.random() * 10000)
+      };
+      
+      localStorage.setItem('mat_mission_active', 'true');
+      updateDataCounts();
+      addToConsoleLog('Set mission info: ' + window.missionInfo.missionNumber);
+    }
+    
+    function clearAllData() {
+      if (confirm('Clear all test data?')) {
+        window.eltObservations = [];
+        window.events = [];
+        window.missionInfo = {};
+        localStorage.setItem('mat_mission_active', 'false');
+        updateDataCounts();
+        addToConsoleLog('Cleared all data', 'warn');
+      }
+    }
+    
+    // Test 2: Auto-save controls
+    function manualSave() {
+      if (window.MAT && window.MAT.dataProtection) {
+        window.MAT.dataProtection.save();
+        document.getElementById('save-status').style.display = 'block';
+        document.getElementById('save-status').className = 'status-box success';
+        document.getElementById('save-status').innerHTML = 
+          '<strong>✓ Manual save triggered</strong><br>Check the save indicator in top-right corner';
+      }
+    }
+    
+    function viewLastSave() {
+      if (window.MAT && window.MAT.dataProtection) {
+        const lastSave = window.MAT.dataProtection.getLastSave();
+        document.getElementById('save-status').style.display = 'block';
+        document.getElementById('save-status').className = 'status-box';
+        document.getElementById('save-status').innerHTML = 
+          '<strong>Last Save:</strong><br>' + 
+          (lastSave ? new Date(lastSave).toLocaleString() : 'No saves yet');
+      }
+    }
+    
+    function viewSavedData() {
+      const savedData = localStorage.getItem('mat_auto_save');
+      if (savedData) {
+        const data = JSON.parse(savedData);
+        document.getElementById('save-status').style.display = 'block';
+        document.getElementById('save-status').className = 'status-box';
+        document.getElementById('save-status').innerHTML = 
+          '<strong>Saved Data Preview:</strong>' +
+          '<div class="data-display">' + JSON.stringify(data, null, 2) + '</div>';
+      } else {
+        document.getElementById('save-status').style.display = 'block';
+        document.getElementById('save-status').className = 'status-box error';
+        document.getElementById('save-status').innerHTML = 
+          '<strong>No saved data found</strong>';
+      }
+    }
+    
+    function exportData() {
+      if (window.MAT && window.MAT.dataProtection) {
+        window.MAT.dataProtection.exportState();
+        addToConsoleLog('Exported state to JSON file');
+      }
+    }
+    
+    // Test 3: Back button
+    function simulateBackButton() {
+      addToConsoleLog('Simulating back button...', 'warn');
+      alert('In a real browser, press the actual back button to test.\n\nThis simulates the popstate event.');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+    
+    function testWithData() {
+      addMissionInfo();
+      addEltObservation();
+      addEvent();
+      alert('Sample data added.\n\nNow press the browser back button to test protection.');
+    }
+    
+    function testWithoutData() {
+      clearAllData();
+      alert('All data cleared.\n\nNow press the browser back button to test (should show simple exit confirmation).');
+    }
+    
+    // Test 4: Session restoration
+    function simulateRestore() {
+      const savedData = localStorage.getItem('mat_auto_save');
+      if (savedData) {
+        if (confirm('Found saved session. Restore it?')) {
+          location.reload();
+        }
+      } else {
+        alert('No saved session found.\n\nAdd data and wait for auto-save, then reload.');
+      }
+    }
+    
+    function reloadPage() {
+      location.reload();
+    }
+    
+    function clearSavedSession() {
+      if (window.MAT && window.MAT.dataProtection) {
+        window.MAT.dataProtection.clearSavedData();
+      }
+    }
+    
+    // Test 5: Configuration
+    function updateConfig() {
+      if (window.MAT && window.MAT.dataProtection) {
+        const interval = parseInt(document.getElementById('save-interval').value) * 1000;
+        window.MAT.dataProtection.setConfig({ autoSaveInterval: interval });
+        addToConsoleLog('Updated auto-save interval to ' + interval + 'ms');
+      }
+    }
+    
+    function viewConfig() {
+      if (window.MAT && window.MAT.dataProtection) {
+        const config = window.MAT.dataProtection.getConfig();
+        document.getElementById('config-display').style.display = 'block';
+        document.getElementById('config-display').textContent = 
+          JSON.stringify(config, null, 2);
+      }
+    }
+    
+    function resetConfig() {
+      if (window.MAT && window.MAT.dataProtection) {
+        window.MAT.dataProtection.setConfig({
+          autoSaveInterval: 30000,
+          saveIndicatorFadeDuration: 3000,
+          sessionMaxAge: 86400000
+        });
+        document.getElementById('save-interval').value = 30;
+        addToConsoleLog('Reset config to defaults', 'warn');
+      }
+    }
+    
+    function clearConsoleLog() {
+      consoleLog.innerHTML = '';
+    }
+    
+    // Auto-update data counts every 2 seconds
+    setInterval(updateDataCounts, 2000);
+  </script>
+</body>
+</html>

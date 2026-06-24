@@ -1,0 +1,217 @@
+MISSION FLIGHT PLAN/BRIEFING FORM
+Tracking Number
+Demo Missing Cessna Clean Parse
+
+MISSION DATA SECTION
+Mission Number
+25-A-0207
+Mission Name
+Missing Aircraft Search, Cessna 172
+Mission Symbol
+A1
+Mission Date
+06/26/2025
+
+MANIFEST, QUALIFICATIONS & AIRCRAFT DETAILS
+Pilot (Name & CAPID)
+Demo , John (111111) MP
+Crew Member / Passenger 1 (Name & CAPID)
+Sample , Jane A (222222) MO
+Crew Member / Passenger 2 (Name & CAPID)
+Test , Alex Q (333333) MS
+Crew Member / Passenger 3 (Name & CAPID)
+
+Crew Member / Passenger 4 (Name & CAPID)
+
+Crew Member / Passenger 5 (Name & CAPID)
+
+Crew Member / Passenger 6 (Name & CAPID)
+
+Crew Member / Passenger 7 (Name & CAPID)
+
+Crew Contact (Phone, E-mail, etc.)
+123-456-7890 demo.pilot@example.com
+
+Tail Number
+N141CP
+Callsign
+CAP 541
+Type
+C206/G1000/Turbo
+TAS (Knots)
+130
+Color/Description
+W/B/R
+CAP
+Member
+Owned
+Fuel (In Hours)
+4
+Home Base
+KPDK
+
+Aircraft & Aircrew Equipment
+Transponder VOR DME
+Autopilot GPS - G1000 CAP FM Radio
+Becker DF Survival Kit
+
+RELEASING OFFICERS
+Phone Briefing Briefer (Name & CAPID)
+
+Flight Release Officer (Name & CAPID)
+Maj Demo R. Officer (444444)
+Flight Release DTM (EDT)
+06/26/2025 04:30 AM
+
+Page 1 of 4
+
+BRIEFING INFORMATION
+Facility
+Sortie #
+A0001
+Sortie Type
+Search & Rescue
+Area of Operations
+KAVL vicinity, Blue Ridge Mountains
+
+Dep. Airport
+KPDK
+Dest. Airport
+KAVL
+ETD (EDT)
+05:30
+ETA (EDT)
+08:30
+
+Base Telephone
+123-456-7890
+Base Callsign
+Asheville Base
+Channels
+Base Air/Ground Air/Air
+CAP Repeater N/A 123.1 VLAW31
+
+Required Radio Checks and Contacts
+Contact FRO at start, Mission Comms InGrid/OutGrid
+
+Other Aircraft in Area (Location & Callsign)
+TBD
+Ground Teams in Area (Location & Callsign)
+None
+
+Sortie Objectives
+Search area east of KAVL for missing Cessna 172 White/Blue (N123DE). LKP: 35.610500 x -82.420500. Overdue on VFR flight from KPDK to KAVL.
+
+Sortie Deliverables
+All flight tracks and aircrew notes
+
+Actions To Be Taken On Objectives & Deliverables
+Reposition to search area and conduct expanding square search, report sightings immediately
+
+Route of Flight
+KPDK direct KAVL, then search east of KAVL as briefed
+
+Altitude Assignment & restrictions
+As required
+Airspeed Expected & Restrictions
+125, none
+
+Aircraft Separation (Adjoining Areas)
+None known at this time
+
+Emergency / Alternate Fields
+KAVL KHKY KGMU KAND
+
+Military Low Altitude Training Routes
+None
+
+Hazards To Flight
+Mountainous terrain, turbulence, birds IVO ridgelines, towers and powerlines
+
+Weather (Current & Forecast)
+Current Local
+VFR
+Current En Route
+VFR
+Current Area of Operations
+VFR
+Forecast Local
+VFR
+Forecast En Route
+VFR
+Forecast Area of Operations
+VFR
+
+Page 2 of 4
+
+BRIEFING INFORMATION CONTINUED
+Flight Plan Required CAP Flight Plan Filed Flight Plan Opened
+ORM Matrix Complete Low Moderate High Risk Assessment Approval
+
+Special Instructions (Including Risk Mitigation Procedures)
+Maintain terrain clearance per CAP guidance, remain VMC, prioritize crew workload management and scan discipline
+
+Crew Notes
+If ELT signal received, switch to DF procedures and log bearing/position at each observation. Coordinate with mission base prior to grid transitions.
+
+Page 3 of 4
+
+DEBRIEFING INFORMATION
+Flight Plan Closed
+ATD (EDT)
+05:17
+ATA (EDT)
+08:14
+Hobbs End
+1530.8
+Tach End
+1282.1
+Hobbs Start
+1527.6
+Tach Start
+1279.2
+Hobbs To/From
+2.0
+Hobbs In Area
+1.2
+Hobbs Total
+3.2
+Fuel Used (Gal)
+53.2
+Oil Used (Qt)
+0
+Fuel & Oil Cost
+$284.72
+Receipt #
+DEMO-123456
+Wing Paid
+
+Summary
+Departed KPDK pre-sunrise, transited to KAVL, conducted expanding square search east of KAVL. At 07:46Z-equivalent local, received report from local airport staff of a possible downed aircraft near the ridgeline. Crew diverted, confirmed visual on wreckage consistent with missing Cessna. Coordinates and photos relayed to mission base.
+
+Results/Deliverables
+Target located. Photos and track log saved for upload.
+
+Weather Conditions
+VFR throughout. Light mountain turbulence.
+
+Remarks
+Coordination via CAP radios and phone relay was effective. CRM strong. Mission scanner logged sightings and DF readiness as briefed.
+
+Sortie Effectiveness
+Successful
+
+Reason (if not successful)
+Weather Aircraft Maintenance Equipment Failure
+Crew Unavailable Customer Cancellation Other
+
+Attachments & Documentation
+
+DEBRIEFING OFFICER
+Phone Debriefing Debriefer (Name & CAPID)
+(444444)
+Time & Date Debriefed
+06/26/2025 03:55 PM
+
+Page 4 of 4
+Return to Air Sortie

@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editor / OS cruft
+*.swp
+*~
+
+# Claude Code machine-local settings (keep shared settings.json if added later)
+.claude/settings.local.json
+
+# Node (in case tooling is added later)
+node_modules/
+npm-debug.log*
