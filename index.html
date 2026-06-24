@@ -258,6 +258,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="data/demo-module.js"></script>
   <script src="js/mat-utils.js"></script>
+  <script src="js/mat-toast.js"></script>
   <script src="js/mat-geo.js"></script>
   <script src="js/mat-flightplan.js"></script>
   <script src="js/mat-maps.js"></script>
@@ -3189,9 +3190,9 @@ ${cmdState.selectedGrids && cmdState.selectedGrids.length > 0 && cmdState.analys
         
         setShowShareModal(false);
         setImportCode("");
-        alert('Mission data imported successfully!');
+        notify('Mission data imported', 'success');
       } catch (err) {
-        alert('Error importing data: ' + err.message);
+        notify('Error importing data: ' + err.message, 'error');
       }
     };
     
@@ -3212,15 +3213,21 @@ ${cmdState.selectedGrids && cmdState.selectedGrids.length > 0 && cmdState.analys
       reader.readAsText(file);
     };
     
+    // Non-blocking feedback helper (falls back to alert if toast not loaded)
+    const notify = (msg, type) => {
+      if (window.MAT && MAT.toast) MAT.toast(msg, type);
+      else alert(msg);
+    };
+
     // Copy log to clipboard
     const copyLogToClipboard = () => {
       try {
         const text = generateTextLog();
-        
+
         // Try modern clipboard API first
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(text).then(() => {
-            alert('Log copied to clipboard! You can now paste it into Notes or any text app.');
+            notify('Log copied to clipboard', 'success');
           }).catch((err) => {
             console.error('Clipboard API failed:', err);
             fallbackCopy(text);
@@ -3230,10 +3237,10 @@ ${cmdState.selectedGrids && cmdState.selectedGrids.length > 0 && cmdState.analys
         }
       } catch (err) {
         console.error('Copy log error:', err);
-        alert('Error copying log: ' + err.message);
+        notify('Error copying log: ' + err.message, 'error');
       }
     };
-    
+
     // Fallback copy method for older browsers or when clipboard API fails
     const fallbackCopy = (text) => {
       try {
@@ -3249,13 +3256,13 @@ ${cmdState.selectedGrids && cmdState.selectedGrids.length > 0 && cmdState.analys
         const success = document.execCommand('copy');
         document.body.removeChild(textarea);
         if (success) {
-          alert('Log copied to clipboard! You can now paste it into Notes or any text app.');
+          notify('Log copied to clipboard', 'success');
         } else {
-          alert('Copy failed. Please try selecting text manually.');
+          notify('Copy failed — select the text manually', 'warning');
         }
       } catch (err) {
         console.error('Fallback copy failed:', err);
-        alert('Copy failed: ' + err.message);
+        notify('Copy failed: ' + err.message, 'error');
       }
     };
 
