@@ -2367,12 +2367,16 @@
               React.createElement("div", { style: { ...cmdStyles.statValue, color: "#f6e05e" } }, (cmdState.pointsInsideArea || totalFlightPoints).toLocaleString()), 
               React.createElement("div", { style: cmdStyles.statLabel }, "Track Points")
             ),
-            React.createElement("div", { style: cmdStyles.statBox }, 
-              React.createElement("div", { style: { ...cmdStyles.statValue, color: getCoverageColor(avgCoverage) } }, avgCoverage + "%"), 
+            React.createElement("div", { style: cmdStyles.statBox },
+              React.createElement("div", { style: { ...cmdStyles.statValue, color: getCoverageColor(avgCoverage) } }, avgCoverage + "%"),
               React.createElement("div", { style: cmdStyles.statLabel }, "Avg Coverage")
             )
           ),
-          
+
+          // Clarify: this is geometric track coverage, not CAP POD
+          React.createElement("div", { style: { fontSize: "11px", color: "#a0aec0", lineHeight: "1.5", marginBottom: "16px", fontStyle: "italic" } },
+            "Coverage = % of each grid with a track within the sweep width — geometric coverage, not Probability of Detection. For POD (which also depends on altitude, terrain & visibility) use the Reference tab → POD (104a) calculator."),
+
           // View Map Button
           React.createElement("button", { 
             onClick: () => setCmdState(prev => ({ ...prev, showMap: true, mapKey: prev.mapKey + 1 })),
@@ -2565,7 +2569,7 @@
           ),
           React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "6px" } },
             React.createElement("div", { style: { width: "16px", height: "16px", background: "rgba(229,62,62,0.6)", borderRadius: "2px" } }),
-            React.createElement("span", { style: { color: "#e2e8f0" } }, "Missing Coverage (0% POD)")
+            React.createElement("span", { style: { color: "#e2e8f0" } }, "Missing Coverage (no track within sweep)")
           )
         ),
         // Map container
