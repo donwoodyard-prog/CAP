@@ -3957,7 +3957,7 @@ ${cmdState.selectedGrids && cmdState.selectedGrids.length > 0 && cmdState.analys
           switchTab('mission');
         }
         
-        alert('Form 104 data imported successfully! Check Mission tab for all fields.');
+        notify('Form 104 imported — check the Mission tab', 'success');
       };
       
       return React.createElement("div", {
@@ -4175,7 +4175,7 @@ Import: Open MAT → More → Import Data → Paste code`;
             // Fallback: Copy to clipboard
             if (navigator.clipboard && navigator.clipboard.writeText) {
               await navigator.clipboard.writeText(summary);
-              alert('Share code copied to clipboard! Paste it into MAT Import on another device.');
+              notify('Share code copied to clipboard', 'success');
             } else {
               alert('Sharing not supported. Please use the Download or Copy Share Code options instead.');
             }
@@ -7253,9 +7253,9 @@ const renderDemoTab = () => {
         }
       };
       
-      const copyFF = () => { if (!spState.lastPlan) return; navigator.clipboard.writeText(spState.lastPlan.waypoints.map(w => w.foreflight).join(' ')); alert('ForeFlight route copied!'); };
+      const copyFF = () => { if (!spState.lastPlan) return; navigator.clipboard.writeText(spState.lastPlan.waypoints.map(w => w.foreflight).join(' ')); notify('ForeFlight route copied', 'success'); };
       const exportKML = () => { if (!spState.lastPlan) return; const b = new Blob([spGenKML(spState.lastPlan)], { type: 'application/vnd.google-earth.kml+xml' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'CAP_Search_' + (spState.lastPlan.gridInfo?.gridId?.replace(/\s+/g,'_') || 'Pattern') + '.kml'; a.click(); };
-      const exportFPL = () => { if (!spState.lastPlan) return; const b = new Blob([spGenFPL(spState.lastPlan)], { type: 'application/xml' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'CAP_SAR_' + new Date().toISOString().replace(/[^0-9]/g,'').substring(0,14) + '.fpl'; a.click(); alert('FPL file downloaded! Import via AirDrop, email, or iTunes to ForeFlight.'); };
+      const exportFPL = () => { if (!spState.lastPlan) return; const b = new Blob([spGenFPL(spState.lastPlan)], { type: 'application/xml' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'CAP_SAR_' + new Date().toISOString().replace(/[^0-9]/g,'').substring(0,14) + '.fpl'; a.click(); notify('FPL downloaded — import to ForeFlight', 'success'); };
       const openMap = () => { 
         if (!spState.lastPlan) { alert('No search plan to display. Generate a pattern first.'); return; }
         if (typeof L === 'undefined') { alert('Map library not loaded. Please refresh the page.'); return; }
@@ -8102,7 +8102,7 @@ const renderDemoTab = () => {
             }, "📱 ForeFlight FPL"),
             React.createElement("button", { 
               style: { ...styles.button, background: "linear-gradient(135deg, #38a169, #2f855a)", padding: "14px", fontSize: "14px" }, 
-              onClick: () => { if (!spState.lastPlan) return; const wps = spState.lastPlan.waypoints.map(w => w.ddm).join('\\n'); navigator.clipboard.writeText(wps); alert('DDM coordinates copied!'); }
+              onClick: () => { if (!spState.lastPlan) return; const wps = spState.lastPlan.waypoints.map(w => w.ddm).join('\\n'); navigator.clipboard.writeText(wps); notify('DDM coordinates copied', 'success'); }
             }, "📋 Copy DDM")
           ), 
           
