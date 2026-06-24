@@ -418,28 +418,45 @@
     return 1.06 * (Math.sqrt(h1) + Math.sqrt(h2));
   };
   
-  // Estimate search range based on signal strength and altitude
-  // From radio horizon math: strength gives secondary constraint
-  // "strong" → <=25% of horizon, "moderate" → <=50%, "weak" → <=90-100%
+  // CAP ELT detection range vs search altitude (NESA Inflight Guide p70).
+  // Realistic 121.5 MHz air-detection range — more conservative than pure radio
+  // line-of-sight (calcRadioHorizon above overstates it ~2-3x). Linear
+  // interpolation between the published points.
+  const CAP_ELT_DETECT_RANGE = [
+    [1500, 16], [3000, 26], [5000, 32], [7000, 44], [10000, 69], [12000, 82],
+    [14000, 95], [16000, 108], [20000, 133], [22000, 147], [26000, 174],
+    [30000, 200], [35000, 232], [40000, 265]
+  ];
+  const capEltDetectionRange = (altAglFt) => {
+    const a = parseFloat(altAglFt);
+    if (!a || a <= 0) return null;
+    const t = CAP_ELT_DETECT_RANGE;
+    if (a <= t[0][0]) return t[0][1] * (a / t[0][0]);   // scale below 1500'
+    for (let i = 0; i < t.length - 1; i++) {
+      if (a <= t[i + 1][0]) {
+        const a0 = t[i][0], r0 = t[i][1], a1 = t[i + 1][0], r1 = t[i + 1][1];
+        return r0 + (r1 - r0) * (a - a0) / (a1 - a0);
+      }
+    }
+    return t[t.length - 1][1];   // cap at 40k'
+  };
+
+  // Approximate distance to the ELT from signal strength, anchored to the CAP
+  // detection range at the search altitude. NOTE: the strength→distance mapping
+  // is a planning approximation — DF gear (e.g. RT-600) reports RELATIVE signal
+  // strength only, with no manufacturer-guaranteed range. Treat as a rough cue.
   const estimateSearchRange = (strength, altAglFt) => {
-    const horizon = calcRadioHorizon(altAglFt || 1500);
-    if (!horizon) return null;
-    
-    // Map 1-10 strength to % of radio horizon
-    // 10 = very strong (close), 1 = barely audible (near horizon)
-    // Strength 10: ~10% of horizon
-    // Strength 5: ~50% of horizon  
-    // Strength 1: ~100% of horizon
-    const pctOfHorizon = 1.0 - (strength - 1) * 0.1; // 10→10%, 5→50%, 1→100%
-    
-    const maxRange = horizon * pctOfHorizon;
-    const minRange = horizon * Math.max(0, pctOfHorizon - 0.25);
-    
+    const detect = capEltDetectionRange(altAglFt || 1500);
+    if (!detect) return null;
+    // 10 = very strong (close) → ~10% of detection range; 1 = barely audible → ~100%
+    const pctOfMax = 1.0 - (strength - 1) * 0.1;
+    const maxRange = detect * pctOfMax;
+    const minRange = detect * Math.max(0, pctOfMax - 0.25);
     return {
-      horizon: horizon.toFixed(1),
+      detect: detect.toFixed(1),
       minRange: minRange.toFixed(1),
       maxRange: maxRange.toFixed(1),
-      pct: Math.round(pctOfHorizon * 100)
+      pct: Math.round(pctOfMax * 100)
     };
   };
   
@@ -1244,14 +1261,14 @@
                 if (!est) return null;
                 return React.createElement(React.Fragment, null,
                   React.createElement("div", { style: { color: "#a0aec0", marginBottom: "4px" }},
-                    "📡 Radio Horizon: ", 
-                    React.createElement("span", { style: { color: "#63b3ed", fontWeight: "600" }}, est.horizon, " NM"),
-                    " (at ", newEltObs.altAGL, " ft AGL)"
+                    "📡 CAP detection range: ",
+                    React.createElement("span", { style: { color: "#63b3ed", fontWeight: "600" }}, est.detect, " NM"),
+                    " (at ", newEltObs.altAGL, " ft AGL, per Inflight Guide)"
                   ),
                   React.createElement("div", { style: { color: "#f6e05e" }},
-                    "🎯 Est. Range: ",
+                    "🎯 Est. distance ", React.createElement("span", { style: { fontStyle: "italic" }}, "(approx)"), ": ",
                     React.createElement("span", { style: { fontWeight: "700" }}, est.minRange, " - ", est.maxRange, " NM"),
-                    " (~", est.pct, "% of horizon)"
+                    " — rough cue from signal strength"
                   )
                 );
               })()
