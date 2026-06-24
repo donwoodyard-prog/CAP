@@ -1000,6 +1000,7 @@ const [demoLoading, setDemoLoading] = useState(false);
       initialHeading: 0,
       turnDirection: 'Right',
       numLegs: 8,
+      esSecondPass: false,   // Expanding Square: fly a 2nd pass rotated 45°
       // Sector Search parameters (radial spokes from a datum)
       secRadius: 5,
       secSpokes: 8,
@@ -7123,7 +7124,7 @@ const renderDemoTab = () => {
       const handlePoiChange = (v) => { const p = spParseCoordinate(v); setSpState(s => ({ ...s, poiInput: v, poi: p, detectedGrid: p ? spDetectCapGrid(p.latDD, p.lonDD) : null })); };
       
       const generate = () => {
-        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, clMode, clCreepDirection, clLegLength, clNumLegs, clG1000Mode, gpLegLength, gpNumTracks, gpUseDefaults, secRadius, secSpokes, secStartHeading } = spState;
+        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, clMode, clCreepDirection, clLegLength, clNumLegs, clG1000Mode, gpLegLength, gpNumTracks, gpUseDefaults, secRadius, secSpokes, secStartHeading, esSecondPass } = spState;
         if (!poi) { alert('Enter valid POI'); return; }
         let plan;
         if (spState.patternType === 'gridParallelTrack') {
@@ -7158,7 +7159,7 @@ const renderDemoTab = () => {
         } else if (spState.patternType === 'sectorSearch') {
           plan = spGenSectorSearch({ poi, radius: secRadius || 5, numSpokes: secSpokes || 8, startHeading: secStartHeading || 0, groundspeed });
         } else {
-          plan = spGenExpandingSquare({ poi, spacing, initialHeading, turnDirection, numLegs, groundspeed });
+          plan = spGenExpandingSquare({ poi, spacing, initialHeading, turnDirection, numLegs, groundspeed, secondPass: esSecondPass });
         }
         if (plan && !plan.error) {
           // Add timestamp and store plan
@@ -7420,7 +7421,7 @@ const renderDemoTab = () => {
       const setClDir = (d) => setSpState(s => ({ ...s, clDirection: d }));
       const setClSide = (side) => setSpState(s => ({ ...s, clStartSide: side }));
       
-      const { poi, detectedGrid, lastPlan, patternType, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, showMap: sm } = spState;
+      const { poi, detectedGrid, lastPlan, patternType, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, esSecondPass, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, showMap: sm } = spState;
       const dims = detectedGrid ? spCalcGridDims(detectedGrid.corners) : null;
       
       const patternBtnStyle = (active) => ({ 
@@ -8081,7 +8082,12 @@ const renderDemoTab = () => {
           React.createElement("div", { style: { display: "flex", gap: "8px" } },
             React.createElement("button", { style: optionBtnStyle(turnDirection === 'Right'), onClick: () => setTurn('Right') }, "↻ Right (CW)"),
             React.createElement("button", { style: optionBtnStyle(turnDirection === 'Left'), onClick: () => setTurn('Left') }, "↺ Left (CCW)")
-          )
+          ),
+          React.createElement("label", { style: { ...styles.label, marginTop: "12px", marginBottom: "8px", display: "block" } }, "Coverage"),
+          React.createElement("button", {
+            style: { ...optionBtnStyle(esSecondPass), width: "100%" },
+            onClick: () => setSpState(s => ({ ...s, esSecondPass: !s.esSecondPass }))
+          }, (esSecondPass ? "☑" : "☐") + " Second pass rotated 45° (fills diagonal gaps)")
         ),
 
         // Sector Search options (radial spokes from a datum)

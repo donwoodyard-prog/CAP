@@ -168,19 +168,46 @@
   }
 
   function spGenExpandingSquare(params) {
-    const { poi, spacing, initialHeading = 0, turnDirection = 'Right', numLegs = 8, groundspeed = 120 } = params;
+    const { poi, spacing, initialHeading = 0, turnDirection = 'Right', numLegs = 8, groundspeed = 120, secondPass = false } = params;
     if (!poi || spacing <= 0 || numLegs < 2) return { error: 'Invalid parameters' };
-    const wps = [], ts = turnDirection === 'Right' ? 1 : -1;
-    let cLat = poi.latDD, cLon = poi.lonDD, totalDist = 0;
-    wps.push({ number: 0, lat: cLat, lon: cLon, heading: null, legLength: 0, ddm: spFormatCoordDDM(cLat, cLon), foreflight: spFormatForeFlight(cLat, cLon), note: 'POI/Start' });
-    for (let i = 0; i < numLegs; i++) {
-      const ll = Math.ceil((i + 1) / 2) * spacing;
-      const hdg = spNormalizeBearing(initialHeading + (i * 90 * ts));
-      const d = spDestPoint(cLat, cLon, hdg, ll);
-      wps.push({ number: i + 1, lat: d.latDeg, lon: d.lonDeg, heading: hdg, legLength: ll, ddm: spFormatCoordDDM(d.latDeg, d.lonDeg), foreflight: spFormatForeFlight(d.latDeg, d.lonDeg), note: 'Leg ' + (i+1) });
-      cLat = d.latDeg; cLon = d.lonDeg; totalDist += ll;
+    const ts = turnDirection === 'Right' ? 1 : -1;
+    const wps = [];
+    let wpNum = 0, totalDist = 0;
+    const oLat = poi.latDD, oLon = poi.lonDD;
+
+    // One expanding-square pass spiralling out from the POI at a given start heading.
+    function addPass(startHeading, prefix) {
+      let cLat = oLat, cLon = oLon;
+      for (let i = 0; i < numLegs; i++) {
+        const ll = Math.ceil((i + 1) / 2) * spacing;
+        const hdg = spNormalizeBearing(startHeading + (i * 90 * ts));
+        const d = spDestPoint(cLat, cLon, hdg, ll);
+        wps.push({ number: wpNum++, lat: d.latDeg, lon: d.lonDeg, heading: hdg, legLength: ll, ddm: spFormatCoordDDM(d.latDeg, d.lonDeg), foreflight: spFormatForeFlight(d.latDeg, d.lonDeg), note: prefix + 'Leg ' + (i + 1) });
+        cLat = d.latDeg; cLon = d.lonDeg; totalDist += ll;
+      }
     }
-    return { patternType: 'Expanding Square', poi, waypoints: wps, summary: { spacing, initialHeading, turnDirection, numLegs, totalDistance: totalDist, timeMinutes: (totalDist / groundspeed) * 60, gridAligned: false } };
+
+    wps.push({ number: wpNum++, lat: oLat, lon: oLon, heading: null, legLength: 0, ddm: spFormatCoordDDM(oLat, oLon), foreflight: spFormatForeFlight(oLat, oLon), note: secondPass ? 'POI/Start (pass 1)' : 'POI/Start' });
+    addPass(initialHeading, secondPass ? 'P1 ' : '');
+
+    if (secondPass) {
+      // Transit back to the POI, then repeat the square rotated 45° to fill the
+      // diagonal gaps between the first pass's tracks (CAP Inflight Guide p88).
+      const last = wps[wps.length - 1];
+      const haveGeo = (typeof MAT !== 'undefined' && MAT.geo && MAT.geo.bearing && MAT.geo.distanceNM);
+      const backHdg = haveGeo ? Math.round(MAT.geo.bearing(last.lat, last.lon, oLat, oLon)) : null;
+      const backDist = haveGeo ? MAT.geo.distanceNM(last.lat, last.lon, oLat, oLon) : 0;
+      wps.push({ number: wpNum++, lat: oLat, lon: oLon, heading: backHdg, legLength: backDist, ddm: spFormatCoordDDM(oLat, oLon), foreflight: spFormatForeFlight(oLat, oLon), note: 'Return to POI (pass 2)' });
+      totalDist += backDist;
+      addPass(initialHeading + 45, 'P2 ');
+    }
+
+    return {
+      patternType: secondPass ? 'Expanding Square (2 passes, +45°)' : 'Expanding Square',
+      poi,
+      waypoints: wps,
+      summary: { spacing, initialHeading, turnDirection, numLegs: secondPass ? numLegs * 2 : numLegs, secondPass, totalDistance: totalDist, timeMinutes: (totalDist / groundspeed) * 60, gridAligned: false }
+    };
   }
 
   function spGenCreepingLine(params) {
