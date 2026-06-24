@@ -112,6 +112,7 @@ const MAT_REFERENCE = (function() {
     { id: "rhoOverview", label: "📡 Overview", icon: "📡", isRhotheta: true },
     { id: "rhoControls", label: "🎛️ Controls", icon: "🎛️", isRhotheta: true },
     { id: "rhoFrequencies", label: "📻 Frequencies", icon: "📻", isRhotheta: true },
+    { id: "rho406Channels", label: "📻 406 Channels", icon: "📻", isRhotheta: true },
     { id: "rhoDisplay", label: "🖥️ Display", icon: "🖥️", isRhotheta: true },
     { id: "rhoSetup406", label: "🛰️ 406 Setup", icon: "🛰️", isRhotheta: true },
     { id: "rhoSetup121", label: "📍 121.5 Setup", icon: "📍", isRhotheta: true },
@@ -906,7 +907,27 @@ const MAT_REFERENCE = (function() {
               { key: "notes", header: "Notes", muted: true }
             ])
           );
-          
+
+        case "rho406Channels":
+          return h("div", null,
+            h("div", { style: refStyles.sectionTitle }, "406 MHz Channel Plan (19 channels, 406.022–406.076)"),
+            renderTableContent(data.channels, [
+              { key: "ch", header: "Ch", highlight: true },
+              { key: "freq", header: "Frequency" },
+              { key: "role", header: "Role" }
+            ]),
+            h("div", { style: refStyles.sectionTitle }, "DF Unit Coverage"),
+            renderTableContent(data.units, [
+              { key: "unit", header: "DF Unit", highlight: true },
+              { key: "detects", header: "Channels Detected" }
+            ]),
+            h("div", { style: refStyles.sectionTitle }, "Notes"),
+            data.notes.map((n, i) => h("div", {
+              key: i,
+              style: { ...refStyles.card, marginBottom: "8px", fontSize: textScale(12), color: "#e2e8f0", lineHeight: "1.6" }
+            }, n))
+          );
+
         case "rhoDisplay":
           return h("div", null,
             data.elements.map((e, i) => h("div", { key: i, style: { ...refStyles.card, marginBottom: "10px" } },

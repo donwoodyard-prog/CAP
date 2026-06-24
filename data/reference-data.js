@@ -433,6 +433,27 @@ Example: "Amarillo Ground, CAP 42-39, at the ramp, taxi for VFR departure"`
         { freq: "406.025 MHz", name: "SARSAT Primary", notes: "Most common 406 channel" }
       ]
     },
+    rho406Channels: {
+      title: "406 MHz Channels",
+      icon: "\u{1F4FB}",
+      channels: [
+        { ch: "1", freq: "406.022 MHz", role: "Reference channel" },
+        { ch: "2", freq: "406.025 MHz", role: "SAR mode — Becker 517 detects" },
+        { ch: "3", freq: "406.028 MHz", role: "SAR mode — Becker 517 detects" },
+        { ch: "4-6", freq: "406.031 / .034 / .037", role: "In use today" },
+        { ch: "7-19", freq: "406.040 – 406.076", role: "Phased release (3 kHz spacing)" }
+      ],
+      units: [
+        { unit: "RHOTHETA RT-600", detects: "All 19 channels (full scan)" },
+        { unit: "Becker SAR-DF 517", detects: "Only 406.025 & 406.028 (2 of 19)" }
+      ],
+      notes: [
+        "All US 406 beacons also send a 121.5 MHz homing signal, but at reduced power (0.025 W into a 7\" antenna) — often less than 1/10 the radiated power of legacy 121.5-only beacons.",
+        "Result: the 121.5 homing signal may not be detectable until within a few hundred yards of the beacon.",
+        "GPS-equipped 406 beacons fix to better than 100 yards; without a GPS fix, ~1-3 NM.",
+        "Source: CAP “Prosecuting 406/121.5 MHz Distress Beacons.”"
+      ]
+    },
     rhoDisplay: {
       title: "Display Elements",
       icon: "\u{1F5A5}\uFE0F",
