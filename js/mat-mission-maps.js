@@ -691,10 +691,10 @@
       }
     }
     
-    // ELT triangulation result
-    if (eltResult?.intersection) {
+    // ELT triangulation result (mat-elt produces .centroid {lat,lon}, not .intersection)
+    if (eltResult?.centroid && isFinite(eltResult.centroid.lat) && isFinite(eltResult.centroid.lon)) {
       areas.push({
-        center: eltResult.intersection,
+        center: { lat: eltResult.centroid.lat, lon: eltResult.centroid.lon },
         radiusNm: eltResult.accuracy || 5
       });
       source.push('ELT Triangulation');
@@ -722,10 +722,10 @@
       }
     }
     
-    // Crosshair result
-    if (crosshairResult?.lat && crosshairResult?.lon) {
+    // Crosshair result (mat-targetlocal produces .latDD/.lonDD, not .lat/.lon)
+    if (crosshairResult && isFinite(crosshairResult.latDD) && isFinite(crosshairResult.lonDD)) {
       areas.push({
-        center: crosshairResult,
+        center: { lat: crosshairResult.latDD, lon: crosshairResult.lonDD },
         radiusNm: 5
       });
       source.push('Crosshair Target');
