@@ -43,8 +43,20 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit;
 }
 
-// AVWX API Token - Replace with your token or load from environment
-$AVWX_TOKEN = 'V4QGY_kfqjRJZclqshQ_W52l_3EXBzwm-lvJchrTSm8';
+// AVWX API Token - NEVER hardcoded here. Resolved in priority order:
+//   1. Server environment variable AVWX_TOKEN (e.g. Apache: SetEnv AVWX_TOKEN ...)
+//   2. A git-ignored local file api/secrets.php that returns
+//      ['AVWX_TOKEN' => '...']  (copy api/secrets.example.php to create it).
+// secrets.php is a .php (not .txt) so a direct web request executes it and
+// reveals nothing, instead of serving the raw token. It is git-ignored so the
+// token never lands in source / git history.
+$AVWX_TOKEN = getenv('AVWX_TOKEN') ?: ($_ENV['AVWX_TOKEN'] ?? ($_SERVER['AVWX_TOKEN'] ?? ''));
+if ($AVWX_TOKEN === '' && is_file(__DIR__ . '/secrets.php')) {
+    $secrets = require __DIR__ . '/secrets.php';
+    if (is_array($secrets) && !empty($secrets['AVWX_TOKEN'])) {
+        $AVWX_TOKEN = $secrets['AVWX_TOKEN'];
+    }
+}
 
 // Determine which API to use (default: awc for backward compatibility)
 $api = isset($_GET['api']) ? strtolower($_GET['api']) : 'awc';
@@ -332,6 +344,14 @@ if ($api === 'avwx') {
         $baseUrl .= '?' . http_build_query($params);
     }
     
+    // Fail clearly if the server has no AVWX token configured (rather than
+    // sending an unauthenticated request that returns a confusing 401).
+    if ($AVWX_TOKEN === '') {
+        http_response_code(500);
+        echo json_encode(['error' => 'AVWX token not configured on server (set the AVWX_TOKEN environment variable)']);
+        exit;
+    }
+
     // Make request with AVWX token
     $ch = curl_init();
     curl_setopt_array($ch, [

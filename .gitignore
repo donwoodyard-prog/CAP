@@ -14,3 +14,9 @@
 # Node (in case tooling is added later)
 node_modules/
 npm-debug.log*
+
+# Secrets / environment — never commit API tokens (e.g. AVWX_TOKEN)
+.env
+.env.*
+*.env
+api/secrets.php
