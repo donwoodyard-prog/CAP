@@ -50,6 +50,25 @@ All committed, pushed, deployed to cap-mat.com, and tested:
 
 ---
 
+## GPS coordinate conversion (you reported a wrong conversion)
+
+Traced and fixed. The conversion **math is correct** (DD↔DMS↔DDM round-trips to
+~1e-7), but `gpsUtils.ddToDms`/`ddToDdm` (components/calculators.js) had a
+**rounding-carry bug**: values just below a minute/degree boundary displayed an
+invalid `60`:
+- `38.4999999` → `38° 29' 60"` (should be `38° 30' 0"`)
+- `39.999999` → `39° 59' 60"` (should be `40° 0' 0"`)
+
+Fixed to carry `60` seconds → minutes and `60` minutes → degrees. This is the
+standalone **GPS Converter** (Reference tab) you'd have tested, and the same
+functions back every coordinate display app-wide, so it fixes those too.
+Verified: full conversion suite + known values all correct, 0 failures.
+
+Also noticed (not user-facing): `GpsToolsModal`/`openGpsModal` in index.html are
+**dead code** (defined but never rendered/called — orphaned when Times/Events
+merged into the unified log) and contain a separate pre-fill bug. Left as-is;
+candidate for deletion.
+
 ## Verified bugs FIXED overnight
 
 The integration agent (unlike the bug-hunt agents) found **real** silent

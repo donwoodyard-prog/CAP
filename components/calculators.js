@@ -28,19 +28,23 @@
 
   // === GPS UTILITIES ===
   const gpsUtils = {
-    // Convert DD (Decimal Degrees) to DMS (Degrees, Minutes, Seconds)
+    // Convert DD (Decimal Degrees) to DMS (Degrees, Minutes, Seconds).
+    // Carries rounding overflow: e.g. 38.4999999 -> 38 30 0 (not 38 29 60).
     ddToDms: (dd) => {
-      const deg = Math.floor(Math.abs(dd));
+      let deg = Math.floor(Math.abs(dd));
       const minFloat = (Math.abs(dd) - deg) * 60;
-      const min = Math.floor(minFloat);
-      const sec = ((minFloat - min) * 60).toFixed(2);
-      return { deg, min, sec: parseFloat(sec) };
+      let min = Math.floor(minFloat);
+      let sec = Math.round((minFloat - min) * 60 * 100) / 100; // 2-decimal seconds
+      if (sec >= 60) { sec -= 60; min += 1; }
+      if (min >= 60) { min -= 60; deg += 1; }
+      return { deg, min, sec };
     },
-    // Convert DD to DDM (Degrees, Decimal Minutes)
+    // Convert DD to DDM (Degrees, Decimal Minutes). Carries rounding overflow.
     ddToDdm: (dd) => {
-      const deg = Math.floor(Math.abs(dd));
-      const min = ((Math.abs(dd) - deg) * 60).toFixed(4);
-      return { deg, min: parseFloat(min) };
+      let deg = Math.floor(Math.abs(dd));
+      let min = Math.round((Math.abs(dd) - deg) * 60 * 10000) / 10000; // 4-decimal minutes
+      if (min >= 60) { min -= 60; deg += 1; }
+      return { deg, min };
     },
     // Convert DMS to DD
     dmsToDd: (deg, min, sec) => {
