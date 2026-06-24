@@ -263,6 +263,7 @@
   <script src="js/mat-flightplan.js"></script>
   <script src="js/mat-maps.js"></script>
   <script src="js/mat-patterns.js"></script>
+  <script src="js/mat-pod.js"></script>
   <script src="js/mat-fpl.js"></script>
   <script src="js/mat-waypoint-import.js"></script>
   <script src="js/mat-elt.js"></script>
@@ -897,7 +898,9 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
       // Knots to MPH
       ktsMph: '', ktsMphResult: null,
       // Pressure Altitude
-      paFieldElev: '', paAltSetting: '', paResult: null
+      paFieldElev: '', paAltSetting: '', paResult: null,
+      // POD (CAPF 104a) — defaults to the normal CAP search profile
+      podTerrain: 'open', podAlt: 1000, podSpacing: 0.5, podVis: 3, podPrev: ''
     });
     const updateCalc = (field, value) => setCalcState(prev => ({ ...prev, [field]: value }));
     

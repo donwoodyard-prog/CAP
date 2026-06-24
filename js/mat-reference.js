@@ -106,6 +106,7 @@ const MAT_REFERENCE = (function() {
     { id: "calcTOD", label: "🎯 Top of Descent", icon: "🎯", isCalc: true },
     { id: "calcGlideslope", label: "🛬 Glideslope", icon: "🛬", isCalc: true },
     { id: "calcKnotsToMph", label: "🔄 Knots↔MPH", icon: "🔄", isCalc: true },
+    { id: "calcPOD", label: "🎯 POD (104a)", icon: "🎯", isCalc: true },
     
     // Rhotheta RT-600
     { id: "rhoOverview", label: "📡 Overview", icon: "📡", isRhotheta: true },
@@ -796,6 +797,66 @@ const MAT_REFERENCE = (function() {
           return renderCalculator("glideslope");
         case "calcKnotsToMph":
           return renderCalculator("knotsToMph");
+
+        case "calcPOD": {
+          if (!window.MAT || !MAT.pod) {
+            return h("div", { style: refStyles.card }, "POD module not loaded.");
+          }
+          const pTerrain = calcState.podTerrain || 'open';
+          const pAlt = parseInt(calcState.podAlt, 10) || 1000;
+          const pSpacing = (calcState.podSpacing != null && calcState.podSpacing !== '') ? Number(calcState.podSpacing) : 0.5;
+          const pVis = parseInt(calcState.podVis, 10) || 3;
+          const podVal = MAT.pod.lookup({ terrain: pTerrain, altitudeFt: pAlt, trackSpacingNM: pSpacing, visibilityMi: pVis });
+          const prevPod = parseFloat(calcState.podPrev);
+          const cumPod = (!isNaN(prevPod) && podVal != null) ? MAT.pod.cumulative(prevPod, podVal) : null;
+          const podColor = podVal == null ? '#a0aec0' : (podVal >= 60 ? '#68d391' : (podVal >= 30 ? '#f6e05e' : '#fc8181'));
+          const selStyle = { width: '100%', padding: '10px', fontSize: textScale(14), background: 'rgba(0,0,0,0.35)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px' };
+          const labelStyle = { display: 'block', fontSize: textScale(12), color: '#a0aec0', marginBottom: '5px', fontWeight: '600' };
+          const sel = (field, opts, parse) => h("select", {
+            style: selStyle,
+            value: String(calcState[field]),
+            onChange: (e) => updateCalc(field, parse ? parse(e.target.value) : e.target.value)
+          }, opts.map(o => h("option", { key: String(o.value), value: String(o.value) }, o.label)));
+          return h("div", null,
+            h("div", { style: { ...refStyles.card, background: "rgba(99,179,237,0.1)", borderColor: "rgba(99,179,237,0.3)" } },
+              h("div", { style: { fontSize: textScale(13), color: "#e2e8f0", lineHeight: "1.6" } },
+                "Probability of Detection per ", h("strong", null, "CAPF 104a"),
+                " — the chance the search object is found in one pass. Pick the search profile:")
+            ),
+            h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", margin: "14px 0" } },
+              h("div", null, h("label", { style: labelStyle }, "Terrain"),
+                sel('podTerrain', MAT.pod.TERRAINS.map(t => ({ value: t.key, label: t.label })))),
+              h("div", null, h("label", { style: labelStyle }, "Search Altitude (AGL)"),
+                sel('podAlt', MAT.pod.ALTITUDES.map(a => ({ value: a, label: a + " ft" })), v => parseInt(v, 10))),
+              h("div", null, h("label", { style: labelStyle }, "Track Spacing"),
+                sel('podSpacing', MAT.pod.SPACINGS.map(s => ({ value: s, label: s + " NM" })), v => parseFloat(v))),
+              h("div", null, h("label", { style: labelStyle }, "Search Visibility"),
+                sel('podVis', MAT.pod.VISIBILITIES.map(v => ({ value: v, label: v + " mi" })), v => parseInt(v, 10)))
+            ),
+            h("div", { style: { ...refStyles.card, textAlign: "center", padding: "20px", marginBottom: "14px" } },
+              h("div", { style: { fontSize: textScale(12), color: "#a0aec0", marginBottom: "6px" } }, "Single-pass POD"),
+              h("div", { style: { fontSize: textScale(44), fontWeight: "800", color: podColor, lineHeight: "1" } },
+                podVal == null ? "—" : podVal + "%")
+            ),
+            h("div", { style: refStyles.card },
+              h("label", { style: labelStyle }, "Cumulative POD — combine with a PRIOR search of this area"),
+              h("div", { style: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" } },
+                h("input", {
+                  type: "number", inputMode: "numeric", min: 0, max: 100, placeholder: "prev %",
+                  value: calcState.podPrev,
+                  onChange: (e) => updateCalc('podPrev', e.target.value),
+                  style: { ...selStyle, width: "110px" }
+                }),
+                h("span", { style: { fontSize: textScale(13), color: "#a0aec0" } },
+                  "+ this " + (podVal == null ? "—" : podVal + "%") + " ="),
+                h("span", { style: { fontSize: textScale(28), fontWeight: "800", color: cumPod == null ? "#a0aec0" : "#63b3ed" } },
+                  cumPod == null ? "—" : cumPod + "%")
+              )
+            ),
+            h("div", { style: { fontSize: textScale(11), color: "#718096", marginTop: "12px", lineHeight: "1.5" } },
+              "Normal CAP search altitude is 1000′ AGL (CAPR 70-1). POD is a planning estimate — verify against the current CAPF 104a and weight for crew effectiveness/fatigue. Cumulative = 1−(1−P₁)(1−P₂).")
+          );
+        }
 
         // ========== RHOTHETA RT-600 ==========
         case "rhoOverview":
