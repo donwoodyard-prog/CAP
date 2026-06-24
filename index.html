@@ -992,9 +992,13 @@ const [demoLoading, setDemoLoading] = useState(false);
       spacing: 0.5, 
       groundspeed: 90, 
       entryCorner: 'NW', 
-      initialHeading: 0, 
-      turnDirection: 'Right', 
-      numLegs: 8, 
+      initialHeading: 0,
+      turnDirection: 'Right',
+      numLegs: 8,
+      // Sector Search parameters (radial spokes from a datum)
+      secRadius: 5,
+      secSpokes: 8,
+      secStartHeading: 0,
       // Grid Parallel Track parameters (Quarter Grid)
       gpLegLength: null,   // null = use quarter grid height (default ~7.5nm)
       gpNumTracks: null,   // null = auto-calculate from width and spacing
@@ -7114,7 +7118,7 @@ const renderDemoTab = () => {
       const handlePoiChange = (v) => { const p = spParseCoordinate(v); setSpState(s => ({ ...s, poiInput: v, poi: p, detectedGrid: p ? spDetectCapGrid(p.latDD, p.lonDD) : null })); };
       
       const generate = () => {
-        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, clMode, clCreepDirection, clLegLength, clNumLegs, clG1000Mode, gpLegLength, gpNumTracks, gpUseDefaults } = spState;
+        const { poi, detectedGrid, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, clMode, clCreepDirection, clLegLength, clNumLegs, clG1000Mode, gpLegLength, gpNumTracks, gpUseDefaults, secRadius, secSpokes, secStartHeading } = spState;
         if (!poi) { alert('Enter valid POI'); return; }
         let plan;
         if (spState.patternType === 'gridParallelTrack') {
@@ -7146,6 +7150,8 @@ const renderDemoTab = () => {
           }
         } else if (spState.patternType === 'poiCenteredParallel') {
           plan = spGenPoiCenteredParallel({ poi, spacing, numTracks: poiNumTracks, trackLength: poiTrackLength, heading: poiHeading, groundspeed });
+        } else if (spState.patternType === 'sectorSearch') {
+          plan = spGenSectorSearch({ poi, radius: secRadius || 5, numSpokes: secSpokes || 8, startHeading: secStartHeading || 0, groundspeed });
         } else {
           plan = spGenExpandingSquare({ poi, spacing, initialHeading, turnDirection, numLegs, groundspeed });
         }
@@ -7741,7 +7747,8 @@ const renderDemoTab = () => {
             React.createElement("button", { style: patternBtnStyle(patternType === 'gridParallelTrack'), onClick: () => setPattern('gridParallelTrack') }, "⬛ Grid Parallel", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Quarter Grid")),
             React.createElement("button", { style: patternBtnStyle(patternType === 'poiCenteredParallel'), onClick: () => setPattern('poiCenteredParallel') }, "🎯 POI Parallel", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Centered on POI")),
             React.createElement("button", { style: patternBtnStyle(patternType === 'expandingSquare'), onClick: () => setPattern('expandingSquare') }, "🌀 Expanding Sq", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Point Source")),
-            React.createElement("button", { style: patternBtnStyle(patternType === 'creepingLine'), onClick: () => setPattern('creepingLine') }, "\u3030 Creeping Line", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Route/Corridor"))
+            React.createElement("button", { style: patternBtnStyle(patternType === 'creepingLine'), onClick: () => setPattern('creepingLine') }, "\u3030 Creeping Line", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Route/Corridor")),
+            React.createElement("button", { style: patternBtnStyle(patternType === 'sectorSearch'), onClick: () => setPattern('sectorSearch') }, "\u2733\ufe0f Sector Search", React.createElement("br"), React.createElement("span", { style: { fontSize: "0.75em", opacity: 0.8 } }, "Radial Spokes"))
           )
         ),
         
@@ -8071,7 +8078,39 @@ const renderDemoTab = () => {
             React.createElement("button", { style: optionBtnStyle(turnDirection === 'Left'), onClick: () => setTurn('Left') }, "↺ Left (CCW)")
           )
         ),
-        
+
+        // Sector Search options (radial spokes from a datum)
+        patternType === 'sectorSearch' && React.createElement("div", { style: { marginBottom: "15px" } },
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "10px" } },
+            React.createElement(StepperInput, {
+              label: "Spoke Length (NM)",
+              value: spState.secRadius,
+              onChange: v => setSpState(s => ({ ...s, secRadius: parseFloat(v) || 5 })),
+              onDecrement: () => setSpState(s => ({ ...s, secRadius: Math.max(0.5, Math.round(((s.secRadius || 5) - 0.5) * 10) / 10) })),
+              onIncrement: () => setSpState(s => ({ ...s, secRadius: Math.round(((s.secRadius || 5) + 0.5) * 10) / 10 })),
+              inputMode: "decimal"
+            }),
+            React.createElement(StepperInput, {
+              label: "Number of Spokes",
+              value: spState.secSpokes,
+              onChange: v => setSpState(s => ({ ...s, secSpokes: parseInt(v) || 8 })),
+              onDecrement: () => setSpState(s => ({ ...s, secSpokes: Math.max(2, (s.secSpokes || 8) - 1) })),
+              onIncrement: () => setSpState(s => ({ ...s, secSpokes: Math.min(36, (s.secSpokes || 8) + 1) })),
+              inputMode: "numeric"
+            }),
+            React.createElement(StepperInput, {
+              label: "Start Heading (°)",
+              value: spState.secStartHeading,
+              onChange: v => setSpState(s => ({ ...s, secStartHeading: parseInt(v) || 0 })),
+              onDecrement: () => setSpState(s => ({ ...s, secStartHeading: ((s.secStartHeading || 0) - 5 + 360) % 360 })),
+              onIncrement: () => setSpState(s => ({ ...s, secStartHeading: ((s.secStartHeading || 0) + 5) % 360 })),
+              inputMode: "numeric"
+            })
+          ),
+          React.createElement("div", { style: { fontSize: "0.8em", color: "#a0aec0", lineHeight: "1.4" } },
+            "Flies out to the datum, returns, then rotates by 360°/spokes. Repeated datum crossings concentrate coverage on the most-likely point.")
+        ),
+
         // Generate Button
         React.createElement("button", { style: { ...styles.button, width: "100%", marginTop: "10px", marginBottom: "20px", padding: "15px", fontSize: "1.1em", background: "linear-gradient(135deg, #805ad5, #6b46c1)" }, onClick: generate }, "🧭 Generate Search Pattern"),
         

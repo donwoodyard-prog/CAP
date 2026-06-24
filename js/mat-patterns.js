@@ -416,8 +416,50 @@
     };
   }
   
+  /**
+   * Sector Search — radial spokes from a central datum (LKP), covering defined
+   * sectors. The aircraft flies out to `radius` on a bearing, returns to the
+   * datum, rotates by the sector angle, and repeats. Repeated datum crossings
+   * concentrate coverage near the most-likely point (standard SAR rationale).
+   * @param {object} params {poi, radius (NM), numSpokes, startHeading, arcDegrees=360, groundspeed}
+   */
+  function spGenSectorSearch(params) {
+    const { poi, radius, numSpokes = 8, startHeading = 0, arcDegrees = 360, groundspeed = 120 } = params;
+    if (!poi || radius <= 0 || numSpokes < 2) return { error: 'Invalid parameters' };
+    const cLat = poi.latDD, cLon = poi.lonDD;
+    const fullCircle = arcDegrees >= 360;
+    const count = Math.round(numSpokes);
+    // even angular spacing across the arc (don't duplicate 0/360 on a full circle)
+    const step = (fullCircle ? 360 : arcDegrees) / (fullCircle ? count : Math.max(1, count - 1));
+    const wps = [];
+    let totalDist = 0, num = 0;
+    wps.push({ number: num++, lat: cLat, lon: cLon, heading: null, legLength: 0,
+      ddm: spFormatCoordDDM(cLat, cLon), foreflight: spFormatForeFlight(cLat, cLon), note: 'Datum/LKP' });
+    for (let i = 0; i < count; i++) {
+      const hdg = spNormalizeBearing(startHeading + i * step);
+      const tip = spDestPoint(cLat, cLon, hdg, radius);
+      wps.push({ number: num++, lat: tip.latDeg, lon: tip.lonDeg, heading: hdg, legLength: radius,
+        ddm: spFormatCoordDDM(tip.latDeg, tip.lonDeg), foreflight: spFormatForeFlight(tip.latDeg, tip.lonDeg),
+        note: 'Spoke ' + (i + 1) + ' (' + Math.round(hdg) + '°)' });
+      totalDist += radius;
+      // return to datum (skip the final return so the route ends cleanly at a tip
+      // only if you prefer; here we always return to keep each spoke a clean radial)
+      const backHdg = spNormalizeBearing(hdg + 180);
+      wps.push({ number: num++, lat: cLat, lon: cLon, heading: backHdg, legLength: radius,
+        ddm: spFormatCoordDDM(cLat, cLon), foreflight: spFormatForeFlight(cLat, cLon), note: 'Return to datum' });
+      totalDist += radius;
+    }
+    return {
+      patternType: 'Sector Search',
+      poi,
+      waypoints: wps,
+      summary: { radius, numSpokes: count, startHeading, arcDegrees, numTracks: count,
+        totalDistance: totalDist, timeMinutes: (totalDist / groundspeed) * 60, gridAligned: false }
+    };
+  }
+
   // === EXPOSE TO NAMESPACE ===
-  
+
   // Helper functions
   MAT.patterns.spCalcGridDims = spCalcGridDims;
   MAT.patterns.spCalcOffset = spCalcOffset;
@@ -428,6 +470,7 @@
   MAT.patterns.spGenExpandingSquare = spGenExpandingSquare;
   MAT.patterns.spGenCreepingLine = spGenCreepingLine;
   MAT.patterns.spGenCreepingLineCustom = spGenCreepingLineCustom;
+  MAT.patterns.spGenSectorSearch = spGenSectorSearch;
   
   // === BACKWARD COMPATIBLE GLOBAL EXPORTS ===
   // These allow existing code to work without modification
@@ -439,5 +482,6 @@
   window.spGenExpandingSquare = spGenExpandingSquare;
   window.spGenCreepingLine = spGenCreepingLine;
   window.spGenCreepingLineCustom = spGenCreepingLineCustom;
+  window.spGenSectorSearch = spGenSectorSearch;
   
 })();
