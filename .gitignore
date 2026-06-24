@@ -20,3 +20,7 @@ npm-debug.log*
 .env.*
 *.env
 api/secrets.php
+
+# Deploy credentials (SFTP password) — never commit. Keep the .example template.
+.deploy.env
+!.deploy.env.example
