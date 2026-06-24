@@ -697,6 +697,12 @@ Example: "Amarillo Ground, CAP 42-39, at the ramp, taxi for VFR departure"`
       formula: "MPH = Knots \u00D7 1.15",
       description: "Convert between knots and miles per hour"
     },
+    calcBankAngle: {
+      title: "Search Turn Bank Angle",
+      icon: "\u{1F6DE}",
+      formula: "Bank\u00B0 = arctan(TAS\u00B2 \u00F7 (Turn Radius \u00D7 68,579))",
+      description: "Bank angle for a search-leg turn (CAP Inflight Guide p87)"
+    },
     calcPOD: {
       title: "Probability of Detection (CAPF 104a)",
       icon: "\u{1F3AF}",

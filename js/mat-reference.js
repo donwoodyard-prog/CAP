@@ -106,6 +106,7 @@ const MAT_REFERENCE = (function() {
     { id: "calcTOD", label: "🎯 Top of Descent", icon: "🎯", isCalc: true },
     { id: "calcGlideslope", label: "🛬 Glideslope", icon: "🛬", isCalc: true },
     { id: "calcKnotsToMph", label: "🔄 Knots↔MPH", icon: "🔄", isCalc: true },
+    { id: "calcBankAngle", label: "🛞 Bank Angle", icon: "🛞", isCalc: true },
     { id: "calcPOD", label: "🎯 POD (104a)", icon: "🎯", isCalc: true },
     
     // Rhotheta RT-600
@@ -799,6 +800,9 @@ const MAT_REFERENCE = (function() {
         case "calcKnotsToMph":
           return renderCalculator("knotsToMph");
 
+        case "calcBankAngle":
+          return renderCalculator("bankAngle");
+
         case "calcPOD": {
           if (!window.MAT || !MAT.pod) {
             return h("div", { style: refStyles.card }, "POD module not loaded.");
@@ -1170,10 +1174,14 @@ const MAT_REFERENCE = (function() {
         })
       );
       
-      const CalcButton = ({ onClick, children }) => h("button", {
-        onClick,
+      // NOTE: every call site passes the label as a 2nd positional arg
+      // (CalcButton({onClick}, "LABEL")), so read it from there. Falling back to
+      // props.children keeps it working either way. (Before this, all calculator
+      // buttons rendered as blank bars because the label was dropped.)
+      const CalcButton = (props, label) => h("button", {
+        onClick: props.onClick,
         style: refStyles.calcButton
-      }, children);
+      }, label !== undefined ? label : props.children);
       
       const ResultDisplay = ({ label, value, unit, warning }) => h("div", { style: refStyles.resultBox },
         h("div", { style: refStyles.resultLabel }, label),
@@ -1523,7 +1531,29 @@ const MAT_REFERENCE = (function() {
               )
             )
           );
-          
+
+        case "bankAngle":
+          const calcBank = () => {
+            const tas = parseFloat(calcState.baTAS);
+            const radius = parseFloat(calcState.baRadius);
+            if (!isNaN(tas) && tas > 0 && !isNaN(radius) && radius > 0) {
+              // CAP Inflight Guide p87: bank = arctan( TAS² / (R × 68,579) )
+              const bank = Math.atan((tas * tas) / (radius * 68579)) * 180 / Math.PI;
+              updateCalc('baResult', bank.toFixed(1));
+            }
+          };
+          return h("div", null,
+            Formula({ text: "Bank° = arctan( TAS² ÷ (Turn Radius × 68,579) )  —  CAP Inflight Guide p87" }),
+            InputField({ label: "True Airspeed (kt)", field: "baTAS", placeholder: "e.g., 100" }),
+            InputField({ label: "Turn Radius (NM)", field: "baRadius", placeholder: "e.g., 0.5", step: "0.1" }),
+            CalcButton({ onClick: calcBank }, "CALCULATE BANK ANGLE"),
+            calcState.baResult !== null && calcState.baResult !== undefined && ResultDisplay({
+              label: "Required Bank Angle", value: calcState.baResult, unit: "°",
+              warning: parseFloat(calcState.baResult) > 30
+            }),
+            Tip({ text: "For the turn at the end of each search leg (radius ≈ ½ track spacing). A search turn steeper than ~30° is excessive — slow down or widen the turn." })
+          );
+
         default:
           return h("div", { style: { color: "#a0aec0" } }, "Calculator not found");
       }

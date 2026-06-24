@@ -900,7 +900,9 @@ const [activeRefSection, setActiveRefSection] = useState("radioFrequencies");
       // Pressure Altitude
       paFieldElev: '', paAltSetting: '', paResult: null,
       // POD (CAPF 104a) — defaults to the normal CAP search profile
-      podTerrain: 'open', podAlt: 1000, podSpacing: 0.5, podVis: 3, podPrev: ''
+      podTerrain: 'open', podAlt: 1000, podSpacing: 0.5, podVis: 3, podPrev: '',
+      // Search Turn Bank Angle
+      baTAS: '', baRadius: '', baResult: null
     });
     const updateCalc = (field, value) => setCalcState(prev => ({ ...prev, [field]: value }));
     
