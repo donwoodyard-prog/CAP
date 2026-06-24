@@ -1001,6 +1001,8 @@ const [demoLoading, setDemoLoading] = useState(false);
       turnDirection: 'Right',
       numLegs: 8,
       esSecondPass: false,   // Expanding Square: fly a 2nd pass rotated 45°
+      // Expected-POD (CAPF 104a) selectors for the Search Planner readout
+      spPodAlt: 1000, spPodTerrain: 'open', spPodVis: 3,
       // Sector Search parameters (radial spokes from a datum)
       secRadius: 5,
       secSpokes: 8,
@@ -7421,7 +7423,7 @@ const renderDemoTab = () => {
       const setClDir = (d) => setSpState(s => ({ ...s, clDirection: d }));
       const setClSide = (side) => setSpState(s => ({ ...s, clStartSide: side }));
       
-      const { poi, detectedGrid, lastPlan, patternType, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, esSecondPass, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, showMap: sm } = spState;
+      const { poi, detectedGrid, lastPlan, patternType, spacing, groundspeed, entryCorner, initialHeading, turnDirection, numLegs, esSecondPass, spPodAlt, spPodTerrain, spPodVis, clDirection, clStartSide, poiNumTracks, poiTrackLength, poiHeading, showMap: sm } = spState;
       const dims = detectedGrid ? spCalcGridDims(detectedGrid.corners) : null;
       
       const patternBtnStyle = (active) => ({ 
@@ -8137,9 +8139,42 @@ const renderDemoTab = () => {
             )
           ), 
           
+          // Expected POD (CAPF 104a) for this pattern's track spacing
+          (function() {
+            // Only meaningful for patterns with a track spacing (not Sector Search).
+            if (!window.MAT || !MAT.pod || !lastPlan.summary || typeof lastPlan.summary.spacing !== 'number') return null;
+            const spacings = MAT.pod.SPACINGS;
+            const rawSp = lastPlan.summary.spacing;
+            const snapSp = spacings.reduce(function(b, s) { return Math.abs(s - rawSp) < Math.abs(b - rawSp) ? s : b; }, spacings[0]);
+            const alt = spPodAlt || 1000, terrain = spPodTerrain || 'open', vis = spPodVis || 3;
+            const pod = MAT.pod.lookup({ terrain: terrain, altitudeFt: alt, trackSpacingNM: snapSp, visibilityMi: vis });
+            const podColor = pod == null ? '#a0aec0' : (pod >= 60 ? '#68d391' : (pod >= 30 ? '#f6e05e' : '#fc8181'));
+            const snapped = (typeof rawSp === 'number') && Math.abs(snapSp - rawSp) > 0.001;
+            const selStyle = { width: '100%', padding: '7px', fontSize: '0.8em', background: 'rgba(0,0,0,0.35)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px' };
+            const sel = (field, opts, parse) => React.createElement("select", {
+              style: selStyle, value: String(spState[field]),
+              onChange: (e) => setSpState(s => ({ ...s, [field]: parse ? parse(e.target.value) : e.target.value }))
+            }, opts.map(o => React.createElement("option", { key: String(o.value), value: String(o.value) }, o.label)));
+            return React.createElement("div", { style: { background: "rgba(99,179,237,0.12)", border: "1px solid rgba(99,179,237,0.3)", borderRadius: "8px", padding: "12px", marginTop: "12px" } },
+              React.createElement("div", { style: { fontSize: "0.85em", color: "#a0aec0", marginBottom: "8px" } },
+                "🎯 Expected POD (CAPF 104a) at ", React.createElement("strong", { style: { color: "#e2e8f0" } }, snapSp + " NM"), " spacing",
+                snapped ? React.createElement("span", { style: { color: "#f6e05e" } }, " (rounded from " + rawSp + " NM)") : null
+              ),
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "10px" } },
+                sel('spPodAlt', MAT.pod.ALTITUDES.map(a => ({ value: a, label: a + " ft" })), v => parseInt(v, 10)),
+                sel('spPodTerrain', MAT.pod.TERRAINS.map(t => ({ value: t.key, label: t.label }))),
+                sel('spPodVis', MAT.pod.VISIBILITIES.map(v => ({ value: v, label: v + " mi vis" })), v => parseInt(v, 10))
+              ),
+              React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: "10px" } },
+                React.createElement("span", { style: { fontSize: "1.9em", fontWeight: "800", color: podColor } }, pod == null ? "—" : pod + "%"),
+                React.createElement("span", { style: { fontSize: "0.75em", color: "#718096" } }, "single-pass probability of detection")
+              )
+            );
+          })(),
+
           // Export buttons - row 1
-          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "15px" } }, 
-            React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary, padding: "12px" }, onClick: openMap }, "🗺️ Map"), 
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "15px" } },
+            React.createElement("button", { style: { ...styles.button, ...styles.buttonSecondary, padding: "12px" }, onClick: openMap }, "🗺️ Map"),
             React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #ed8936, #dd6b20)", padding: "12px" }, onClick: exportKML }, "🌍 KML"), 
             React.createElement("button", { style: { ...styles.button, background: "linear-gradient(135deg, #805ad5, #6b46c1)", padding: "12px" }, onClick: copyFF }, "✈️ Copy WPs")
           ),
