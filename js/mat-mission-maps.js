@@ -175,7 +175,7 @@
       tfrs: true,             // Active TFRs (DEFAULT ON when Aviation ON)
       stadiumTfrs: false,     // Stadium/Game TFRs (DEFAULT OFF even when Aviation ON)
       metarStations: true,    // METAR station markers (DEFAULT ON when Aviation ON)
-      navaids: false,         // Navaids VOR/VORTAC (DEFAULT OFF - module not yet implemented)
+      navaids: false,         // Navaids VOR/VORTAC (DEFAULT OFF; wired via MAT.navaidOverlay)
       moas: false,            // Military Operating Areas (DEFAULT OFF even when Aviation ON)
       fixes: false,           // Named waypoints (DEFAULT OFF even when Aviation ON)
       obstacles: false,       // Aviation obstacles (DEFAULT OFF even when Aviation ON)

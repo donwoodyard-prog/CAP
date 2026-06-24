@@ -80,6 +80,36 @@ not yet hand-verified.
 
 ---
 
+## Other modules (Reference / Radio / Emergency / Proficiency / Log / CO Comms / Mission Maps)
+
+Mostly **delivered**. Verified:
+- **Reference** — all promised: ~14 reference sections, ~15 calculators (density
+  alt, TAS, fuel, headwind/crosswind, TOD, glideslope [GS×5=FPM ✓], etc.),
+  RT-600 + G1000 refs, GPS converter. ✅
+- **Proficiency** — 9 CAPS 71-4 AFAM profiles, fully populated. ✅
+- **Unified Log** — 9 quick events + 6 advanced categories. ✅
+- **CO Comms** — Colorado fully populated; tile says "Colorado", so honest. ✅
+- **Emergency** — **agent's "only C182T works, selector misleads" = FALSE
+  POSITIVE.** The selector is data-driven (`Object.entries(...aircraft).map`), so
+  it only offers C182T (the only populated type). Honest, not misleading — just a
+  limited fleet (header even says "expandable"). Worth *adding* C172S/C206H data
+  for completeness, but not a promise gap.
+- **Mission Maps navaids** — **agent's "not implemented" = FALSE POSITIVE.** A
+  stale code comment said so, but `toggleNavaids` actually wires
+  `MAT.navaidOverlay.createNavaidLayer`. Fixed the misleading comment.
+
+Real (minor): `cx()` / `getTextSizeClass()` small helpers duplicated across
+mat-reference/emergency/targetlocal (consolidate to a shared util); a Mission
+Maps satellite toggle is a "coming soon" placeholder (label it as such);
+Radio has ~12 templates (a "core set", could expand).
+
+## A note on agent reliability
+This session's bug-hunt agents produced many **false positives** (claiming
+defined globals are "undefined", missing upstream guards, reading stale comments
+as truth). Every item above was **hand-verified**; I caught and discarded the
+false positives rather than "fixing" non-bugs in working safety-critical code.
+The promise-vs-delivery framing held up better, but still needed verification.
+
 ## Bottom line
 The big modules **deliver their core promises** — METAR/TAF/winds/radar/SIGMET/
 PIREP/D-ATIS/satellite all work; ELT/Crosshair/Coverage/Search-pattern math is
