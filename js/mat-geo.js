@@ -193,6 +193,107 @@
     return spNormalizeBearing(Math.atan2(y, x) * RAD_TO_DEG);
   }
 
+  // === MAGNETIC VARIATION (World Magnetic Model 2025) ===
+  // Official WMM2025 (NOAA NCEI / BGS), epoch 2025.0, valid 2025-2030. Coefficients
+  // verbatim from WMM2025.COF. Computes true geomagnetic declination ("magnetic
+  // variation"), matching NOAA and capgrids.com. SINGLE SOURCE OF TRUTH — other
+  // modules should call MAT.geo.magneticVariation() rather than approximating.
+  // Validated against the official test value: (80N, 0E, 2025.0, 0km) = 1.28 deg.
+  const WMM = (function() {
+    const EPOCH = 2025.0, MAXORD = 12, NN = MAXORD + 1;
+    const COEFFS = "1,0,-29351.8,0.0,12.0,0.0;1,1,-1410.8,4545.4,9.7,-21.5;2,0,-2556.6,0.0,-11.6,0.0;2,1,2951.1,-3133.6,-5.2,-27.7;2,2,1649.3,-815.1,-8.0,-12.1;3,0,1361.0,0.0,-1.3,0.0;3,1,-2404.1,-56.6,-4.2,4.0;3,2,1243.8,237.5,0.4,-0.3;3,3,453.6,-549.5,-15.6,-4.1;4,0,895.0,0.0,-1.6,0.0;4,1,799.5,278.6,-2.4,-1.1;4,2,55.7,-133.9,-6.0,4.1;4,3,-281.1,212.0,5.6,1.6;4,4,12.1,-375.6,-7.0,-4.4;5,0,-233.2,0.0,0.6,0.0;5,1,368.9,45.4,1.4,-0.5;5,2,187.2,220.2,0.0,2.2;5,3,-138.7,-122.9,0.6,0.4;5,4,-142.0,43.0,2.2,1.7;5,5,20.9,106.1,0.9,1.9;6,0,64.4,0.0,-0.2,0.0;6,1,63.8,-18.4,-0.4,0.3;6,2,76.9,16.8,0.9,-1.6;6,3,-115.7,48.8,1.2,-0.4;6,4,-40.9,-59.8,-0.9,0.9;6,5,14.9,10.9,0.3,0.7;6,6,-60.7,72.7,0.9,0.9;7,0,79.5,0.0,-0.0,0.0;7,1,-77.0,-48.9,-0.1,0.6;7,2,-8.8,-14.4,-0.1,0.5;7,3,59.3,-1.0,0.5,-0.8;7,4,15.8,23.4,-0.1,0.0;7,5,2.5,-7.4,-0.8,-1.0;7,6,-11.1,-25.1,-0.8,0.6;7,7,14.2,-2.3,0.8,-0.2;8,0,23.2,0.0,-0.1,0.0;8,1,10.8,7.1,0.2,-0.2;8,2,-17.5,-12.6,0.0,0.5;8,3,2.0,11.4,0.5,-0.4;8,4,-21.7,-9.7,-0.1,0.4;8,5,16.9,12.7,0.3,-0.5;8,6,15.0,0.7,0.2,-0.6;8,7,-16.8,-5.2,-0.0,0.3;8,8,0.9,3.9,0.2,0.2;9,0,4.6,0.0,-0.0,0.0;9,1,7.8,-24.8,-0.1,-0.3;9,2,3.0,12.2,0.1,0.3;9,3,-0.2,8.3,0.3,-0.3;9,4,-2.5,-3.3,-0.3,0.3;9,5,-13.1,-5.2,0.0,0.2;9,6,2.4,7.2,0.3,-0.1;9,7,8.6,-0.6,-0.1,-0.2;9,8,-8.7,0.8,0.1,0.4;9,9,-12.9,10.0,-0.1,0.1;10,0,-1.3,0.0,0.1,0.0;10,1,-6.4,3.3,0.0,0.0;10,2,0.2,0.0,0.1,-0.0;10,3,2.0,2.4,0.1,-0.2;10,4,-1.0,5.3,-0.0,0.1;10,5,-0.6,-9.1,-0.3,-0.1;10,6,-0.9,0.4,0.0,0.1;10,7,1.5,-4.2,-0.1,0.0;10,8,0.9,-3.8,-0.1,-0.1;10,9,-2.7,0.9,-0.0,0.2;10,10,-3.9,-9.1,-0.0,-0.0;11,0,2.9,0.0,0.0,0.0;11,1,-1.5,0.0,-0.0,-0.0;11,2,-2.5,2.9,0.0,0.1;11,3,2.4,-0.6,0.0,-0.0;11,4,-0.6,0.2,0.0,0.1;11,5,-0.1,0.5,-0.1,-0.0;11,6,-0.6,-0.3,0.0,-0.0;11,7,-0.1,-1.2,-0.0,0.1;11,8,1.1,-1.7,-0.1,-0.0;11,9,-1.0,-2.9,-0.1,0.0;11,10,-0.2,-1.8,-0.1,0.0;11,11,2.6,-2.3,-0.1,0.0;12,0,-2.0,0.0,0.0,0.0;12,1,-0.2,-1.3,0.0,-0.0;12,2,0.3,0.7,-0.0,0.0;12,3,1.2,1.0,-0.0,-0.1;12,4,-1.3,-1.4,-0.0,0.1;12,5,0.6,-0.0,-0.0,-0.0;12,6,0.6,0.6,0.1,-0.0;12,7,0.5,-0.1,-0.0,-0.0;12,8,-0.1,0.8,0.0,0.0;12,9,-0.4,0.1,0.0,-0.0;12,10,-0.2,-1.0,-0.1,-0.0;12,11,-1.3,0.1,-0.0,0.0;12,12,-0.7,0.2,-0.1,-0.1;";
+    const c = [], cd = [];
+    for (let i = 0; i < NN; i++) { c[i] = new Array(NN).fill(0); cd[i] = new Array(NN).fill(0); }
+    COEFFS.split(';').forEach(row => {
+      if (!row) return;
+      const p = row.split(',').map(Number);
+      const n = p[0], m = p[1];
+      if (!(n >= 1)) return;
+      c[m][n] = p[2]; cd[m][n] = p[4];
+      if (m !== 0) { c[n][m - 1] = p[3]; cd[n][m - 1] = p[5]; }
+    });
+    // Schmidt semi-normalization -> Gauss (classic geomag recursion setup)
+    const snorm = new Array(NN * NN).fill(0);
+    const k = []; for (let i = 0; i < NN; i++) k[i] = new Array(NN).fill(0);
+    const fn = new Array(NN).fill(0), fm = new Array(NN).fill(0);
+    snorm[0] = 1;
+    for (let n = 1; n <= MAXORD; n++) {
+      snorm[n] = snorm[n - 1] * (2 * n - 1) / n;
+      let j = 2;
+      for (let m = 0, D1 = 1, D2 = (n - m + D1) / D1; D2 > 0; D2--, m += D1) {
+        k[m][n] = (((n - 1) * (n - 1)) - (m * m)) / ((2 * n - 1) * (2 * n - 3));
+        if (m > 0) {
+          const flnmj = ((n - m + 1) * j) / (n + m);
+          snorm[n + m * NN] = snorm[n + (m - 1) * NN] * Math.sqrt(flnmj); j = 1;
+          c[n][m - 1] *= snorm[n + m * NN]; cd[n][m - 1] *= snorm[n + m * NN];
+        }
+        c[m][n] *= snorm[n + m * NN]; cd[m][n] *= snorm[n + m * NN];
+      }
+      fn[n] = n + 1; fm[n] = n;
+    }
+    k[1][1] = 0;
+    // Geomagnetic declination (deg, East positive) at geodetic lat/lon, height km, decimal year.
+    function declination(glat, glon, year, altKm) {
+      altKm = altKm || 0;
+      const dt = year - EPOCH, rad = Math.PI / 180;
+      const rlon = glon * rad, rlat = glat * rad;
+      const srlon = Math.sin(rlon), srlat = Math.sin(rlat), crlon = Math.cos(rlon), crlat = Math.cos(rlat);
+      const srlat2 = srlat * srlat, crlat2 = crlat * crlat;
+      const a = 6378.137, b = 6356.7523142, re = 6371.2, a2 = a * a, b2 = b * b, c2 = a2 - b2, a4 = a2 * a2, b4 = b2 * b2, c4 = a4 - b4;
+      const q = Math.sqrt(a2 - c2 * srlat2), q1 = altKm * q, q2 = ((q1 + a2) / (q1 + b2)) * ((q1 + a2) / (q1 + b2));
+      const ct = srlat / Math.sqrt(q2 * crlat2 + srlat2), st = Math.sqrt(1 - ct * ct);
+      const r = Math.sqrt(altKm * altKm + 2 * q1 + (a4 - c4 * srlat2) / (q * q));
+      const dd = Math.sqrt(a2 * crlat2 + b2 * srlat2), ca = (altKm + dd) / r, sa = c2 * crlat * srlat / (r * dd);
+      const sp = new Array(NN).fill(0), cp = new Array(NN).fill(0);
+      cp[0] = 1; sp[1] = srlon; cp[1] = crlon;
+      for (let m = 2; m <= MAXORD; m++) { sp[m] = sp[1] * cp[m - 1] + cp[1] * sp[m - 1]; cp[m] = cp[1] * cp[m - 1] - sp[1] * sp[m - 1]; }
+      const P = new Array(NN * NN).fill(0), dP = new Array(NN * NN).fill(0); P[0] = 1;
+      const aor = re / r; let ar = aor * aor, br = 0, bt = 0, bp = 0;
+      for (let n = 1; n <= MAXORD; n++) {
+        ar *= aor;
+        for (let m = 0, D3 = 1, D4 = (n + m + D3) / D3; D4 > 0; D4--, m += D3) {
+          const idx = n + m * NN;
+          if (n === m) { P[idx] = st * P[(n - 1) + (m - 1) * NN]; dP[idx] = st * dP[(n - 1) + (m - 1) * NN] + ct * P[(n - 1) + (m - 1) * NN]; }
+          else if (n === 1 && m === 0) { P[idx] = ct * P[0]; dP[idx] = ct * dP[0] - st * P[0]; }
+          else if (n > 1 && n !== m) {
+            if (m > n - 2) { P[(n - 2) + m * NN] = 0; dP[(n - 2) + m * NN] = 0; }
+            P[idx] = ct * P[(n - 1) + m * NN] - k[m][n] * P[(n - 2) + m * NN];
+            dP[idx] = ct * dP[(n - 1) + m * NN] - st * P[(n - 1) + m * NN] - k[m][n] * dP[(n - 2) + m * NN];
+          }
+          const gnm = c[m][n] + dt * cd[m][n];
+          const hnm = (m > 0) ? (c[n][m - 1] + dt * cd[n][m - 1]) : 0;
+          const t1 = gnm * cp[m] + hnm * sp[m], t2 = gnm * sp[m] - hnm * cp[m];
+          bt -= ar * t1 * dP[idx];
+          bp += ar * fm[m] * t2 * P[idx];
+          br += ar * fn[n] * t1 * P[idx];
+        }
+      }
+      bp = (st === 0) ? bp : bp / st;
+      const bx = -bt * ca - br * sa, by = bp;
+      return Math.atan2(by, bx) / rad;
+    }
+    return { declination: declination, EPOCH: EPOCH };
+  })();
+
+  function currentDecimalYear() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const start = new Date(y, 0, 1).getTime();
+    const end = new Date(y + 1, 0, 1).getTime();
+    return y + (d.getTime() - start) / (end - start);
+  }
+
+  /**
+   * Magnetic variation (declination) in degrees, East positive, via WMM2025.
+   * @param {number} lat - latitude, decimal degrees (positive N)
+   * @param {number} lon - longitude, decimal degrees (negative W)
+   * @param {number} [year] - decimal year (defaults to current date)
+   * @returns {number} declination in degrees (East positive, West negative)
+   */
+  function magneticVariation(lat, lon, year) {
+    return WMM.declination(lat, lon, (year == null ? currentDecimalYear() : year), 0);
+  }
+
   // === COORDINATE PARSING ===
 
   function spParseCoordinate(input) {
@@ -409,9 +510,8 @@
     // and grid-string resolution can never disagree.
     const qBounds = quadrantBounds(cell, quadrant);
 
-    // Simple magnetic variation estimate (rough approximation for CONUS)
-    // For more accurate values, use a proper magnetic model
-    const magVariation = Math.round((-0.15 * lon - 5) * 10) / 10;
+    // Magnetic variation (declination) from WMM2025 — accurate, matches NOAA/capgrids.
+    const magVariation = Math.round(magneticVariation(lat, lon) * 10) / 10;
 
     return {
       gridId: sectional.id + ' ' + gridNum + quadrant,
@@ -608,6 +708,7 @@
   MAT.geo.distanceNM = distanceNM;
   MAT.geo.bearing = bearing;
   MAT.geo.calculateDistance = distanceNM; // alias used by some modules
+  MAT.geo.magneticVariation = magneticVariation; // WMM2025 declination (deg, East +)
   
   // Coordinate parsing
   MAT.geo.spParseCoordinate = spParseCoordinate;
@@ -641,6 +742,7 @@
   window.spNormalizeBearing = spNormalizeBearing;
   window.spDistanceNM = distanceNM;
   window.spBearing = bearing;
+  window.spMagneticVariation = magneticVariation;
   window.spParseCoordinate = spParseCoordinate;
   window.spParseCapGrid = spParseCapGrid;
   window.spGridToGeometry = spGridToGeometry;

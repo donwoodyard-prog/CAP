@@ -97,5 +97,14 @@ check('bearing due north', approx(G.bearing(40, -105, 41, -105), 0, 1e-6));
 check('bearing due east ~90', approx(G.bearing(0, 0, 0, 1), 90, 1e-6));
 check('bearing range 0-360', (() => { const b = G.bearing(40, -105, 39, -106); return b >= 0 && b < 360; })());
 
+// 8. Magnetic variation (WMM2025). Validated against the official NOAA test value.
+check('magneticVariation exported', typeof G.magneticVariation === 'function');
+check('WMM official test (80N,0E,2025.0)=1.28',
+  approx(G.magneticVariation(80, 0, 2025.0), 1.28, 0.02), G.magneticVariation(80, 0, 2025.0));
+check('WMM Ouray ~8.5 E (capgrids 8.6)',
+  Math.abs(G.magneticVariation(38.02, -107.67, 2026.0) - 8.6) < 0.3, G.magneticVariation(38.02, -107.67, 2026.0));
+check('WMM east declination west of agonic (Colorado positive)', G.magneticVariation(39, -105, 2026) > 0);
+check('WMM west declination east of agonic (NYC negative)', G.magneticVariation(40.7, -74, 2026) < 0);
+
 console.log('\nCAP grid tests: ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed === 0 ? 0 : 1);
