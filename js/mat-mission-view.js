@@ -27,6 +27,53 @@
     { id: 'rtb', label: 'RTB', icon: '↩️', color: '#805ad5' }
   ];
 
+  // Draw the CAP grid overlay for the map's current viewport into `lg`. Blue 15'
+  // cells labeled "DEN 209"; at high zoom, 7.5' quadrant divisions labeled
+  // "DEN 209A/B/C/D". Cleared + redrawn on every pan/zoom.
+  function mvGridLabel(lg, lat, lon, text, size) {
+    L.marker([lat, lon], {
+      interactive: false, keyboard: false,
+      icon: L.divIcon({ className: 'mv-grid-label',
+        html: '<div style="font-size:' + size + 'px;font-weight:700;color:#1e5fc0;white-space:nowrap;text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff">' + text + '</div>',
+        iconSize: [90, 20], iconAnchor: [45, 10] })
+    }).addTo(lg);
+  }
+  function mvDrawGrid(map, lg, on) {
+    if (!lg || !map) return;
+    lg.clearLayers();
+    var detect = window.MAT && MAT.geo && MAT.geo.spDetectCapGrid;
+    if (!on || !detect) return;
+    var zoom = map.getZoom();
+    if (zoom < 8) return;                 // too zoomed out to be useful
+    var b = map.getBounds(), G = 0.25, MAX = 700, count = 0, seen = {};
+    var south = Math.floor(b.getSouth() / G) * G, north = Math.ceil(b.getNorth() / G) * G;
+    var west = Math.floor(b.getWest() / G) * G, east = Math.ceil(b.getEast() / G) * G;
+    var cellStyle = { color: '#1e90ff', weight: 1.5, opacity: 0.8, fill: false };
+    var quadStyle = { color: '#1e90ff', weight: 0.6, opacity: 0.45 };
+    var showQuad = zoom >= 11;
+    for (var lat = south + G / 2; lat < north && count < MAX; lat += G) {
+      for (var lon = west + G / 2; lon < east && count < MAX; lon += G) {
+        var info = detect(lat, lon);
+        if (!info || !info.cell) continue;          // outside CAP sectional coverage
+        var key = info.sectionalId + ' ' + info.gridNumber;
+        if (seen[key]) continue; seen[key] = 1; count++;
+        var c = info.cell;
+        L.rectangle([[c.south, c.west], [c.north, c.east]], cellStyle).addTo(lg);
+        if (showQuad) {
+          var midLat = (c.north + c.south) / 2, midLon = (c.west + c.east) / 2;
+          L.polyline([[midLat, c.west], [midLat, c.east]], quadStyle).addTo(lg);
+          L.polyline([[c.south, midLon], [c.north, midLon]], quadStyle).addTo(lg);
+          mvGridLabel(lg, (c.north + midLat) / 2, (c.west + midLon) / 2, key + 'A', 13); // NW
+          mvGridLabel(lg, (c.north + midLat) / 2, (midLon + c.east) / 2, key + 'B', 13); // NE
+          mvGridLabel(lg, (midLat + c.south) / 2, (c.west + midLon) / 2, key + 'C', 13); // SW
+          mvGridLabel(lg, (midLat + c.south) / 2, (midLon + c.east) / 2, key + 'D', 13); // SE
+        } else if (zoom >= 9) {
+          mvGridLabel(lg, (c.north + c.south) / 2, (c.west + c.east) / 2, key, 16);
+        }
+      }
+    }
+  }
+
   function MissionViewTab(props) {
     var React = props.React || window.React;
     var h = React.createElement;
@@ -41,14 +88,18 @@
     var lastState = useState(null); var lastLogged = lastState[0], setLastLogged = lastState[1];
     var clockState = useState(getZ()); var clock = clockState[0], setClock = clockState[1];
     var copiedState = useState(false); var copied = copiedState[0], setCopied = copiedState[1];
+    var gridShowState = useState(true); var showGrid = gridShowState[0], setShowGrid = gridShowState[1];
 
     var mapElRef = useRef(null);
     var mapRef = useRef(null);
     var ownRef = useRef(null);
     var gridRef = useRef(null);
+    var gridOverlayRef = useRef(null);
     var tgtRef = useRef(null);
     var followRef = useRef(follow);
     followRef.current = follow;
+    var showGridRef = useRef(showGrid);
+    showGridRef.current = showGrid;
 
     // ---- clock tick ----
     useEffect(function () {
@@ -60,16 +111,25 @@
     useEffect(function () {
       if (typeof L === 'undefined' || !mapElRef.current || mapRef.current) return;
       var map = L.map(mapElRef.current, { zoomControl: true, attributionControl: false }).setView([39.5, -105.5], 10);
-      // USGS topo basemap (roads/features), OSM fallback on tile error
-      var topo = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 });
-      var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
-      topo.on('tileerror', function () { if (!map.hasLayer(osm)) { map.removeLayer(topo); osm.addTo(map); } });
-      topo.addTo(map);
-      L.control.layers({ 'USGS Topo': topo, 'OpenStreetMap': osm }, {}, { position: 'topright', collapsed: true }).addTo(map);
+      // Full base-layer set: USGS Topo/Imagery, FAA VFR Sectional/TAC, IFR Low, OSM
+      // (from the MAT.maps SSOT). Falls back to a topo+OSM pair if unavailable.
+      var baseLayers;
+      if (window.MAT && MAT.maps && MAT.maps.createBaseLayers) {
+        baseLayers = MAT.maps.createBaseLayers();
+        (baseLayers['USGS Topo'] || baseLayers['OpenStreetMap'] || baseLayers[Object.keys(baseLayers)[0]]).addTo(map);
+      } else {
+        var topo = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 });
+        baseLayers = { 'USGS Topo': topo, 'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }) };
+        topo.addTo(map);
+      }
+      L.control.layers(baseLayers, {}, { position: 'topright', collapsed: true }).addTo(map);
+      // CAP grid overlay (toggled by the on-map Grid button; redrawn on pan/zoom)
+      gridOverlayRef.current = L.layerGroup().addTo(map);
+      map.on('moveend', function () { mvDrawGrid(map, gridOverlayRef.current, showGridRef.current); });
       // tap to mark a target
       map.on('click', function (e) { setTarget({ lat: e.latlng.lat, lon: e.latlng.lng, source: 'map' }); });
       mapRef.current = map;
-      setTimeout(function () { try { map.invalidateSize(); } catch (e) {} }, 200);
+      setTimeout(function () { try { map.invalidateSize(); mvDrawGrid(map, gridOverlayRef.current, showGridRef.current); } catch (e) {} }, 250);
       return function () { try { map.remove(); } catch (e) {} mapRef.current = null; };
     }, []);
 
@@ -160,6 +220,13 @@
 
     function markGpsTarget() { if (gps) setTarget({ lat: gps.lat, lon: gps.lon, source: 'gps' }); }
     function recenter() { setFollow(true); if (mapRef.current && gps) mapRef.current.panTo([gps.lat, gps.lon], { animate: true }); }
+    function toggleGrid() {
+      setShowGrid(function (v) {
+        var nv = !v; showGridRef.current = nv;
+        if (mapRef.current) mvDrawGrid(mapRef.current, gridOverlayRef.current, nv);
+        return nv;
+      });
+    }
 
     // coordinate formats for the target panel
     function fmt(lat, lon) {
@@ -220,7 +287,10 @@
             (follow ? '📍 Following' : '📍 Recenter')),
           h('button', { onClick: markGpsTarget, disabled: !gps, title: 'Mark a target at the aircraft position',
             style: { padding: '10px 12px', borderRadius: '10px', border: 'none', background: gps ? 'linear-gradient(135deg,#e53e3e,#c53030)' : 'rgba(45,55,72,0.7)', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: gps ? 'pointer' : 'default', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' } },
-            '🎯 Mark GPS')),
+            '🎯 Mark GPS'),
+          h('button', { onClick: toggleGrid, title: 'Show/hide the CAP grid overlay',
+            style: { padding: '10px 12px', borderRadius: '10px', border: 'none', background: showGrid ? '#1e90ff' : 'rgba(45,55,72,0.95)', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' } },
+            (showGrid ? '▦ Grid ON' : '▦ Grid OFF'))),
         !gps ? h('div', { style: { position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)', zIndex: 500, background: 'rgba(214,158,46,0.95)', color: '#1a202c', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700' } }, '⚠ Waiting for GPS — enable Location') : null,
         h('div', { style: { position: 'absolute', top: '10px', left: '10px', zIndex: 500, background: 'rgba(26,32,44,0.85)', color: '#a0aec0', padding: '4px 8px', borderRadius: '6px', fontSize: '11px' } }, 'Tap map to mark a target')
       ),
