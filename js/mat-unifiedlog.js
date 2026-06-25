@@ -2018,13 +2018,16 @@ const MAT_UNIFIEDLOG = (function() {
         sortTime: new Date(entry.timestamp || entry.dateZ + "T" + entry.timeZ.replace("Z", "") + ":00Z").getTime()
       }));
       
-      // Get advanced log entries (those with [Advanced] in notes)
+      // Get advanced log entries + Mission View quick-log entries. Both live in
+      // the shared `events` store (basicLog covers this component's own quick
+      // buttons); without including "[Mission View]" here, taps from the Mission
+      // View tab would be in the PDF/export but not in this on-screen list.
       const advancedEntries = events
-        .filter(e => e.notes && e.notes.startsWith("[Advanced]"))
+        .filter(e => e.notes && (e.notes.startsWith("[Advanced]") || e.notes.startsWith("[Mission View]")))
         .map(entry => ({
           ...entry,
-          source: "advanced",
-          sortTime: new Date(entry.dateZ + "T" + entry.timeZ.replace("Z", "") + ":00Z").getTime()
+          source: entry.notes.startsWith("[Mission View]") ? "missionView" : "advanced",
+          sortTime: new Date(entry.dateZ + "T" + (entry.timeZ || "0000").replace("Z", "") + ":00Z").getTime()
         }));
       
       // Combine and sort by time (newest first)
