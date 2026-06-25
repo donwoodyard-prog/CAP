@@ -81,6 +81,9 @@
     var events = props.events, setEvents = props.setEvents;
     var getZ = props.getZuluTimeOnly || function () { return ''; };
     var getZDate = props.getZuluDate || function () { return ''; };
+    var mi = props.missionInfo || {};
+    var mb = props.missionBase || {};
+    var switchTab = props.switchTab;
 
     var gpsState = useState(null); var gps = gpsState[0], setGps = gpsState[1];
     var targetState = useState(null); var target = targetState[0], setTarget = targetState[1];
@@ -89,6 +92,7 @@
     var clockState = useState(getZ()); var clock = clockState[0], setClock = clockState[1];
     var copiedState = useState(false); var copied = copiedState[0], setCopied = copiedState[1];
     var gridShowState = useState(true); var showGrid = gridShowState[0], setShowGrid = gridShowState[1];
+    var briefingState = useState(false); var briefingOpen = briefingState[0], setBriefingOpen = briefingState[1];
 
     var mapElRef = useRef(null);
     var mapRef = useRef(null);
@@ -269,6 +273,44 @@
     var tf = target ? fmt(target.lat, target.lon) : null;
     var fmtBlock = tf ? ('TARGET — ' + (target.source === 'gps' ? 'aircraft GPS' : 'map mark') + '\nDD:  ' + tf.dd + '\nDDM: ' + (tf.ddm || '') + '\nDMS: ' + (tf.dms || '') + (tf.grid ? '\nCAP Grid: ' + tf.grid : '')) : '';
 
+    // ---- Briefing reference (collapsible, read-only Form 104 essentials) ----
+    var bCallsign = mi.aircraftCallsign || mb.callsign || '';
+    var bSortie = mi.sortieNumber || '';
+    var freqs = [];
+    if (mb.channelBase) freqs.push('Base ' + mb.channelBase);
+    if (mb.channelAirGround) freqs.push('A/G ' + mb.channelAirGround);
+    if (mb.channelAirAir) freqs.push('A/A ' + mb.channelAirAir);
+    var bHasAny = !!(bCallsign || bSortie || mi.sortieObjectives || mi.areaOfOperations || freqs.length || mb.otherAircraft || mb.groundTeams || mi.hazardsToFlight || mi.emergencyFields || mi.routeOfFlight);
+    var bRow = function (label, value, color) {
+      if (!value) return null;
+      return h('div', { key: label, style: { display: 'flex', gap: '8px', padding: '3px 0', fontSize: '12px', lineHeight: '1.4' } },
+        h('span', { style: { color: '#718096', flex: '0 0 88px', fontWeight: '600' } }, label),
+        h('span', { style: { color: color || '#e2e8f0', flex: '1', wordBreak: 'break-word' } }, value));
+    };
+    var briefingPanel = h('div', { style: { background: 'rgba(26,32,44,0.55)', border: '1px solid #2d3748', borderRadius: '10px', overflow: 'hidden', flex: '0 0 auto' } },
+      h('div', { onClick: function () { setBriefingOpen(function (v) { return !v; }); }, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', cursor: 'pointer' } },
+        h('span', { style: { fontWeight: '700', color: '#63b3ed', fontSize: '13px' } },
+          '📋 Briefing' + ((bCallsign || bSortie) ? '  —  ' + [bCallsign, bSortie].filter(Boolean).join(' / ') : '')),
+        h('span', { style: { color: '#a0aec0', fontSize: '12px' } }, briefingOpen ? '▲ hide' : '▼ show')),
+      briefingOpen ? h('div', { style: { padding: '2px 12px 12px' } },
+        bHasAny ? h('div', null,
+          bRow('Callsign', bCallsign, '#68d391'),
+          bRow('Sortie', [bSortie, mi.sortieType].filter(Boolean).join('  ·  ')),
+          bRow('Objective', mi.sortieObjectives),
+          bRow('Area', mi.areaOfOperations),
+          bRow('Freqs', freqs.join('    '), '#f6e05e'),
+          bRow('Other A/C', mb.otherAircraft, '#f6ad55'),
+          bRow('Ground tm', mb.groundTeams, '#f6ad55'),
+          bRow('Hazards', mi.hazardsToFlight, '#fc8181'),
+          bRow('Emerg fld', mi.emergencyFields, '#fc8181'),
+          bRow('Route', mi.routeOfFlight)
+        ) : h('div', { style: { fontSize: '12px', color: '#718096', textAlign: 'center', padding: '6px' } },
+          'No sortie set — ',
+          switchTab ? h('span', { onClick: function (e) { e.stopPropagation(); switchTab('mission'); }, style: { color: '#63b3ed', cursor: 'pointer', textDecoration: 'underline' } }, 'set it in the Mission tab') : 'set it in the Mission tab',
+          ' or import a Form 104.')
+      ) : null
+    );
+
     return h('div', { style: { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)', minHeight: '520px', gap: '8px', padding: '8px' } },
       // header
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 6px' } },
@@ -277,6 +319,8 @@
           headGrid ? h('span', { style: { color: '#f6e05e', fontWeight: '700' } }, headGrid) : null,
           h('span', { style: { color: '#68d391', fontWeight: '700', fontSize: '16px' } }, clock + 'Z'))
       ),
+      // briefing reference (collapsible)
+      briefingPanel,
       // map
       h('div', { style: { position: 'relative', flex: '1 1 auto', minHeight: '260px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #2d3748' } },
         h('div', { ref: mapElRef, style: { position: 'absolute', inset: '0', width: '100%', height: '100%', background: '#1a202c' } }),
