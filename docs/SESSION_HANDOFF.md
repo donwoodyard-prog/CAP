@@ -11,8 +11,9 @@ session so the next session can continue cleanly.
 - Everything below is **committed, pushed, and deployed** to cap-mat.com.
 - The app now implements the CAP Mission Pilot **search-and-coverage doctrine**
   end-to-end, validated against CAP primary sources.
-- New since the doctrine arc: an in-aircraft **Mission View** scanner tab and a
-  **unified mission log** (one `events` store for all quick-log taps).
+- New since the doctrine arc: an in-aircraft **Mission View** scanner tab (full
+  chart overlays + a toggleable CAP grid overlay with names + a collapsible Form
+  104 briefing) and a **unified mission log** (one `events` store for all taps).
 - Git is clean; remote `main` is in sync (github.com/donwoodyard-prog/CAP).
 
 ---
@@ -78,10 +79,21 @@ All captured in **`docs/CAP_DOCTRINE_NOTES.md`** (page-cited).
 - **Mission View** (`js/mat-mission-view.js` → `MAT_MISSION_VIEW.MissionViewTab`) —
   NEW in-aircraft, iPad-portrait scanner/observer tab (first home tile). One
   glanceable screen: a focused Leaflet moving map (live GPS ownship + current CAP
-  grid on a USGS-topo basemap, tap-to-mark a target), a one-tap Zulu time log
-  (Takeoff / In Grid / Out of Grid / Ops Normal / RTB), and target capture →
-  DD/DDM/DMS + "Copy read-back" (spoken DDM) for SAR partners. Verified headless
-  with puppeteer geolocation override (820×1180).
+  grid, tap-to-mark a target), a one-tap Zulu time log (Takeoff / In Grid / Out of
+  Grid / Ops Normal / RTB), and target capture → DD/DDM/DMS + "Copy read-back"
+  (spoken DDM) for SAR partners. Verified headless with puppeteer geolocation
+  override (820×1180). Map upgrades added the same evening:
+    - **Full base-layer set** via `MAT.maps.createBaseLayers()` (USGS Topo/Imagery/
+      Imagery+Topo/Shaded Relief, FAA VFR Sectional + TAC, IFR Enroute Low, OSM).
+    - **Toggleable CAP grid overlay** (`mvDrawGrid` at module scope, redrawn on
+      pan/zoom): blue 15′ cells labeled "DEN 209" at zoom 9–10; 7.5′ quadrant
+      divisions labeled "DEN 209A/B/C/D" at zoom 11+. Hidden < zoom 8; capped 700.
+    - **Collapsible "📋 Briefing" reference** (kneeboard / Form 104 essentials) —
+      read-only from `missionInfo` + `missionBase`: callsign + sortie #, objective,
+      area of ops, frequencies (base/air-ground/air-air), other aircraft, ground
+      teams, hazards, emergency fields, route. Collapsed by default. The app already
+      models the full Form 104 in those states (Mission tab + Form 104 import); this
+      just surfaces the in-flight items so the crew doesn't tab-hop.
 - **Unified quick-log store** — removed the Log tab's internal `basicLog`; ALL quick
   taps (Log tab buttons + Mission View) now live in the single shared `events`
   store. `getUnifiedLogEntries()` (the Log-tab list) and `toggleLogError()` (the
@@ -190,8 +202,10 @@ All captured in **`docs/CAP_DOCTRINE_NOTES.md`** (page-cited).
 1. **Maximum Possibility Area helper** — circle around LKP, radius = endurance
    range, wind-corrected (Inflight Guide p64). Fits Search Planner / Mission Maps.
 2. **Mission View follow-ups** (raised with the user, not yet done): add it to the
-   bottom tab bar for one-tap in-flight access; optional route-annotation on the map
-   for air-to-ground directions; real-device shakedown.
+   **bottom tab bar** for one-tap in-flight access (currently only on the home tile
+   — this was the agreed "next" item); optional route-annotation on the map for
+   air-to-ground directions; real-device (iPad) shakedown of the new overlays/grid.
+   *(Done already: full map overlays, CAP grid overlay + names, Briefing panel.)*
 3. Optional reference adds from `CAP_DOCTRINE_NOTES.md`: visual detection ranges
    (p90), cumulative-POD as a fuller matrix, ELT "locate & silence" ground
    checklist.
@@ -200,7 +214,9 @@ All captured in **`docs/CAP_DOCTRINE_NOTES.md`** (page-cited).
    parameterized builder, but each needs care to avoid behavior changes.
 
 _Done since the original backlog: POD wired into the Search Planner; Mission View
-built; quick-log unified into one store._
+built, then extended with full map overlays + a toggleable CAP grid overlay (cell &
+quadrant names) + a collapsible Form 104 Briefing reference; quick-log unified into
+one store._
 
 ---
 
