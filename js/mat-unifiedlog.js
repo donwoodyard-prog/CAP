@@ -1610,14 +1610,11 @@ const MAT_UNIFIEDLOG = (function() {
       gpsUtils,
       getZuluTimeOnly,
       getZuluDate,
-      // Basic log state
-      basicLog,
-      setBasicLog,
+      // Quick-log button UX state (the log entries themselves now live in `events`)
       basicLogCapturing,
       setBasicLogCapturing,
       basicLogLastTapped,
       setBasicLogLastTapped,
-      basicLogSeqRef,
       // Advanced log state  
       events,
       setEvents,
@@ -1673,28 +1670,7 @@ const MAT_UNIFIEDLOG = (function() {
             const grid = gpsUtils.calculateCapGrid(lat, -lon);
             const accuracy = pos.coords.accuracy ? Math.round(pos.coords.accuracy) : null;
             
-            basicLogSeqRef.current++;
-            const logEntry = {
-              id: Date.now() + Math.random(),
-              seq: basicLogSeqRef.current,
-              eventType: eventType.label,
-              eventId: eventType.id,
-              timestamp: timestamp,
-              dateZ: dateZ,
-              timeZ: timeZ,
-              timeL: timeL,
-              latDeg: latDdm.deg.toString(),
-              latMin: latDdm.min.toFixed(3),
-              lonDeg: lonDdm.deg.toString(),
-              lonMin: lonDdm.min.toFixed(3),
-              capGrid: grid ? grid.full : "",
-              gpsAccuracy: accuracy,
-              isError: false,
-              source: "basic"
-            };
-            setBasicLog(prev => [logEntry].concat(prev));
-            
-            // Also add to events for unified export
+            // Single shared store: write the event (used by the log list + export)
             eventSeqRef.current++;
             const eventEntry = {
               id: Date.now() + Math.random(),
@@ -1719,28 +1695,8 @@ const MAT_UNIFIEDLOG = (function() {
             setTimeout(() => setBasicLogCapturing(null), 800);
           },
           (err) => {
-            basicLogSeqRef.current++;
-            const logEntry = {
-              id: Date.now() + Math.random(),
-              seq: basicLogSeqRef.current,
-              eventType: eventType.label,
-              eventId: eventType.id,
-              timestamp: timestamp,
-              dateZ: dateZ,
-              timeZ: timeZ,
-              timeL: timeL,
-              latDeg: "",
-              latMin: "",
-              lonDeg: "",
-              lonMin: "",
-              capGrid: "",
-              gpsAccuracy: null,
-              gpsError: err.message,
-              isError: false,
-              source: "basic"
-            };
-            setBasicLog(prev => [logEntry].concat(prev));
-            
+            // Single shared store: write the event below
+
             eventSeqRef.current++;
             const eventEntry = {
               id: Date.now() + Math.random(),
@@ -1767,28 +1723,7 @@ const MAT_UNIFIEDLOG = (function() {
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
       } else {
-        // No geolocation available
-        basicLogSeqRef.current++;
-        const logEntry = {
-          id: Date.now() + Math.random(),
-          seq: basicLogSeqRef.current,
-          eventType: eventType.label,
-          eventId: eventType.id,
-          timestamp: timestamp,
-          dateZ: dateZ,
-          timeZ: timeZ,
-          timeL: timeL,
-          latDeg: "",
-          latMin: "",
-          lonDeg: "",
-          lonMin: "",
-          capGrid: "",
-          gpsError: "GPS not available",
-          isError: false,
-          source: "basic"
-        };
-        setBasicLog(prev => [logEntry].concat(prev));
-        
+        // No geolocation available — write the event to the single shared store
         eventSeqRef.current++;
         const eventEntry = {
           id: Date.now() + Math.random(),
@@ -1815,15 +1750,11 @@ const MAT_UNIFIEDLOG = (function() {
     };
     
     const toggleLogError = (entryId, isBasic) => {
-      if (isBasic) {
-        setBasicLog(prev => prev.map(entry => 
-          entry.id === entryId ? { ...entry, isError: !entry.isError } : entry
-        ));
-      } else {
-        setEvents(prev => prev.map(entry => 
-          entry.id === entryId ? { ...entry, isError: !entry.isError } : entry
-        ));
-      }
+      // All log entries now live in the shared `events` store (isBasic is no
+      // longer meaningful; kept for caller compatibility).
+      setEvents(prev => prev.map(entry =>
+        entry.id === entryId ? { ...entry, isError: !entry.isError } : entry
+      ));
     };
 
     // ============================================================
@@ -2011,27 +1942,19 @@ const MAT_UNIFIEDLOG = (function() {
     
     // Combine basic log and advanced events into unified list
     const getUnifiedLogEntries = () => {
-      // Get basic log entries
-      const basicEntries = basicLog.map(entry => ({
-        ...entry,
-        source: "basic",
-        sortTime: new Date(entry.timestamp || entry.dateZ + "T" + entry.timeZ.replace("Z", "") + ":00Z").getTime()
-      }));
-      
-      // Get advanced log entries + Mission View quick-log entries. Both live in
-      // the shared `events` store (basicLog covers this component's own quick
-      // buttons); without including "[Mission View]" here, taps from the Mission
-      // View tab would be in the PDF/export but not in this on-screen list.
-      const advancedEntries = events
-        .filter(e => e.notes && (e.notes.startsWith("[Advanced]") || e.notes.startsWith("[Mission View]")))
+      // SINGLE SOURCE OF TRUTH: the shared `events` store. It holds every quick
+      // tap — this tab's Quick Log buttons ("[Basic Log]"), the Advanced log
+      // ("[Advanced]"), and the Mission View tab ("[Mission View]") — and the PDF/
+      // copy/share read the same store, so the on-screen list and the exports match.
+      const srcOf = (notes) => notes.startsWith("[Mission View]") ? "missionView"
+        : notes.startsWith("[Advanced]") ? "advanced" : "basic";
+      return events
+        .filter(e => e.notes && (e.notes.startsWith("[Basic Log]") || e.notes.startsWith("[Advanced]") || e.notes.startsWith("[Mission View]")))
         .map(entry => ({
           ...entry,
-          source: entry.notes.startsWith("[Mission View]") ? "missionView" : "advanced",
-          sortTime: new Date(entry.dateZ + "T" + (entry.timeZ || "0000").replace("Z", "") + ":00Z").getTime()
-        }));
-      
-      // Combine and sort by time (newest first)
-      return [...basicEntries, ...advancedEntries]
+          source: srcOf(entry.notes),
+          sortTime: new Date((entry.dateZ || "") + "T" + (entry.timeZ || "0000").replace("Z", "") + ":00Z").getTime() || 0
+        }))
         .sort((a, b) => b.sortTime - a.sortTime);
     };
     

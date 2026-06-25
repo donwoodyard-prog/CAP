@@ -755,10 +755,10 @@ var { useState, useEffect } = React;
     const [showMoreEventTypes, setShowMoreEventTypes] = useState({});
     
     // Basic Log state - quick one-tap logging for common flight events
-    const [basicLog, setBasicLog] = useState([]);
+    // Quick-log entries now live in the shared `events` store; only the button
+    // UX state (last-tapped / capturing) is local.
     const [basicLogCapturing, setBasicLogCapturing] = useState(null);
     const [basicLogLastTapped, setBasicLogLastTapped] = useState({});
-    const basicLogSeqRef = React.useRef(0);
     
     // Advanced Log state
     const [advExpandedCategory, setAdvExpandedCategory] = useState(null);
@@ -5493,13 +5493,10 @@ Import: Open MAT → More → Import Data → Paste code`;
           getZuluTimeOnly: getZuluTimeOnly,
           getZuluDate: getZuluDate,
           // Basic log state
-          basicLog: basicLog,
-          setBasicLog: setBasicLog,
           basicLogCapturing: basicLogCapturing,
           setBasicLogCapturing: setBasicLogCapturing,
           basicLogLastTapped: basicLogLastTapped,
           setBasicLogLastTapped: setBasicLogLastTapped,
-          basicLogSeqRef: basicLogSeqRef,
           // Advanced log state
           events: events,
           setEvents: setEvents,
