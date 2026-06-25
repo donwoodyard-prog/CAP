@@ -7,10 +7,12 @@ session so the next session can continue cleanly.
 ---
 
 ## TL;DR — current state
-- App is **healthy**: all 14 tabs load with **0 console errors** (headless-verified).
+- App is **healthy**: all tabs load with **0 console errors** (headless-verified).
 - Everything below is **committed, pushed, and deployed** to cap-mat.com.
 - The app now implements the CAP Mission Pilot **search-and-coverage doctrine**
   end-to-end, validated against CAP primary sources.
+- New since the doctrine arc: an in-aircraft **Mission View** scanner tab and a
+  **unified mission log** (one `events` store for all quick-log taps).
 - Git is clean; remote `main` is in sync (github.com/donwoodyard-prog/CAP).
 
 ---
@@ -66,6 +68,27 @@ All captured in **`docs/CAP_DOCTRINE_NOTES.md`** (page-cited).
   run the PHP weather proxy — consider disabling Pages (repo Settings → Pages →
   None) if the green-build mirror isn't wanted.
 
+### Continued (later 2026-06-24) — scanner workflow + log unification
+- **Reference tab hardened** — calculators no longer need a `data/reference-data.js`
+  entry to render (the `renderRefContent` gate exempts `isCalc` sections; the header
+  falls back to the nav label). Closes the silent-blank footgun. See gotcha #3.
+- **POD wired into the Search Planner** — each generated pattern shows an "Expected
+  POD (CAPF 104a)" readout (`MAT.pod.lookup`) for its track spacing + adjustable
+  altitude/terrain/visibility, color-coded. Hidden for Sector Search (no spacing).
+- **Mission View** (`js/mat-mission-view.js` → `MAT_MISSION_VIEW.MissionViewTab`) —
+  NEW in-aircraft, iPad-portrait scanner/observer tab (first home tile). One
+  glanceable screen: a focused Leaflet moving map (live GPS ownship + current CAP
+  grid on a USGS-topo basemap, tap-to-mark a target), a one-tap Zulu time log
+  (Takeoff / In Grid / Out of Grid / Ops Normal / RTB), and target capture →
+  DD/DDM/DMS + "Copy read-back" (spoken DDM) for SAR partners. Verified headless
+  with puppeteer geolocation override (820×1180).
+- **Unified quick-log store** — removed the Log tab's internal `basicLog`; ALL quick
+  taps (Log tab buttons + Mission View) now live in the single shared `events`
+  store. `getUnifiedLogEntries()` (the Log-tab list) and `toggleLogError()` (the
+  per-entry error toggle) read/write `events`; the PDF/copy/share already did. One
+  mission record, displayed + printed + copied + shared consistently. Error-toggle
+  exercised directly (mark/unmark → ⚠️).
+
 ---
 
 ## CRITICAL architecture facts & gotchas (read before editing)
@@ -102,7 +125,18 @@ All captured in **`docs/CAP_DOCTRINE_NOTES.md`** (page-cited).
    (unifying would change behavior).
 
 5. **React without JSX.** `React.createElement` everywhere (often aliased `h`).
-   Tab UIs receive React/state/setters as props (hook-free).
+   Tab UIs receive React/state/setters as props. Most are hook-free, but external
+   tab modules that need lifecycle/refs (e.g. `MAT_MISSION_MAPS`, `MAT_MISSION_VIEW`)
+   receive `React` as a prop and use `React.useState/useEffect/useRef` internally.
+
+6. **One mission-log store = `events`.** The Log-tab quick buttons AND the Mission
+   View both write quick-log taps to the single shared `events` array, tagged in
+   `notes` with a `[Source]` prefix (`[Basic Log]` / `[Mission View]` /
+   `[Advanced]`). `getUnifiedLogEntries()` (the Log-tab list) and every export
+   (PDF/copy/share, all in index.html) read `events`. The old internal `basicLog`
+   store was removed (2026-06-24). **To add a new quick-log source:** write an
+   `events` entry with `eventType` + `timeZ` + a `[Source]` notes prefix, then add
+   that prefix to the `getUnifiedLogEntries` filter to show it in the list.
 
 ---
 
@@ -142,6 +176,9 @@ All captured in **`docs/CAP_DOCTRINE_NOTES.md`** (page-cited).
 - `js/mat-reference.js` + `data/reference-data.js` — Reference tab (calcs + refs).
 - `js/mat-weather.js` — weather briefing (now incl. TFRs).
 - `js/mat-elt-ui.js` / `js/mat-elt.js` — ELT Assist (triangulation + DF).
+- `js/mat-mission-view.js` — in-aircraft scanner tab (map + log + coords). **New.**
+- `js/mat-unifiedlog.js` — Log tab; reads/writes the single `events` store (no
+  more `basicLog`).
 - `js/mat-toast.js` — toast notifications. **New.**
 - `docs/CAP_DOCTRINE_NOTES.md` — **the doctrine reference** (POD table, patterns,
   ELT/DF, grid system, all page-cited). **New.**
@@ -150,17 +187,20 @@ All captured in **`docs/CAP_DOCTRINE_NOTES.md`** (page-cited).
 ---
 
 ## Backlog / suggested next steps
-1. **Wire POD into the Search Planner** (the natural next feature) — show the
-   expected POD (via `MAT.pod.lookup`) for the chosen track spacing/altitude/
-   terrain/visibility next to each generated pattern. Data + SSOT already exist.
-2. **Maximum Possibility Area helper** — circle around LKP, radius = endurance
+1. **Maximum Possibility Area helper** — circle around LKP, radius = endurance
    range, wind-corrected (Inflight Guide p64). Fits Search Planner / Mission Maps.
+2. **Mission View follow-ups** (raised with the user, not yet done): add it to the
+   bottom tab bar for one-tap in-flight access; optional route-annotation on the map
+   for air-to-ground directions; real-device shakedown.
 3. Optional reference adds from `CAP_DOCTRINE_NOTES.md`: visual detection ranges
    (p90), cumulative-POD as a fuller matrix, ELT "locate & silence" ground
    checklist.
 4. Decide on **GitHub Pages** (keep green-build mirror vs disable — see above).
 5. Lower-priority: the heterogeneous map-layer copies could be unified with a
    parameterized builder, but each needs care to avoid behavior changes.
+
+_Done since the original backlog: POD wired into the Search Planner; Mission View
+built; quick-log unified into one store._
 
 ---
 
